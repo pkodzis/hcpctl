@@ -48,22 +48,22 @@ jobs:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
             platform: linux_amd64
-          - target: x86_64-unknown-linux-musl
-            os: ubuntu-latest
-            platform: linux_amd64_musl
-          - target: aarch64-unknown-linux-gnu
-            os: ubuntu-latest
-            platform: linux_arm64
-            use-cross: true
-          - target: x86_64-apple-darwin
-            os: macos-latest
-            platform: macos_amd64
-          - target: aarch64-apple-darwin
-            os: macos-latest
-            platform: macos_arm64
-          - target: x86_64-pc-windows-msvc
-            os: windows-latest
-            platform: windows_amd64
+          # - target: x86_64-unknown-linux-musl
+          #   os: ubuntu-latest
+          #   platform: linux_amd64_musl
+          # - target: aarch64-unknown-linux-gnu
+          #   os: ubuntu-latest
+          #   platform: linux_arm64
+          #   use-cross: true
+          # - target: x86_64-apple-darwin
+          #   os: macos-latest
+          #   platform: macos_amd64
+          # - target: aarch64-apple-darwin
+          #   os: macos-latest
+          #   platform: macos_arm64
+          # - target: x86_64-pc-windows-msvc
+          #   os: windows-latest
+          #   platform: windows_amd64
 
     steps:
       - uses: actions/checkout@v4
