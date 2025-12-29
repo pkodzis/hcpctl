@@ -1,11 +1,11 @@
-# hcp-cli installer for Windows
-# Usage: irm https://raw.githubusercontent.com/pkodzis/hcp-cli/main/scripts/install.ps1 | iex
+# hcpctl installer for Windows
+# Usage: irm https://raw.githubusercontent.com/pkodzis/hcpctl/main/scripts/install.ps1 | iex
 
 $ErrorActionPreference = "Stop"
 
-$Repo = "pkodzis/hcp-cli"
-$BinaryName = "hcp-cli"
-$InstallDir = "$env:LOCALAPPDATA\hcp-cli"
+$Repo = "pkodzis/hcpctl"
+$BinaryName = "hcpctl"
+$InstallDir = "$env:LOCALAPPDATA\hcpctl"
 
 function Write-Info { param($msg) Write-Host "[INFO] $msg" -ForegroundColor Green }
 function Write-Warn { param($msg) Write-Host "[WARN] $msg" -ForegroundColor Yellow }

@@ -113,7 +113,7 @@ impl TokenResolver {
         format!(
             "No API token found for host '{}'. Please provide a token using one of:\n\
              \n\
-             1. CLI argument:      hcp-cli --token <TOKEN>\n\
+             1. CLI argument:      hcpctl --token <TOKEN>\n\
              2. Environment var:   export HCP_TOKEN=<TOKEN>  (also: TFC_TOKEN, TFE_TOKEN)\n\
              3. Terraform login:   terraform login {}\n\
              \n\

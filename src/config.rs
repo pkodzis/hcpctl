@@ -6,6 +6,9 @@ pub mod api {
     /// Organizations endpoint
     pub const ORGANIZATIONS: &str = "organizations";
 
+    /// Projects endpoint
+    pub const PROJECTS: &str = "projects";
+
     /// Workspaces endpoint
     pub const WORKSPACES: &str = "workspaces";
 

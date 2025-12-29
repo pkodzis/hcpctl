@@ -1,11 +1,11 @@
 [package]
-name = "hcp-cli"
-version = "0.3.0"
+name = "hcpctl"
+version = "0.0.0"
 edition = "2021"
 description = "CLI tool to explore Hashicorp Cloud"
 authors = ["Piotr Kodzis"]
 license = "MIT"
-repository = "https://github.com/pkodzis/hcp-cli"
+repository = "https://github.com/pkodzis/hcpctl"
 keywords = ["hashicorp", "terraform", "hcp", "cli", "cloud"]
 categories = ["command-line-utilities"]
 
@@ -27,9 +27,9 @@ assert_cmd = "2.0"
 predicates = "3.0"
 
 [lib]
-name = "hcp_cli"
+name = "hcpctl"
 path = "src/lib.rs"
 
 [[bin]]
-name = "hcp-cli"
+name = "hcpctl"
 path = "src/main.rs"

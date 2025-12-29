@@ -1,27 +1,9 @@
-//! TFE API data models
+//! Workspace data models
 
 use serde::Deserialize;
 
-/// Response wrapper for organizations list
-#[derive(Deserialize, Debug)]
-pub struct OrganizationsResponse {
-    pub data: Vec<Organization>,
-}
-
-/// Organization data from TFE API
-#[derive(Deserialize, Debug, Clone)]
-pub struct Organization {
-    pub id: String,
-    #[serde(rename = "type")]
-    pub org_type: Option<String>,
-}
-
-impl Organization {
-    /// Get the organization name (same as id in TFE)
-    pub fn name(&self) -> &str {
-        &self.id
-    }
-}
+use crate::hcp::traits::TfeResource;
+use crate::hcp::PaginationMeta;
 
 /// Response wrapper for workspaces list
 #[derive(Deserialize, Debug)]
@@ -31,21 +13,10 @@ pub struct WorkspacesResponse {
     pub meta: Option<PaginationMeta>,
 }
 
-/// Pagination metadata from TFE API
-#[derive(Deserialize, Debug, Default)]
-pub struct PaginationMeta {
-    pub pagination: Option<Pagination>,
-}
-
-/// Pagination details
+/// Response wrapper for single workspace
 #[derive(Deserialize, Debug)]
-pub struct Pagination {
-    #[serde(rename = "current-page")]
-    pub current_page: u32,
-    #[serde(rename = "total-pages")]
-    pub total_pages: u32,
-    #[serde(rename = "total-count")]
-    pub total_count: u32,
+pub struct WorkspaceResponse {
+    pub data: Workspace,
 }
 
 /// Workspace data from TFE API
@@ -53,15 +24,42 @@ pub struct Pagination {
 pub struct Workspace {
     pub id: String,
     pub attributes: WorkspaceAttributes,
+    pub relationships: Option<WorkspaceRelationships>,
+}
+
+/// Workspace relationships from TFE API
+#[derive(Deserialize, Debug, Clone)]
+pub struct WorkspaceRelationships {
+    pub project: Option<RelationshipData>,
+    pub organization: Option<RelationshipData>,
+}
+
+/// Generic relationship data
+#[derive(Deserialize, Debug, Clone)]
+pub struct RelationshipData {
+    pub data: Option<RelationshipId>,
+}
+
+/// Relationship ID reference
+#[derive(Deserialize, Debug, Clone)]
+pub struct RelationshipId {
+    pub id: String,
+    #[serde(rename = "type")]
+    pub rel_type: Option<String>,
+}
+
+impl TfeResource for Workspace {
+    fn id(&self) -> &str {
+        &self.id
+    }
+
+    fn name(&self) -> &str {
+        &self.attributes.name
+    }
 }
 
 impl Workspace {
-    /// Get the workspace name
-    pub fn name(&self) -> &str {
-        &self.attributes.name
-    }
-
-    /// Check if workspace name contains the given filter
+    /// Check if workspace name contains the given filter (substring match)
     pub fn matches_filter(&self, filter: &str) -> bool {
         self.attributes.name.contains(filter)
     }
@@ -95,6 +93,24 @@ impl Workspace {
     /// Get updated_at timestamp, defaulting to empty string if not available
     pub fn updated_at(&self) -> &str {
         self.attributes.updated_at.as_deref().unwrap_or("")
+    }
+
+    /// Get project ID if available
+    pub fn project_id(&self) -> Option<&str> {
+        self.relationships
+            .as_ref()
+            .and_then(|r| r.project.as_ref())
+            .and_then(|p| p.data.as_ref())
+            .map(|d| d.id.as_str())
+    }
+
+    /// Get organization name if available (from relationships)
+    pub fn organization_name(&self) -> Option<&str> {
+        self.relationships
+            .as_ref()
+            .and_then(|r| r.organization.as_ref())
+            .and_then(|o| o.data.as_ref())
+            .map(|d| d.id.as_str())
     }
 }
 
@@ -133,6 +149,7 @@ mod tests {
                 terraform_version: Some("1.5.0".to_string()),
                 updated_at: None,
             },
+            relationships: None,
         }
     }
 
@@ -162,6 +179,7 @@ mod tests {
                 terraform_version: None,
                 updated_at: None,
             },
+            relationships: None,
         };
         assert_eq!(ws.resource_count(), 0);
     }
@@ -173,6 +191,37 @@ mod tests {
 
         assert!(locked_ws.is_locked());
         assert!(!unlocked_ws.is_locked());
+    }
+
+    #[test]
+    fn test_workspace_project_id() {
+        let ws = Workspace {
+            id: "ws-123".to_string(),
+            attributes: WorkspaceAttributes {
+                name: "test".to_string(),
+                execution_mode: None,
+                resource_count: None,
+                locked: None,
+                terraform_version: None,
+                updated_at: None,
+            },
+            relationships: Some(WorkspaceRelationships {
+                project: Some(RelationshipData {
+                    data: Some(RelationshipId {
+                        id: "prj-456".to_string(),
+                        rel_type: Some("projects".to_string()),
+                    }),
+                }),
+                organization: None,
+            }),
+        };
+        assert_eq!(ws.project_id(), Some("prj-456"));
+    }
+
+    #[test]
+    fn test_workspace_project_id_none() {
+        let ws = create_test_workspace("test", false);
+        assert_eq!(ws.project_id(), None);
     }
 
     #[test]
@@ -193,5 +242,30 @@ mod tests {
         assert_eq!(ws.name(), "my-workspace");
         assert_eq!(ws.resource_count(), 50);
         assert!(ws.is_locked());
+    }
+
+    #[test]
+    fn test_workspace_deserialization_with_relationships() {
+        let json = r#"{
+            "id": "ws-abc123",
+            "attributes": {
+                "name": "my-workspace",
+                "execution-mode": "remote",
+                "resource-count": 50,
+                "locked": true,
+                "terraform-version": "1.6.0"
+            },
+            "relationships": {
+                "project": {
+                    "data": {
+                        "id": "prj-xyz",
+                        "type": "projects"
+                    }
+                }
+            }
+        }"#;
+
+        let ws: Workspace = serde_json::from_str(json).unwrap();
+        assert_eq!(ws.project_id(), Some("prj-xyz"));
     }
 }
