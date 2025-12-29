@@ -1,14 +1,11 @@
-name: Release Build
+name: Manual Release Build
 
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
     inputs:
       version:
         description: "Version tag (e.g., v0.2.0)"
-        required: false
+        required: true
 
 env:
   CARGO_TERM_COLOR: always
@@ -69,7 +66,7 @@ jobs:
       - name: Prepare package
         shell: bash
         run: |
-          VERSION="${GITHUB_REF_NAME:-${{ github.event.inputs.version || 'dev' }}}"
+          VERSION="${{ github.event.inputs.version }}"
 
           mkdir -p dist package
 

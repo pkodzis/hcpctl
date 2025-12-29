@@ -9,6 +9,10 @@ permissions:
   contents: write
   pull-requests: write
 
+env:
+  CARGO_TERM_COLOR: always
+  BINARY_NAME: hcp-cli
+
 jobs:
   release-please:
     runs-on: ubuntu-latest
@@ -18,6 +22,104 @@ jobs:
     steps:
       - name: Release Please
         id: release
-        uses: google-github-actions/release-please-action@v4
+        uses: googleapis/release-please-action@v4
         with:
           release-type: rust
+
+  build:
+    name: Build ${{ matrix.target }}
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # - target: x86_64-unknown-linux-gnu
+          #   os: ubuntu-latest
+          #   platform: linux_amd64
+          # - target: x86_64-unknown-linux-musl
+          #   os: ubuntu-latest
+          #   platform: linux_amd64_musl
+          # - target: aarch64-unknown-linux-gnu
+          #   os: ubuntu-latest
+          #   platform: linux_arm64
+          #   use-cross: true
+          # - target: x86_64-apple-darwin
+          #   os: macos-latest
+          #   platform: macos_amd64
+          # - target: aarch64-apple-darwin
+          #   os: macos-latest
+          #   platform: macos_arm64
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            platform: windows_amd64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install musl tools (Linux musl)
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+
+      - name: Install cross (ARM64)
+        if: matrix.use-cross
+        run: cargo install cross
+
+      - name: Build (cross)
+        if: matrix.use-cross
+        run: cross build --release --target ${{ matrix.target }}
+
+      - name: Build (cargo)
+        if: ${{ !matrix.use-cross }}
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Prepare package
+        shell: bash
+        run: |
+          VERSION="${{ needs.release-please.outputs.tag_name }}"
+
+          mkdir -p dist package
+
+          if [[ "${{ matrix.platform }}" == windows_* ]]; then
+            cp "target/${{ matrix.target }}/release/${{ env.BINARY_NAME }}.exe" "package/${{ env.BINARY_NAME }}.exe"
+            PACKAGE_NAME="${{ env.BINARY_NAME }}_\${VERSION}_${{ matrix.platform }}.zip"
+            (cd package && zip -9 "../dist/\${PACKAGE_NAME}" "${{ env.BINARY_NAME }}.exe")
+          else
+            cp "target/${{ matrix.target }}/release/${{ env.BINARY_NAME }}" "package/${{ env.BINARY_NAME }}"
+            chmod +x "package/${{ env.BINARY_NAME }}"
+            PACKAGE_NAME="${{ env.BINARY_NAME }}_\${VERSION}_${{ matrix.platform }}.tar.gz"
+            (cd package && tar -czf "../dist/\${PACKAGE_NAME}" "${{ env.BINARY_NAME }}")
+          fi
+
+          echo "ARTIFACT_NAME=\${PACKAGE_NAME}" >> \$GITHUB_ENV
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: dist/${{ env.ARTIFACT_NAME }}
+
+  upload-release:
+    name: Upload Release Assets
+    needs: [release-please, build]
+    runs-on: ubuntu-latest
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.release-please.outputs.tag_name }}
+          files: dist/*
