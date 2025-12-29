@@ -1,19 +1,45 @@
-name: Manual Release Build
+name: Release
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       version:
-        description: "Version tag (e.g., v0.2.0)"
+        description: "Version tag for manual build (e.g., v0.2.0)"
         required: true
+
+permissions:
+  contents: write
+  pull-requests: write
 
 env:
   CARGO_TERM_COLOR: always
   BINARY_NAME: hcp-cli
 
 jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - name: Release Please
+        id: release
+        uses: googleapis/release-please-action@v4
+        with:
+          release-type: rust
+
   build:
     name: Build ${{ matrix.target }}
+    needs: release-please
+    # always() is required to evaluate the condition even when release-please is skipped (workflow_dispatch).
+    # Without it, this job would be auto-skipped due to skipped dependency.
+    if: |
+      always() && 
+      (needs.release-please.outputs.release_created == 'true' || github.event_name == 'workflow_dispatch')
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -66,14 +92,14 @@ jobs:
       - name: Prepare package
         shell: bash
         run: |
-          VERSION="${{ github.event.inputs.version }}"
+          VERSION="${{ needs.release-please.outputs.tag_name || github.event.inputs.version }}"
 
           mkdir -p dist package
 
           if [[ "${{ matrix.platform }}" == windows_* ]]; then
             cp "target/${{ matrix.target }}/release/${{ env.BINARY_NAME }}.exe" "package/${{ env.BINARY_NAME }}.exe"
             PACKAGE_NAME="${{ env.BINARY_NAME }}_${VERSION}_${{ matrix.platform }}.zip"
-            (cd package && zip -9 "../dist/${PACKAGE_NAME}" "${{ env.BINARY_NAME }}.exe")
+            (cd package && 7z a -tzip "../dist/${PACKAGE_NAME}" "${{ env.BINARY_NAME }}.exe")
           else
             cp "target/${{ matrix.target }}/release/${{ env.BINARY_NAME }}" "package/${{ env.BINARY_NAME }}"
             chmod +x "package/${{ env.BINARY_NAME }}"
@@ -89,11 +115,15 @@ jobs:
           name: ${{ env.ARTIFACT_NAME }}
           path: dist/${{ env.ARTIFACT_NAME }}
 
-  release:
-    name: Create Release
-    needs: build
+  upload-release:
+    name: Upload Release Assets
+    needs: [release-please, build]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
+    # always() needed for same reason as build job - release-please may be skipped
+    if: |
+      always() && 
+      needs.build.result == 'success' &&
+      (needs.release-please.outputs.release_created == 'true' || github.event_name == 'workflow_dispatch')
 
     steps:
       - name: Download all artifacts
@@ -102,8 +132,8 @@ jobs:
           path: dist
           merge-multiple: true
 
-      - name: Create Release
+      - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v1
         with:
+          tag_name: ${{ needs.release-please.outputs.tag_name || github.event.inputs.version }}
           files: dist/*
-          generate_release_notes: true
