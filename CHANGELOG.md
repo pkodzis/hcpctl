@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/pkodzis/hcp-cli/compare/v0.2.0...v0.3.0) (2025-12-29)
+
+
+### Features
+
+* still init work ([f273d59](https://github.com/pkodzis/hcp-cli/commit/f273d5926c2d4fd564d041a0e177f77fd9fba737))
+
 ## [0.2.0](https://github.com/pkodzis/hcp-cli/compare/v0.1.0...v0.2.0) (2025-12-29)
 
 
