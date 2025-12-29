@@ -132,6 +132,28 @@ jobs:
           path: dist
           merge-multiple: true
 
+      - name: Generate SHA256SUMS
+        run: |
+          cd dist
+          sha256sum * > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Import GPG key
+        if: ${{ vars.GPG_SIGNING_ENABLED == 'true' }}
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+        run: |
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+
+      - name: Sign SHA256SUMS
+        if: ${{ vars.GPG_SIGNING_ENABLED == 'true' }}
+        env:
+          GPG_KEY_ID: ${{ secrets.GPG_KEY_ID }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          cd dist
+          gpg --batch --yes --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" --local-user "$GPG_KEY_ID" --detach-sign --output SHA256SUMS.sig SHA256SUMS
+
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v1
         with:
