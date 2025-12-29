@@ -15,11 +15,14 @@ pub mod api {
 
 /// Configuration constants for credentials
 pub mod credentials {
-    /// Path to Terraform credentials file (relative to HOME)
-    pub const FILE_PATH: &str = ".terraform.d/credentials.tfrc.json";
+    /// Credentials file name
+    pub const FILE_NAME: &str = "terraform.d/credentials.tfrc.json";
 
-    /// Environment variable name for TFE token
-    pub const TOKEN_ENV_VAR: &str = "TFE_TOKEN";
+    /// Path to Terraform credentials file on Unix (relative to HOME)
+    pub const FILE_PATH_UNIX: &str = ".terraform.d/credentials.tfrc.json";
+
+    /// Environment variable names for token (checked in order)
+    pub const TOKEN_ENV_VARS: &[&str] = &["HCP_TOKEN", "TFC_TOKEN", "TFE_TOKEN"];
 }
 
 /// Default values for CLI
@@ -41,8 +44,11 @@ mod tests {
     }
 
     #[test]
-    fn test_credentials_env_var_name() {
-        assert_eq!(credentials::TOKEN_ENV_VAR, "TFE_TOKEN");
+    fn test_credentials_env_vars() {
+        assert_eq!(
+            credentials::TOKEN_ENV_VARS,
+            &["HCP_TOKEN", "TFC_TOKEN", "TFE_TOKEN"]
+        );
     }
 
     #[test]

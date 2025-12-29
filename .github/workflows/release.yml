@@ -1,117 +1,112 @@
 name: Release Build
 
 on:
-    push:
-        tags:
-            - "v*"
-    workflow_dispatch:
-        inputs:
-            version:
-                description: "Version tag (e.g., v0.2.0)"
-                required: false
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version tag (e.g., v0.2.0)"
+        required: false
 
 env:
-    CARGO_TERM_COLOR: always
+  CARGO_TERM_COLOR: always
+  BINARY_NAME: hcp-cli
 
 jobs:
-    build:
-        name: Build ${{ matrix.target }}
-        runs-on: ${{ matrix.os }}
-        strategy:
-            fail-fast: false
-            matrix:
-                include:
-                    # Linux x86_64
-                    - target: x86_64-unknown-linux-gnu
-                      os: ubuntu-latest
-                      artifact: hcp-cli
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # - target: x86_64-unknown-linux-gnu
+          #   os: ubuntu-latest
+          #   platform: linux_amd64
+          # - target: x86_64-unknown-linux-musl
+          #   os: ubuntu-latest
+          #   platform: linux_amd64_musl
+          # - target: aarch64-unknown-linux-gnu
+          #   os: ubuntu-latest
+          #   platform: linux_arm64
+          #   use-cross: true
+          # - target: x86_64-apple-darwin
+          #   os: macos-latest
+          #   platform: macos_amd64
+          # - target: aarch64-apple-darwin
+          #   os: macos-latest
+          #   platform: macos_arm64
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            platform: windows_amd64
 
-                    # Linux x86_64 static (musl)
-                    - target: x86_64-unknown-linux-musl
-                      os: ubuntu-latest
-                      artifact: hcp-cli
+    steps:
+      - uses: actions/checkout@v4
 
-                    # Linux ARM64
-                    - target: aarch64-unknown-linux-gnu
-                      os: ubuntu-latest
-                      artifact: hcp-cli
-                      use-cross: true
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
 
-                    # macOS Intel
-                    - target: x86_64-apple-darwin
-                      os: macos-latest
-                      artifact: hcp-cli
+      - name: Install musl tools (Linux musl)
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
 
-                    # macOS Apple Silicon
-                    - target: aarch64-apple-darwin
-                      os: macos-latest
-                      artifact: hcp-cli
+      - name: Install cross (ARM64)
+        if: matrix.use-cross
+        run: cargo install cross
 
-                    # Windows
-                    - target: x86_64-pc-windows-msvc
-                      os: windows-latest
-                      artifact: hcp-cli.exe
+      - name: Build (cross)
+        if: matrix.use-cross
+        run: cross build --release --target ${{ matrix.target }}
 
-        steps:
-            - uses: actions/checkout@v4
+      - name: Build (cargo)
+        if: ${{ !matrix.use-cross }}
+        run: cargo build --release --target ${{ matrix.target }}
 
-            - name: Install Rust
-              uses: dtolnay/rust-toolchain@stable
-              with:
-                targets: ${{ matrix.target }}
+      - name: Prepare package
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME:-${{ github.event.inputs.version || 'dev' }}}"
 
-            - name: Install musl tools (Linux musl)
-              if: matrix.target == 'x86_64-unknown-linux-musl'
-              run: sudo apt-get update && sudo apt-get install -y musl-tools
+          mkdir -p dist package
 
-            - name: Install cross (ARM64)
-              if: matrix.use-cross
-              run: cargo install cross
+          if [[ "${{ matrix.platform }}" == windows_* ]]; then
+            cp "target/${{ matrix.target }}/release/${{ env.BINARY_NAME }}.exe" "package/${{ env.BINARY_NAME }}.exe"
+            PACKAGE_NAME="${{ env.BINARY_NAME }}_${VERSION}_${{ matrix.platform }}.zip"
+            (cd package && zip -9 "../dist/${PACKAGE_NAME}" "${{ env.BINARY_NAME }}.exe")
+          else
+            cp "target/${{ matrix.target }}/release/${{ env.BINARY_NAME }}" "package/${{ env.BINARY_NAME }}"
+            chmod +x "package/${{ env.BINARY_NAME }}"
+            PACKAGE_NAME="${{ env.BINARY_NAME }}_${VERSION}_${{ matrix.platform }}.tar.gz"
+            (cd package && tar -czf "../dist/${PACKAGE_NAME}" "${{ env.BINARY_NAME }}")
+          fi
 
-            - name: Build (cross)
-              if: matrix.use-cross
-              run: cross build --release --target ${{ matrix.target }}
+          echo "ARTIFACT_NAME=${PACKAGE_NAME}" >> $GITHUB_ENV
 
-            - name: Build (cargo)
-              if: ${{ !matrix.use-cross }}
-              run: cargo build --release --target ${{ matrix.target }}
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: dist/${{ env.ARTIFACT_NAME }}
 
-            - name: Prepare artifact
-              shell: bash
-              run: |
-                  VERSION=${GITHUB_REF_NAME:-${{ github.event.inputs.version || 'dev' }}}
-                  ARTIFACT_NAME="hcp-cli-${VERSION}-${{ matrix.target }}"
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
 
-                  if [[ "${{ matrix.target }}" == *"windows"* ]]; then
-                    ARTIFACT_NAME="${ARTIFACT_NAME}.exe"
-                  fi
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
 
-                  mkdir -p dist
-                  cp "target/${{ matrix.target }}/release/${{ matrix.artifact }}" "dist/${ARTIFACT_NAME}"
-
-                  echo "ARTIFACT_NAME=${ARTIFACT_NAME}" >> $GITHUB_ENV
-
-            - name: Upload artifact
-              uses: actions/upload-artifact@v4
-              with:
-                  name: ${{ env.ARTIFACT_NAME }}
-                  path: dist/${{ env.ARTIFACT_NAME }}
-
-    release:
-        name: Create Release
-        needs: build
-        runs-on: ubuntu-latest
-        if: startsWith(github.ref, 'refs/tags/')
-
-        steps:
-            - name: Download all artifacts
-              uses: actions/download-artifact@v4
-              with:
-                  path: dist
-                  merge-multiple: true
-
-            - name: Create Release
-              uses: softprops/action-gh-release@v1
-              with:
-                  files: dist/*
-                  generate_release_notes: true
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: dist/*
+          generate_release_notes: true

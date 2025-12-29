@@ -22,9 +22,9 @@ pub struct Cli {
     #[arg(short = 'H', long, default_value = defaults::HOST)]
     pub host: String,
 
-    /// TFE API token (overrides env var and credentials file)
-    #[arg(long, env = "TFE_TOKEN")]
-    pub tfe_token: Option<String>,
+    /// API token (overrides env vars and credentials file)
+    #[arg(short = 't', long)]
+    pub token: Option<String>,
 
     /// Log level (error, warn, info, debug, trace)
     #[arg(short, long, default_value = defaults::LOG_LEVEL)]

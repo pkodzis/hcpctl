@@ -24,8 +24,8 @@ impl fmt::Display for TfeError {
             TfeError::Api { status, message } => {
                 write!(f, "API error (status {}): {}", status, message)
             }
-            TfeError::TokenNotFound(msg) => write!(f, "Token not found: {}", msg),
-            TfeError::Credentials(msg) => write!(f, "Credentials error: {}", msg),
+            TfeError::TokenNotFound(msg) => write!(f, "{}", msg),
+            TfeError::Credentials(msg) => write!(f, "{}", msg),
             TfeError::Json(msg) => write!(f, "JSON error: {}", msg),
             TfeError::Config(msg) => write!(f, "Configuration error: {}", msg),
         }
@@ -75,7 +75,6 @@ mod tests {
     #[test]
     fn test_error_display() {
         let err = TfeError::TokenNotFound("test host".to_string());
-        assert!(err.to_string().contains("Token not found"));
         assert!(err.to_string().contains("test host"));
     }
 

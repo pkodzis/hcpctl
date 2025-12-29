@@ -4,11 +4,20 @@ use clap::Parser;
 use futures::future::join_all;
 use indicatif::{ProgressBar, ProgressStyle};
 use log::{debug, info};
+use std::process::ExitCode;
 
 use hcp_cli::{output_results_sorted, Cli, SortOptions, TfeClient, TokenResolver, Workspace};
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> ExitCode {
+    if let Err(e) = run().await {
+        eprintln!("\n{}\n", e);
+        return ExitCode::FAILURE;
+    }
+    ExitCode::SUCCESS
+}
+
+async fn run() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
     // Initialize logging
@@ -23,7 +32,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Resolve token with fallback logic
     let token_resolver = TokenResolver::new(&cli.host);
-    let token = token_resolver.resolve(cli.tfe_token.as_deref())?;
+    let token = token_resolver.resolve(cli.token.as_deref())?;
 
     // Create TFE client
     let client = TfeClient::new(token, cli.host.clone());
@@ -83,9 +92,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let results = join_all(futures).await;
 
-    // Stop spinner
-    spinner.finish_with_message("Workspaces fetched successfully!");
-
     // Collect successful results and report errors
     let mut all_workspaces: Vec<(String, Vec<Workspace>)> = Vec::new();
     let mut had_errors = false;
@@ -96,19 +102,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 all_workspaces.push((org, workspaces));
             }
             Err((org, e)) => {
-                eprintln!("Error fetching workspaces for org '{}': {}", org, e);
                 had_errors = true;
+                spinner.suspend(|| {
+                    eprintln!("Error fetching workspaces for org '{}':\n  {}\n", org, e);
+                });
             }
         }
     }
 
-    // Output results with sorting options
-    let sort_options = SortOptions {
-        field: cli.sort,
-        reverse: cli.reverse,
-        group_by_org: !cli.no_group,
-    };
-    output_results_sorted(all_workspaces, &cli.format, &sort_options);
+    // Stop spinner with appropriate message
+    if had_errors && all_workspaces.is_empty() {
+        spinner.finish_and_clear();
+    } else if had_errors {
+        spinner.finish_with_message("Completed with errors");
+    } else {
+        spinner.finish_with_message("Done");
+    }
+
+    // Output results only if we have data
+    if !all_workspaces.is_empty() {
+        let sort_options = SortOptions {
+            field: cli.sort,
+            reverse: cli.reverse,
+            group_by_org: !cli.no_group,
+        };
+        output_results_sorted(all_workspaces, &cli.format, &sort_options);
+    }
 
     if had_errors {
         info!("Completed with some errors");
