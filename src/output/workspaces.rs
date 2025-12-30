@@ -37,9 +37,9 @@ impl WorkspaceRow {
     }
 }
 
-/// Serializable workspace for JSON output
+/// Serializable workspace for structured output (JSON/YAML)
 #[derive(Serialize)]
-struct JsonWorkspace {
+struct SerializableWorkspace {
     org: String,
     project_id: String,
     workspace_name: String,
@@ -51,7 +51,7 @@ struct JsonWorkspace {
     updated_at: String,
 }
 
-impl From<&WorkspaceRow> for JsonWorkspace {
+impl From<&WorkspaceRow> for SerializableWorkspace {
     fn from(row: &WorkspaceRow) -> Self {
         Self {
             org: row.org.clone(),
@@ -73,6 +73,7 @@ pub fn output_workspaces(rows: &[WorkspaceRow], format: &OutputFormat, no_header
         OutputFormat::Table => output_table(rows, no_header),
         OutputFormat::Csv => output_csv(rows, no_header),
         OutputFormat::Json => output_json(rows),
+        OutputFormat::Yaml => output_yaml(rows),
     }
 }
 
@@ -137,11 +138,13 @@ fn output_csv(rows: &[WorkspaceRow], no_header: bool) {
 }
 
 fn output_json(rows: &[WorkspaceRow]) {
-    let json_workspaces: Vec<JsonWorkspace> = rows.iter().map(JsonWorkspace::from).collect();
-    println!(
-        "{}",
-        serde_json::to_string_pretty(&json_workspaces).unwrap()
-    );
+    let data: Vec<SerializableWorkspace> = rows.iter().map(SerializableWorkspace::from).collect();
+    println!("{}", serde_json::to_string_pretty(&data).unwrap());
+}
+
+fn output_yaml(rows: &[WorkspaceRow]) {
+    let data: Vec<SerializableWorkspace> = rows.iter().map(SerializableWorkspace::from).collect();
+    println!("{}", serde_yaml::to_string(&data).unwrap());
 }
 
 #[cfg(test)]
@@ -180,7 +183,7 @@ mod tests {
     }
 
     #[test]
-    fn test_json_from_row() {
+    fn test_serializable_from_row() {
         let row = WorkspaceRow {
             org: "test-org".to_string(),
             project_id: "prj-123".to_string(),
@@ -193,11 +196,11 @@ mod tests {
             updated_at: "2024-01-01T00:00:00Z".to_string(),
         };
 
-        let json_ws = JsonWorkspace::from(&row);
-        assert_eq!(json_ws.org, "test-org");
-        assert_eq!(json_ws.project_id, "prj-123");
-        assert_eq!(json_ws.workspace_name, "test-ws");
-        assert!(json_ws.locked);
+        let serialized_ws = SerializableWorkspace::from(&row);
+        assert_eq!(serialized_ws.org, "test-org");
+        assert_eq!(serialized_ws.project_id, "prj-123");
+        assert_eq!(serialized_ws.workspace_name, "test-ws");
+        assert!(serialized_ws.locked);
     }
 
     #[test]
@@ -206,6 +209,7 @@ mod tests {
         output_workspaces(&[], &OutputFormat::Table, false);
         output_workspaces(&[], &OutputFormat::Csv, false);
         output_workspaces(&[], &OutputFormat::Json, false);
+        output_workspaces(&[], &OutputFormat::Yaml, false);
     }
 
     #[test]

@@ -9,9 +9,9 @@ use serde::Serialize;
 /// Project row type alias
 pub type ProjectRow = (String, Project, ProjectWorkspaces);
 
-/// Serializable workspace for JSON output (subset of fields)
+/// Serializable workspace for structured output (JSON/YAML) - subset of fields
 #[derive(Serialize)]
-struct JsonWorkspace {
+struct SerializableWorkspace {
     id: String,
     name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -22,9 +22,9 @@ struct JsonWorkspace {
     locked: bool,
 }
 
-impl From<&Workspace> for JsonWorkspace {
+impl From<&Workspace> for SerializableWorkspace {
     fn from(ws: &Workspace) -> Self {
-        JsonWorkspace {
+        SerializableWorkspace {
             id: ws.id.clone(),
             name: ws.attributes.name.clone(),
             terraform_version: ws.attributes.terraform_version.clone(),
@@ -35,16 +35,16 @@ impl From<&Workspace> for JsonWorkspace {
     }
 }
 
-/// Serializable project for JSON output
+/// Serializable project for structured output (JSON/YAML)
 #[derive(Serialize)]
-struct JsonProject {
+struct SerializableProject {
     org: String,
     name: String,
     id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     workspace_count: Option<usize>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    workspaces: Option<Vec<JsonWorkspace>>,
+    workspaces: Option<Vec<SerializableWorkspace>>,
     description: String,
 }
 
@@ -80,6 +80,7 @@ pub fn output_projects(projects: &[ProjectRow], cli: &Cli) {
             show_details,
         ),
         OutputFormat::Json => output_json(projects, show_ws, show_details),
+        OutputFormat::Yaml => output_yaml(projects, show_ws, show_details),
     }
 }
 
@@ -211,23 +212,43 @@ fn output_csv(
     }
 }
 
-fn output_json(projects: &[ProjectRow], show_ws: bool, show_details: bool) {
-    let json: Vec<JsonProject> = projects
+/// Build serializable project data (reusable for JSON and YAML)
+fn build_serializable_projects(
+    projects: &[ProjectRow],
+    show_ws: bool,
+    show_details: bool,
+) -> Vec<SerializableProject> {
+    projects
         .iter()
-        .map(|(org_name, p, ws_info)| JsonProject {
+        .map(|(org_name, p, ws_info)| SerializableProject {
             org: org_name.clone(),
             name: p.name().to_string(),
             id: p.id.clone(),
             workspace_count: if show_ws { Some(ws_info.count()) } else { None },
             workspaces: if show_details {
-                Some(ws_info.workspaces.iter().map(JsonWorkspace::from).collect())
+                Some(
+                    ws_info
+                        .workspaces
+                        .iter()
+                        .map(SerializableWorkspace::from)
+                        .collect(),
+                )
             } else {
                 None
             },
             description: p.description().to_string(),
         })
-        .collect();
-    println!("{}", serde_json::to_string_pretty(&json).unwrap());
+        .collect()
+}
+
+fn output_json(projects: &[ProjectRow], show_ws: bool, show_details: bool) {
+    let data = build_serializable_projects(projects, show_ws, show_details);
+    println!("{}", serde_json::to_string_pretty(&data).unwrap());
+}
+
+fn output_yaml(projects: &[ProjectRow], show_ws: bool, show_details: bool) {
+    let data = build_serializable_projects(projects, show_ws, show_details);
+    println!("{}", serde_yaml::to_string(&data).unwrap());
 }
 
 #[cfg(test)]
@@ -327,6 +348,17 @@ mod tests {
         )];
         // Should not panic
         output_json(&projects, true, true);
+    }
+
+    #[test]
+    fn test_output_yaml() {
+        let projects = vec![(
+            "test-org".to_string(),
+            create_test_project(),
+            create_test_ws_info(),
+        )];
+        // Should not panic
+        output_yaml(&projects, true, true);
     }
 
     #[test]

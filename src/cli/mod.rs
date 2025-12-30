@@ -190,6 +190,8 @@ pub enum OutputFormat {
     Csv,
     /// JSON array
     Json,
+    /// YAML format
+    Yaml,
 }
 
 /// Sort field options for projects
@@ -220,6 +222,7 @@ impl std::fmt::Display for OutputFormat {
             OutputFormat::Table => write!(f, "table"),
             OutputFormat::Csv => write!(f, "csv"),
             OutputFormat::Json => write!(f, "json"),
+            OutputFormat::Yaml => write!(f, "yaml"),
         }
     }
 }
@@ -253,6 +256,7 @@ mod tests {
         assert_eq!(OutputFormat::Table.to_string(), "table");
         assert_eq!(OutputFormat::Csv.to_string(), "csv");
         assert_eq!(OutputFormat::Json.to_string(), "json");
+        assert_eq!(OutputFormat::Yaml.to_string(), "yaml");
     }
 
     #[test]

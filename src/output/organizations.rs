@@ -6,14 +6,14 @@ use crate::hcp::{Organization, TfeResource};
 use comfy_table::{presets::NOTHING, Table};
 use serde::Serialize;
 
-/// Serializable organization for JSON output
+/// Serializable organization for structured output (JSON/YAML)
 #[derive(Serialize)]
-struct JsonOrganization {
+struct SerializableOrganization {
     name: String,
     id: String,
 }
 
-impl From<&Organization> for JsonOrganization {
+impl From<&Organization> for SerializableOrganization {
     fn from(org: &Organization) -> Self {
         Self {
             name: org.name().to_string(),
@@ -35,6 +35,7 @@ pub fn output_organizations(orgs: &[Organization], cli: &Cli) {
         OutputFormat::Table => output_table(orgs, cli.no_header),
         OutputFormat::Csv => output_csv(orgs, cli.no_header),
         OutputFormat::Json => output_json(orgs),
+        OutputFormat::Yaml => output_yaml(orgs),
     }
 }
 
@@ -66,8 +67,13 @@ fn output_csv(orgs: &[Organization], no_header: bool) {
 }
 
 fn output_json(orgs: &[Organization]) {
-    let json: Vec<JsonOrganization> = orgs.iter().map(|o| o.into()).collect();
-    println!("{}", serde_json::to_string_pretty(&json).unwrap());
+    let data: Vec<SerializableOrganization> = orgs.iter().map(|o| o.into()).collect();
+    println!("{}", serde_json::to_string_pretty(&data).unwrap());
+}
+
+fn output_yaml(orgs: &[Organization]) {
+    let data: Vec<SerializableOrganization> = orgs.iter().map(|o| o.into()).collect();
+    println!("{}", serde_yaml::to_string(&data).unwrap());
 }
 
 #[cfg(test)]
@@ -112,6 +118,13 @@ mod tests {
         let orgs = vec![create_test_org()];
         // Should not panic
         output_json(&orgs);
+    }
+
+    #[test]
+    fn test_output_yaml() {
+        let orgs = vec![create_test_org()];
+        // Should not panic
+        output_yaml(&orgs);
     }
 
     #[test]
