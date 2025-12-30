@@ -75,9 +75,11 @@ impl TfeClient {
     }
 
     /// Get a single project by ID (direct API call, no org needed)
-    pub async fn get_project_by_id(&self, project_id: &str) -> Result<Option<Project>> {
-        use super::models::ProjectResponse;
-
+    /// Returns both the typed model and raw JSON for flexible output
+    pub async fn get_project_by_id(
+        &self,
+        project_id: &str,
+    ) -> Result<Option<(Project, serde_json::Value)>> {
         let url = format!("{}/{}/{}", self.base_url(), api::PROJECTS, project_id);
         debug!("Fetching project directly by ID: {}", url);
 
@@ -85,8 +87,15 @@ impl TfeClient {
 
         match response.status().as_u16() {
             200 => {
-                let prj_response: ProjectResponse = response.json().await?;
-                Ok(Some(prj_response.data))
+                // First get raw JSON
+                let raw: serde_json::Value = response.json().await?;
+                // Then deserialize model from the same data
+                let project: Project =
+                    serde_json::from_value(raw["data"].clone()).map_err(|e| TfeError::Api {
+                        status: 200,
+                        message: format!("Failed to parse project: {}", e),
+                    })?;
+                Ok(Some((project, raw)))
             }
             404 => Ok(None),
             status => Err(TfeError::Api {
@@ -96,11 +105,23 @@ impl TfeClient {
         }
     }
 
-    /// Get a single project by name (requires org, searches project list)
-    pub async fn get_project_by_name(&self, org: &str, name: &str) -> Result<Option<Project>> {
+    /// Get a single project by name (requires org)
+    /// Returns both the typed model and raw JSON for flexible output
+    pub async fn get_project_by_name(
+        &self,
+        org: &str,
+        name: &str,
+    ) -> Result<Option<(Project, serde_json::Value)>> {
         debug!("Fetching project by name: {}", name);
         let projects = self.get_projects(org).await?;
-        Ok(projects.into_iter().find(|p| p.matches(name)))
+
+        // Find the project by name
+        if let Some(project) = projects.into_iter().find(|p| p.matches(name)) {
+            // Now fetch it by ID to get the raw JSON
+            self.get_project_by_id(&project.id).await
+        } else {
+            Ok(None)
+        }
     }
 
     /// Count workspaces per project in an organization

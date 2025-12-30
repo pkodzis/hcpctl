@@ -74,7 +74,11 @@ impl TfeClient {
     }
 
     /// Get a single OAuth client by ID
-    pub async fn get_oauth_client(&self, client_id: &str) -> Result<OAuthClient> {
+    /// Returns both the typed model and raw JSON for flexible output
+    pub async fn get_oauth_client(
+        &self,
+        client_id: &str,
+    ) -> Result<(OAuthClient, serde_json::Value)> {
         let url = format!("{}/oauth-clients/{}", self.base_url(), client_id);
 
         debug!("Fetching OAuth client from: {}", url);
@@ -88,8 +92,15 @@ impl TfeClient {
             });
         }
 
-        let client_response: super::models::OAuthClientResponse = response.json().await?;
-        Ok(client_response.data)
+        // First get raw JSON
+        let raw: serde_json::Value = response.json().await?;
+        // Then deserialize model from the same data
+        let client: OAuthClient =
+            serde_json::from_value(raw["data"].clone()).map_err(|e| TfeError::Api {
+                status: 200,
+                message: format!("Failed to parse OAuth client: {}", e),
+            })?;
+        Ok((client, raw))
     }
 
     /// Get OAuth tokens for an organization (from the oauth-tokens link)

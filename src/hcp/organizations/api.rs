@@ -34,9 +34,11 @@ impl TfeClient {
     }
 
     /// Get a single organization by name (direct API call)
-    pub async fn get_organization(&self, name: &str) -> Result<Option<Organization>> {
-        use super::models::OrganizationResponse;
-
+    /// Returns both the typed model and raw JSON for flexible output
+    pub async fn get_organization(
+        &self,
+        name: &str,
+    ) -> Result<Option<(Organization, serde_json::Value)>> {
         let url = format!("{}/{}/{}", self.base_url(), api::ORGANIZATIONS, name);
         debug!("Fetching organization directly: {}", url);
 
@@ -44,8 +46,15 @@ impl TfeClient {
 
         match response.status().as_u16() {
             200 => {
-                let org_response: OrganizationResponse = response.json().await?;
-                Ok(Some(org_response.data))
+                // First get raw JSON
+                let raw: serde_json::Value = response.json().await?;
+                // Then deserialize model from the same data
+                let org: Organization =
+                    serde_json::from_value(raw["data"].clone()).map_err(|e| TfeError::Api {
+                        status: 200,
+                        message: format!("Failed to parse organization: {}", e),
+                    })?;
+                Ok(Some((org, raw)))
             }
             404 => Ok(None),
             status => Err(TfeError::Api {

@@ -1,11 +1,12 @@
 //! Project command handlers
 
+use crate::cli::OutputFormat;
 use crate::hcp::helpers::{collect_org_results, fetch_from_organizations, log_completion};
 use crate::hcp::organizations::resolve_organizations;
 use crate::hcp::projects::models::ProjectWorkspaces;
 use crate::hcp::traits::TfeResource;
 use crate::hcp::TfeClient;
-use crate::output::output_projects;
+use crate::output::{output_projects, output_raw};
 use crate::ui::{create_spinner, finish_spinner, finish_spinner_with_status};
 use crate::{Cli, Command, GetResource, PrjSortField, Project};
 
@@ -136,15 +137,46 @@ async fn get_single_project(
     org: Option<&String>,
     need_ws_info: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    let Command::Get {
+        resource: GetResource::Prj(args),
+    } = &cli.command
+    else {
+        unreachable!()
+    };
+
     // If it's an ID (prj-...), we can fetch directly without knowing the org
     if name.starts_with("prj-") {
         let spinner = create_spinner(&format!("Fetching project '{}'...", name), cli.batch);
 
         match client.get_project_by_id(name).await {
-            Ok(Some(project)) => {
+            Ok(Some((project, raw))) => {
                 finish_spinner(spinner, "Found");
-                // For ID-based lookup, we don't know org - can't get ws info
-                let all_projects = vec![("unknown".to_string(), project, ProjectWorkspaces::new())];
+
+                // For JSON/YAML, return raw API response
+                if matches!(args.output, OutputFormat::Json | OutputFormat::Yaml) {
+                    output_raw(&raw, &args.output);
+                    return Ok(());
+                }
+
+                // Extract org name from raw JSON response
+                let org_name = raw["data"]["relationships"]["organization"]["data"]["id"]
+                    .as_str()
+                    .unwrap_or("unknown")
+                    .to_string();
+
+                // For ID-based lookup, we can now get workspace info if org is known
+                let ws_info = if need_ws_info && org_name != "unknown" {
+                    let workspaces = client.get_workspaces(&org_name).await.unwrap_or_default();
+                    let ws_list: Vec<_> = workspaces
+                        .into_iter()
+                        .filter(|ws| ws.project_id() == Some(&project.id))
+                        .collect();
+                    ProjectWorkspaces::from_workspaces(ws_list)
+                } else {
+                    ProjectWorkspaces::new()
+                };
+
+                let all_projects = vec![(org_name, project, ws_info)];
                 output_projects(&all_projects, cli);
                 return Ok(());
             }
@@ -189,7 +221,15 @@ async fn get_single_project(
 
     // Process results as they complete, stop on first match
     while let Some((org_name, result)) = futures.next().await {
-        if let Ok(Some(project)) = result {
+        if let Ok(Some((project, raw))) = result {
+            finish_spinner(spinner, "Found");
+
+            // For JSON/YAML, return raw API response
+            if matches!(args.output, OutputFormat::Json | OutputFormat::Yaml) {
+                output_raw(&raw, &args.output);
+                return Ok(());
+            }
+
             // Get workspace info if requested
             let ws_info = if need_ws_info {
                 let workspaces = client.get_workspaces(&org_name).await.unwrap_or_default();
@@ -201,8 +241,6 @@ async fn get_single_project(
             } else {
                 ProjectWorkspaces::new()
             };
-
-            finish_spinner(spinner, "Found");
 
             let all_projects = vec![(org_name, project, ws_info)];
             output_projects(&all_projects, cli);

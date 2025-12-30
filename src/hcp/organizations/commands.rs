@@ -3,11 +3,12 @@
 use futures::future::join_all;
 use log::debug;
 
+use crate::cli::OutputFormat;
 use crate::error::Result;
 use crate::hcp::oauth_clients::OAuthToken;
 use crate::hcp::traits::TfeResource;
 use crate::hcp::TfeClient;
-use crate::output::output_organizations;
+use crate::output::{output_organizations, output_raw};
 use crate::ui::{create_spinner, finish_spinner};
 use crate::{Cli, Command, GetResource};
 
@@ -58,6 +59,26 @@ pub async fn run_org_command(
     debug!("Fetching organizations");
 
     let spinner = create_spinner("Fetching organizations...", cli.batch);
+
+    // If NAME is specified and output is JSON/YAML, use direct API call for raw output
+    if let Some(name) = &args.name {
+        if matches!(args.output, OutputFormat::Json | OutputFormat::Yaml) {
+            // Direct API call - returns raw JSON
+            match client.get_organization(name).await? {
+                Some((_org, raw)) => {
+                    finish_spinner(spinner, "Done");
+                    output_raw(&raw, &args.output);
+                    return Ok(());
+                }
+                None => {
+                    finish_spinner(spinner, "Not found");
+                    return Err(format!("Organization '{}' not found", name).into());
+                }
+            }
+        }
+    }
+
+    // For lists or table/csv output, use the full fetch approach
     let mut organizations = client.get_organizations_full().await?;
 
     // If NAME is specified, filter to that single org

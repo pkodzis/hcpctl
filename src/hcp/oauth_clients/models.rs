@@ -13,12 +13,6 @@ pub struct OAuthClientsResponse {
     pub meta: Option<PaginationMeta>,
 }
 
-/// Response wrapper for single oauth client
-#[derive(Deserialize, Debug)]
-pub struct OAuthClientResponse {
-    pub data: OAuthClient,
-}
-
 /// OAuth Client data from TFE API
 #[derive(Deserialize, Debug, Clone)]
 pub struct OAuthClient {

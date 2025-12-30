@@ -125,9 +125,11 @@ impl TfeClient {
     }
 
     /// Get a single workspace by ID (direct API call, no org needed)
-    pub async fn get_workspace_by_id(&self, workspace_id: &str) -> Result<Option<Workspace>> {
-        use super::models::WorkspaceResponse;
-
+    /// Returns both the typed model and raw JSON for flexible output
+    pub async fn get_workspace_by_id(
+        &self,
+        workspace_id: &str,
+    ) -> Result<Option<(Workspace, serde_json::Value)>> {
         let url = format!("{}/{}/{}", self.base_url(), api::WORKSPACES, workspace_id);
         debug!("Fetching workspace directly by ID: {}", url);
 
@@ -135,8 +137,15 @@ impl TfeClient {
 
         match response.status().as_u16() {
             200 => {
-                let ws_response: WorkspaceResponse = response.json().await?;
-                Ok(Some(ws_response.data))
+                // First get raw JSON
+                let raw: serde_json::Value = response.json().await?;
+                // Then deserialize model from the same data
+                let workspace: Workspace =
+                    serde_json::from_value(raw["data"].clone()).map_err(|e| TfeError::Api {
+                        status: 200,
+                        message: format!("Failed to parse workspace: {}", e),
+                    })?;
+                Ok(Some((workspace, raw)))
             }
             404 => Ok(None),
             status => Err(TfeError::Api {
@@ -147,9 +156,12 @@ impl TfeClient {
     }
 
     /// Get a single workspace by name (requires org)
-    pub async fn get_workspace_by_name(&self, org: &str, name: &str) -> Result<Option<Workspace>> {
-        use super::models::WorkspaceResponse;
-
+    /// Returns both the typed model and raw JSON for flexible output
+    pub async fn get_workspace_by_name(
+        &self,
+        org: &str,
+        name: &str,
+    ) -> Result<Option<(Workspace, serde_json::Value)>> {
         let url = format!(
             "{}/{}/{}/{}/{}",
             self.base_url(),
@@ -165,8 +177,15 @@ impl TfeClient {
 
         match response.status().as_u16() {
             200 => {
-                let ws_response: WorkspaceResponse = response.json().await?;
-                Ok(Some(ws_response.data))
+                // First get raw JSON
+                let raw: serde_json::Value = response.json().await?;
+                // Then deserialize model from the same data
+                let workspace: Workspace =
+                    serde_json::from_value(raw["data"].clone()).map_err(|e| TfeError::Api {
+                        status: 200,
+                        message: format!("Failed to parse workspace: {}", e),
+                    })?;
+                Ok(Some((workspace, raw)))
             }
             404 => Ok(None),
             status => Err(TfeError::Api {

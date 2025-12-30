@@ -1,5 +1,7 @@
 //! Common utilities for output formatters
 
+use crate::cli::OutputFormat;
+
 /// Escape a value for CSV output
 /// Handles commas, quotes, and newlines according to RFC 4180
 pub fn escape_csv(value: &str) -> String {
@@ -7,6 +9,21 @@ pub fn escape_csv(value: &str) -> String {
         format!("\"{}\"", value.replace('"', "\"\""))
     } else {
         value.to_string()
+    }
+}
+
+/// Output raw JSON/YAML for a single object from API response
+/// Extracts just the "data" part, removing the wrapper
+pub fn output_raw(raw: &serde_json::Value, format: &OutputFormat) {
+    let data = &raw["data"];
+    match format {
+        OutputFormat::Json => {
+            println!("{}", serde_json::to_string_pretty(data).unwrap());
+        }
+        OutputFormat::Yaml => {
+            println!("{}", serde_yaml::to_string(data).unwrap());
+        }
+        _ => unreachable!("output_raw should only be called for JSON/YAML formats"),
     }
 }
 

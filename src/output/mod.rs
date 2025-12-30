@@ -6,7 +6,7 @@ mod organizations;
 mod projects;
 mod workspaces;
 
-pub use common::escape_csv;
+pub use common::{escape_csv, output_raw};
 pub use oauth_clients::output_oauth_clients;
 pub use organizations::output_organizations;
 pub use projects::output_projects;

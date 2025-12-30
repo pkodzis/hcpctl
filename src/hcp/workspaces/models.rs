@@ -13,12 +13,6 @@ pub struct WorkspacesResponse {
     pub meta: Option<PaginationMeta>,
 }
 
-/// Response wrapper for single workspace
-#[derive(Deserialize, Debug)]
-pub struct WorkspaceResponse {
-    pub data: Workspace,
-}
-
 /// Workspace data from TFE API
 #[derive(Deserialize, Debug, Clone)]
 pub struct Workspace {

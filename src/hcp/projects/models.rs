@@ -13,12 +13,6 @@ pub struct ProjectsResponse {
     pub meta: Option<PaginationMeta>,
 }
 
-/// Response wrapper for single project
-#[derive(Deserialize, Debug)]
-pub struct ProjectResponse {
-    pub data: Project,
-}
-
 /// Project data from TFE API
 #[derive(Deserialize, Debug, Clone)]
 pub struct Project {

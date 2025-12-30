@@ -2,10 +2,11 @@
 
 use log::debug;
 
+use crate::cli::OutputFormat;
 use crate::hcp::helpers::{collect_org_results, fetch_from_organizations, log_completion};
 use crate::hcp::organizations::resolve_organizations;
 use crate::hcp::TfeClient;
-use crate::output::output_results_sorted;
+use crate::output::{output_raw, output_results_sorted};
 use crate::ui::{create_spinner, finish_spinner, finish_spinner_with_status};
 use crate::{Cli, Command, GetResource, Workspace};
 
@@ -45,7 +46,7 @@ pub async fn run_ws_command(
                 client.get_project_by_name(org, prj_input).await?
             };
             match project {
-                Some(p) => Some(p.id),
+                Some((p, _raw)) => Some(p.id),
                 None => {
                     return Err(format!(
                         "Project '{}' not found in organization '{}'",
@@ -117,13 +118,27 @@ async fn get_single_workspace(
     name: &str,
     org: Option<&String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    let Command::Get {
+        resource: GetResource::Ws(args),
+    } = &cli.command
+    else {
+        unreachable!()
+    };
+
     // If it's an ID (ws-...), we can fetch directly without knowing the org
     if name.starts_with("ws-") {
         let spinner = create_spinner(&format!("Fetching workspace '{}'...", name), cli.batch);
 
         match client.get_workspace_by_id(name).await {
-            Ok(Some(workspace)) => {
+            Ok(Some((workspace, raw))) => {
                 finish_spinner(spinner, "Found");
+
+                // For JSON/YAML, return raw API response
+                if matches!(args.output, OutputFormat::Json | OutputFormat::Yaml) {
+                    output_raw(&raw, &args.output);
+                    return Ok(());
+                }
+
                 let org_name = workspace
                     .organization_name()
                     .unwrap_or("unknown")
@@ -173,8 +188,15 @@ async fn get_single_workspace(
 
     // Process results as they complete, stop on first match
     while let Some((org_name, result)) = futures.next().await {
-        if let Ok(Some(workspace)) = result {
+        if let Ok(Some((workspace, raw))) = result {
             finish_spinner(spinner, "Found");
+
+            // For JSON/YAML, return raw API response
+            if matches!(args.output, OutputFormat::Json | OutputFormat::Yaml) {
+                output_raw(&raw, &args.output);
+                return Ok(());
+            }
+
             let all_workspaces = vec![(org_name, vec![workspace])];
             output_results_sorted(all_workspaces, cli);
             return Ok(());

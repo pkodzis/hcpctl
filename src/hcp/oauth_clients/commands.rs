@@ -2,12 +2,12 @@
 
 use log::debug;
 
-use crate::cli::{Cli, Command, GetResource};
+use crate::cli::{Cli, Command, GetResource, OutputFormat};
 use crate::hcp::helpers::{collect_org_results, fetch_from_organizations, log_completion};
 use crate::hcp::organizations::resolve_organizations;
 use crate::hcp::traits::TfeResource;
 use crate::hcp::TfeClient;
-use crate::output::output_oauth_clients;
+use crate::output::{output_oauth_clients, output_raw};
 use crate::ui::{create_spinner, finish_spinner, finish_spinner_with_status};
 
 use super::models::OAuthClient;
@@ -83,13 +83,27 @@ async fn get_single_oauth_client(
     name: &str,
     org: Option<&String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    let Command::Get {
+        resource: GetResource::Oc(args),
+    } = &cli.command
+    else {
+        unreachable!()
+    };
+
     // If it's an ID (oc-...), we can fetch directly
     if name.starts_with("oc-") {
         let spinner = create_spinner(&format!("Fetching OAuth client '{}'...", name), cli.batch);
 
         match client.get_oauth_client(name).await {
-            Ok(oauth_client) => {
+            Ok((oauth_client, raw)) => {
                 finish_spinner(spinner, "Found");
+
+                // For JSON/YAML, return raw API response
+                if matches!(args.output, OutputFormat::Json | OutputFormat::Yaml) {
+                    output_raw(&raw, &args.output);
+                    return Ok(());
+                }
+
                 let org_name = oauth_client
                     .organization_id()
                     .unwrap_or("unknown")
@@ -144,6 +158,17 @@ async fn get_single_oauth_client(
 
             if !found.is_empty() {
                 finish_spinner(spinner, "Found");
+
+                // For JSON/YAML with name search, we need to fetch the raw JSON
+                // (we only have the model from list, not raw JSON)
+                if matches!(args.output, OutputFormat::Json | OutputFormat::Yaml) {
+                    // Fetch the first match by ID to get raw JSON
+                    if let Ok((_, raw)) = client.get_oauth_client(&found[0].id).await {
+                        output_raw(&raw, &args.output);
+                        return Ok(());
+                    }
+                }
+
                 let all_clients = vec![(org_name, found)];
                 output_oauth_clients(&all_clients, cli);
                 return Ok(());

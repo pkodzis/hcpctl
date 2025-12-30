@@ -10,12 +10,6 @@ pub struct OrganizationsResponse {
     pub data: Vec<Organization>,
 }
 
-/// Response wrapper for single organization
-#[derive(Deserialize, Debug)]
-pub struct OrganizationResponse {
-    pub data: Organization,
-}
-
 /// Organization data from TFE API
 #[derive(Deserialize, Debug, Clone)]
 pub struct Organization {
