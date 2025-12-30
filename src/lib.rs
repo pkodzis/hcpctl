@@ -41,7 +41,7 @@ pub use cli::{
 };
 pub use error::{Result, TfeError};
 pub use hcp::{
-    run_org_command, run_prj_command, run_ws_command, Organization, Project, TfeClient,
-    TfeResource, TokenResolver, Workspace,
+    run_org_command, run_prj_command, run_ws_command, HostResolver, Organization, Project,
+    TfeClient, TfeResource, TokenResolver, Workspace,
 };
 pub use output::{output_organizations, output_projects, output_results_sorted, WorkspaceRow};

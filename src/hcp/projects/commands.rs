@@ -41,7 +41,7 @@ pub async fn run_prj_command(
             "Fetching projects from {} organization(s)...",
             organizations.len()
         ),
-        cli.quiet,
+        cli.batch,
     );
 
     // Fetch projects from all orgs in parallel
@@ -138,7 +138,7 @@ async fn get_single_project(
 ) -> Result<(), Box<dyn std::error::Error>> {
     // If it's an ID (prj-...), we can fetch directly without knowing the org
     if name.starts_with("prj-") {
-        let spinner = create_spinner(&format!("Fetching project '{}'...", name), cli.quiet);
+        let spinner = create_spinner(&format!("Fetching project '{}'...", name), cli.batch);
 
         match client.get_project_by_id(name).await {
             Ok(Some(project)) => {
@@ -168,7 +168,7 @@ async fn get_single_project(
             name,
             organizations.len()
         ),
-        cli.quiet,
+        cli.batch,
     );
 
     // Search in all organizations IN PARALLEL with early termination

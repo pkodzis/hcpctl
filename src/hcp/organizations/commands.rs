@@ -40,7 +40,7 @@ pub async fn run_org_command(
 
     debug!("Fetching organizations");
 
-    let spinner = create_spinner("Fetching organizations...", cli.quiet);
+    let spinner = create_spinner("Fetching organizations...", cli.batch);
     let mut organizations = client.get_organizations_full().await?;
     finish_spinner(spinner, "Done");
 

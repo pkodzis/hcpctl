@@ -5,7 +5,7 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::fs;
 
-use crate::config::{credentials, defaults};
+use crate::config::credentials;
 use crate::error::{Result, TfeError};
 
 /// Credentials file structure
@@ -140,12 +140,6 @@ impl TokenResolver {
     }
 }
 
-impl Default for TokenResolver {
-    fn default() -> Self {
-        Self::new(defaults::HOST)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -162,11 +156,5 @@ mod tests {
     fn test_resolver_new() {
         let resolver = TokenResolver::new("custom.host.com");
         assert_eq!(resolver.host, "custom.host.com");
-    }
-
-    #[test]
-    fn test_resolver_default() {
-        let resolver = TokenResolver::default();
-        assert_eq!(resolver.host, defaults::HOST);
     }
 }

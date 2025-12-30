@@ -66,7 +66,7 @@ pub async fn run_ws_command(
             "Fetching workspaces from {} organization(s)...",
             organizations.len()
         ),
-        cli.quiet,
+        cli.batch,
     );
 
     // Fetch workspaces from all orgs in parallel
@@ -119,7 +119,7 @@ async fn get_single_workspace(
 ) -> Result<(), Box<dyn std::error::Error>> {
     // If it's an ID (ws-...), we can fetch directly without knowing the org
     if name.starts_with("ws-") {
-        let spinner = create_spinner(&format!("Fetching workspace '{}'...", name), cli.quiet);
+        let spinner = create_spinner(&format!("Fetching workspace '{}'...", name), cli.batch);
 
         match client.get_workspace_by_id(name).await {
             Ok(Some(workspace)) => {
@@ -152,7 +152,7 @@ async fn get_single_workspace(
             name,
             organizations.len()
         ),
-        cli.quiet,
+        cli.batch,
     );
 
     // Search in all organizations IN PARALLEL with early termination

@@ -19,9 +19,9 @@ pub struct Cli {
     #[command(subcommand)]
     pub command: Command,
 
-    /// TFE/HCP host URL
-    #[arg(short = 'H', long, global = true, default_value = defaults::HOST)]
-    pub host: String,
+    /// TFE/HCP host URL (falls back to TFE_HOSTNAME env var or credentials file)
+    #[arg(short = 'H', long, global = true)]
+    pub host: Option<String>,
 
     /// API token (overrides env vars and credentials file)
     #[arg(short = 't', long, global = true)]
@@ -31,9 +31,9 @@ pub struct Cli {
     #[arg(short, long, global = true, default_value = defaults::LOG_LEVEL)]
     pub log_level: String,
 
-    /// Quiet mode - suppress progress spinner
+    /// Batch mode - no interactive prompts, no spinners
     #[arg(short, long, global = true, default_value_t = false)]
-    pub quiet: bool,
+    pub batch: bool,
 
     /// Omit header row in table/CSV output
     #[arg(long, global = true, default_value_t = false)]
@@ -488,15 +488,21 @@ mod tests {
             "get",
             "org",
         ]);
-        assert_eq!(cli.host, "custom.host.com");
+        assert_eq!(cli.host, Some("custom.host.com".to_string()));
         assert_eq!(cli.token, Some("my-token".to_string()));
         assert_eq!(cli.log_level, "debug");
     }
 
     #[test]
-    fn test_quiet_option() {
-        let cli = Cli::parse_from(["hcp", "-q", "get", "org"]);
-        assert!(cli.quiet);
+    fn test_host_optional() {
+        let cli = Cli::parse_from(["hcp", "get", "org"]);
+        assert!(cli.host.is_none());
+    }
+
+    #[test]
+    fn test_batch_option() {
+        let cli = Cli::parse_from(["hcp", "-b", "get", "org"]);
+        assert!(cli.batch);
     }
 
     #[test]

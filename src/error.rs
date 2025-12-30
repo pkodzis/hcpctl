@@ -9,6 +9,8 @@ pub enum TfeError {
     Api { status: u16, message: String },
     /// Token not found in any source
     TokenNotFound(String),
+    /// Host not found in any source
+    HostNotFound(String),
     /// Failed to read or parse credentials file
     Credentials(String),
     /// JSON parsing error
@@ -25,6 +27,7 @@ impl fmt::Display for TfeError {
                 write!(f, "API error (status {}): {}", status, message)
             }
             TfeError::TokenNotFound(msg) => write!(f, "{}", msg),
+            TfeError::HostNotFound(msg) => write!(f, "{}", msg),
             TfeError::Credentials(msg) => write!(f, "{}", msg),
             TfeError::Json(msg) => write!(f, "JSON error: {}", msg),
             TfeError::Config(msg) => write!(f, "Configuration error: {}", msg),

@@ -5,8 +5,8 @@ use log::info;
 use std::process::ExitCode;
 
 use hcpctl::{
-    run_org_command, run_prj_command, run_ws_command, Cli, Command, GetResource, TfeClient,
-    TokenResolver,
+    run_org_command, run_prj_command, run_ws_command, Cli, Command, GetResource, HostResolver,
+    TfeClient, TokenResolver,
 };
 
 #[tokio::main]
@@ -27,12 +27,16 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
 
     info!("Starting HCP CLI v{}", env!("CARGO_PKG_VERSION"));
 
+    // Resolve host with fallback logic (CLI -> env var -> credentials file)
+    // In batch mode, error on multiple hosts instead of interactive selection
+    let host = HostResolver::resolve(cli.host.as_deref(), cli.batch)?;
+
     // Resolve token with fallback logic
-    let token_resolver = TokenResolver::new(&cli.host);
+    let token_resolver = TokenResolver::new(&host);
     let token = token_resolver.resolve(cli.token.as_deref())?;
 
     // Create TFE client
-    let client = TfeClient::new(token, cli.host.clone());
+    let client = TfeClient::new(token, host);
 
     match &cli.command {
         Command::Get { resource } => match resource {

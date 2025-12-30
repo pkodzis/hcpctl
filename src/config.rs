@@ -28,11 +28,14 @@ pub mod credentials {
     pub const TOKEN_ENV_VARS: &[&str] = &["HCP_TOKEN", "TFC_TOKEN", "TFE_TOKEN"];
 }
 
+/// Configuration constants for host resolution
+pub mod host {
+    /// Environment variable for hostname
+    pub const ENV_VAR: &str = "TFE_HOSTNAME";
+}
+
 /// Default values for CLI
 pub mod defaults {
-    /// Default TFE host
-    pub const HOST: &str = "app.terraform.io";
-
     /// Default log level
     pub const LOG_LEVEL: &str = "warn";
 }
@@ -55,8 +58,7 @@ mod tests {
     }
 
     #[test]
-    fn test_default_host_is_valid() {
-        assert!(defaults::HOST.contains('.'));
-        assert!(!defaults::HOST.starts_with("https://"));
+    fn test_host_env_var() {
+        assert_eq!(host::ENV_VAR, "TFE_HOSTNAME");
     }
 }
