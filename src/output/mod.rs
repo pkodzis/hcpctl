@@ -1,11 +1,13 @@
-//! Output formatting module for all resources (organizations, projects, workspaces)
+//! Output formatting module for all resources (organizations, projects, workspaces, oauth clients)
 
 mod common;
+mod oauth_clients;
 mod organizations;
 mod projects;
 mod workspaces;
 
 pub use common::escape_csv;
+pub use oauth_clients::output_oauth_clients;
 pub use organizations::output_organizations;
 pub use projects::output_projects;
 pub use workspaces::WorkspaceRow;

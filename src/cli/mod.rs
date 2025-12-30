@@ -71,6 +71,15 @@ pub enum GetResource {
     /// Get workspaces
     #[command(visible_alias = "workspace", visible_alias = "workspaces")]
     Ws(WsArgs),
+
+    /// Get OAuth clients (VCS connections)
+    #[command(
+        visible_alias = "oauth-client",
+        visible_alias = "oauth-clients",
+        visible_alias = "oauthclient",
+        visible_alias = "oauthclients"
+    )]
+    Oc(OcArgs),
 }
 
 /// Arguments for 'get org' subcommand
@@ -179,6 +188,25 @@ impl WsArgs {
     pub fn group_by_org(&self) -> bool {
         !self.no_group_org
     }
+}
+
+/// Arguments for 'get oc' subcommand (OAuth Clients)
+#[derive(Parser, Debug)]
+pub struct OcArgs {
+    /// OAuth client name or ID (if specified, shows details for that client)
+    pub name: Option<String>,
+
+    /// Organization name (required for single client, optional for list)
+    #[arg(long = "org")]
+    pub org: Option<String>,
+
+    /// Filter OAuth clients by name (substring match)
+    #[arg(short, long)]
+    pub filter: Option<String>,
+
+    /// Output format
+    #[arg(short = 'o', long, value_enum, default_value_t = OutputFormat::Table)]
+    pub output: OutputFormat,
 }
 
 /// Output format options
