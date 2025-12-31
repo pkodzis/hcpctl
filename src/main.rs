@@ -1,12 +1,12 @@
-//! HCP CLI - Main entry point
+//! HCPCTL - Main entry point
 
 use clap::Parser;
 use log::info;
 use std::process::ExitCode;
 
 use hcpctl::{
-    run_oc_command, run_org_command, run_prj_command, run_ws_command, Cli, Command, GetResource,
-    HostResolver, TfeClient, TokenResolver,
+    run_oc_command, run_org_command, run_prj_command, run_runs_command, run_ws_command, Cli,
+    Command, GetResource, HostResolver, TfeClient, TokenResolver,
 };
 
 #[tokio::main]
@@ -44,6 +44,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
             GetResource::Prj(_) => run_prj_command(&client, &cli).await,
             GetResource::Ws(_) => run_ws_command(&client, &cli).await,
             GetResource::Oc(_) => run_oc_command(&client, &cli).await,
+            GetResource::Run(_) => run_runs_command(&client, &cli).await,
         },
     }
 }

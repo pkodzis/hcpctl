@@ -12,6 +12,9 @@ pub mod api {
     /// Workspaces endpoint
     pub const WORKSPACES: &str = "workspaces";
 
+    /// Runs endpoint
+    pub const RUNS: &str = "runs";
+
     /// Default page size for API requests
     pub const DEFAULT_PAGE_SIZE: u32 = 100;
 }
@@ -67,6 +70,7 @@ mod tests {
         assert_eq!(api::ORGANIZATIONS, "organizations");
         assert_eq!(api::PROJECTS, "projects");
         assert_eq!(api::WORKSPACES, "workspaces");
+        assert_eq!(api::RUNS, "runs");
     }
 
     #[test]
