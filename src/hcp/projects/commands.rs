@@ -5,6 +5,7 @@ use crate::hcp::helpers::{collect_org_results, fetch_from_organizations, log_com
 use crate::hcp::organizations::resolve_organizations;
 use crate::hcp::projects::models::ProjectWorkspaces;
 use crate::hcp::traits::TfeResource;
+use crate::hcp::workspaces::WorkspaceQuery;
 use crate::hcp::TfeClient;
 use crate::output::{output_projects, output_raw};
 use crate::ui::{create_spinner, finish_spinner, finish_spinner_with_status};
@@ -46,11 +47,15 @@ pub async fn run_prj_command(
     );
 
     // Fetch projects from all orgs in parallel
+    // Note: filter is passed to API for server-side filtering (case-insensitive)
+    let filter = args.filter.as_deref();
     let results = fetch_from_organizations(organizations, |org| async move {
         if need_ws_info {
             // Fetch projects and workspaces IN PARALLEL
-            let (projects_result, workspaces_result) =
-                tokio::join!(client.get_projects(&org), client.get_workspaces(&org));
+            let (projects_result, workspaces_result) = tokio::join!(
+                client.get_projects(&org, filter),
+                client.get_workspaces(&org, WorkspaceQuery::default())
+            );
 
             match (projects_result, workspaces_result) {
                 (Ok(projects), Ok(workspaces)) => {
@@ -77,7 +82,7 @@ pub async fn run_prj_command(
             }
         } else {
             // Just fetch projects, no workspace info
-            match client.get_projects(&org).await {
+            match client.get_projects(&org, filter).await {
                 Ok(projects) => {
                     let results: Vec<ProjectRow> = projects
                         .into_iter()
@@ -95,12 +100,6 @@ pub async fn run_prj_command(
     let mut all_projects: Vec<ProjectRow> = project_batches.into_iter().flatten().collect();
 
     finish_spinner_with_status(spinner, &all_projects, had_errors);
-
-    // Apply filter if specified
-    if let Some(filter) = &args.filter {
-        let filter_lower = filter.to_lowercase();
-        all_projects.retain(|(_, prj, _)| prj.name().to_lowercase().contains(&filter_lower));
-    }
 
     // Sort projects
     let group_by_org = args.org.is_none() && !args.no_group_org;
@@ -166,7 +165,10 @@ async fn get_single_project(
 
                 // For ID-based lookup, we can now get workspace info if org is known
                 let ws_info = if need_ws_info && org_name != "unknown" {
-                    let workspaces = client.get_workspaces(&org_name).await.unwrap_or_default();
+                    let workspaces = client
+                        .get_workspaces(&org_name, WorkspaceQuery::default())
+                        .await
+                        .unwrap_or_default();
                     let ws_list: Vec<_> = workspaces
                         .into_iter()
                         .filter(|ws| ws.project_id() == Some(&project.id))
@@ -232,7 +234,10 @@ async fn get_single_project(
 
             // Get workspace info if requested
             let ws_info = if need_ws_info {
-                let workspaces = client.get_workspaces(&org_name).await.unwrap_or_default();
+                let workspaces = client
+                    .get_workspaces(&org_name, WorkspaceQuery::default())
+                    .await
+                    .unwrap_or_default();
                 let ws_list: Vec<_> = workspaces
                     .into_iter()
                     .filter(|ws| ws.project_id() == Some(&project.id))

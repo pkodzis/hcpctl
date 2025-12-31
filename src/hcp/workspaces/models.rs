@@ -5,6 +5,15 @@ use serde::Deserialize;
 use crate::hcp::traits::TfeResource;
 use crate::hcp::PaginationMeta;
 
+/// Query options for listing workspaces
+#[derive(Default)]
+pub struct WorkspaceQuery<'a> {
+    /// Filter by workspace name (fuzzy server-side search)
+    pub search: Option<&'a str>,
+    /// Filter by project ID
+    pub project_id: Option<&'a str>,
+}
+
 /// Response wrapper for workspaces list
 #[derive(Deserialize, Debug)]
 pub struct WorkspacesResponse {

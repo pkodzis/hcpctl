@@ -6,18 +6,22 @@ use std::collections::HashMap;
 use crate::config::api;
 use crate::error::{Result, TfeError};
 use crate::hcp::traits::TfeResource;
+use crate::hcp::workspaces::WorkspaceQuery;
 use crate::hcp::TfeClient;
 
 use super::models::{Project, ProjectsResponse};
 
 impl TfeClient {
-    /// Get all projects for an organization (with pagination)
-    pub async fn get_projects(&self, org: &str) -> Result<Vec<Project>> {
+    /// Get all projects for an organization (with pagination and optional server-side search)
+    ///
+    /// When `search` is provided, uses API's `q=` parameter for case-insensitive server-side filtering.
+    /// This is more efficient than fetching all projects and filtering locally.
+    pub async fn get_projects(&self, org: &str, search: Option<&str>) -> Result<Vec<Project>> {
         let mut all_projects = Vec::new();
         let mut page = 1;
 
         loop {
-            let url = format!(
+            let mut url = format!(
                 "{}/{}/{}/{}?page[size]={}&page[number]={}",
                 self.base_url(),
                 api::ORGANIZATIONS,
@@ -26,6 +30,11 @@ impl TfeClient {
                 api::DEFAULT_PAGE_SIZE,
                 page
             );
+
+            // Add server-side search if specified
+            if let Some(s) = search {
+                url.push_str(&format!("&q={}", urlencoding::encode(s)));
+            }
 
             debug!("Fetching projects page {} from: {}", page, url);
 
@@ -67,9 +76,10 @@ impl TfeClient {
         }
 
         debug!(
-            "Fetched {} total projects for org '{}'",
+            "Fetched {} total projects for org '{}' (search: {:?})",
             all_projects.len(),
-            org
+            org,
+            search
         );
         Ok(all_projects)
     }
@@ -113,7 +123,7 @@ impl TfeClient {
         name: &str,
     ) -> Result<Option<(Project, serde_json::Value)>> {
         debug!("Fetching project by name: {}", name);
-        let projects = self.get_projects(org).await?;
+        let projects = self.get_projects(org, None).await?;
 
         // Find the project by name
         if let Some(project) = projects.into_iter().find(|p| p.matches(name)) {
@@ -126,7 +136,7 @@ impl TfeClient {
 
     /// Count workspaces per project in an organization
     pub async fn count_workspaces_by_project(&self, org: &str) -> Result<HashMap<String, usize>> {
-        let workspaces = self.get_workspaces(org).await?;
+        let workspaces = self.get_workspaces(org, WorkspaceQuery::default()).await?;
 
         let mut counts: HashMap<String, usize> = HashMap::new();
 

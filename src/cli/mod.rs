@@ -5,15 +5,37 @@
 //! - hcpctl get prj [NAME] -o ORG    - list projects or get one
 //! - hcpctl get ws [NAME] -o ORG     - list workspaces or get one
 
-use clap::{Parser, Subcommand, ValueEnum};
+use clap::{builder::ArgPredicate, Parser, Subcommand, ValueEnum};
 
 use crate::config::defaults;
+
+const AFTER_LONG_HELP: &str = r#"HOST RESOLUTION:
+  The host is resolved in the following order (first match wins):
+  1. CLI argument (-H, --host)
+  2. Environment variable: TFE_HOSTNAME
+  3. Credentials file (~/.terraform.d/credentials.tfrc.json):
+     - If 1 host configured: use it automatically
+     - If multiple hosts: interactive selection (or error in batch mode)
+
+TOKEN RESOLUTION:
+  The API token is resolved in the following order (first match wins):
+  1. CLI argument (-t, --token)
+  2. Environment variables (in order): HCP_TOKEN, TFC_TOKEN, TFE_TOKEN
+  3. Credentials file (~/.terraform.d/credentials.tfrc.json)
+     Token is read from the entry matching the resolved host.
+
+EXAMPLES:
+  hcpctl get org                     List all organizations
+  hcpctl get ws --org myorg          List workspaces in organization
+  hcpctl get ws myws --org myorg     Get workspace details
+  hcpctl -H app.terraform.io get ws  Use specific host"#;
 
 /// HCP/TFE CLI - Explore HashiCorp Cloud Platform and Terraform Enterprise
 #[derive(Parser, Debug)]
 #[command(name = "hcpctl")]
 #[command(version)]
-#[command(about = "Explore HCP Terraform / Terraform Enterprise resources", long_about = None)]
+#[command(about = "Explore HCP Terraform / Terraform Enterprise resources")]
+#[command(after_long_help = AFTER_LONG_HELP)]
 #[command(propagate_version = true)]
 pub struct Cli {
     #[command(subcommand)]
@@ -162,8 +184,14 @@ pub struct WsArgs {
     #[arg(short, long)]
     pub filter: Option<String>,
 
-    /// Output format
-    #[arg(short = 'o', long, value_enum, default_value_t = OutputFormat::Table)]
+    /// Output format (defaults to yaml when --subresource is used)
+    #[arg(
+        short = 'o',
+        long,
+        value_enum,
+        default_value_t = OutputFormat::Table,
+        default_value_if("subresource", ArgPredicate::IsPresent, "yaml")
+    )]
     pub output: OutputFormat,
 
     /// Sort results by field
@@ -181,6 +209,12 @@ pub struct WsArgs {
     /// Enable grouping by project (can be combined with org grouping)
     #[arg(long, default_value_t = false)]
     pub group_by_prj: bool,
+
+    /// Fetch a related subresource (run=current-run, state=current-state-version,
+    /// config=current-configuration-version, assessment=current-assessment-result).
+    /// Only works with single workspace lookup and JSON/YAML output.
+    #[arg(long, value_enum)]
+    pub subresource: Option<WsSubresource>,
 }
 
 impl WsArgs {
@@ -242,6 +276,19 @@ pub enum WsSortField {
     UpdatedAt,
     /// Sort by Terraform version
     TfVersion,
+}
+
+/// Workspace subresources that can be fetched
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum WsSubresource {
+    /// Current run (current-run)
+    Run,
+    /// Current state version (current-state-version)
+    State,
+    /// Current configuration version (current-configuration-version)
+    Config,
+    /// Current assessment result (current-assessment-result)
+    Assessment,
 }
 
 impl std::fmt::Display for OutputFormat {

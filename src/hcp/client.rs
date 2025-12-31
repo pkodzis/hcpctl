@@ -43,6 +43,11 @@ impl TfeClient {
         )
     }
 
+    /// Get the host for building URLs
+    pub(crate) fn host(&self) -> &str {
+        &self.host
+    }
+
     /// Add standard headers to a request builder
     fn with_headers(&self, builder: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
         builder

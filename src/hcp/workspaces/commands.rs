@@ -2,9 +2,10 @@
 
 use log::debug;
 
-use crate::cli::OutputFormat;
+use crate::cli::{OutputFormat, WsSubresource};
 use crate::hcp::helpers::{collect_org_results, fetch_from_organizations, log_completion};
 use crate::hcp::organizations::resolve_organizations;
+use crate::hcp::workspaces::WorkspaceQuery;
 use crate::hcp::TfeClient;
 use crate::output::{output_raw, output_results_sorted};
 use crate::ui::{create_spinner, finish_spinner, finish_spinner_with_status};
@@ -21,6 +22,11 @@ pub async fn run_ws_command(
     else {
         unreachable!()
     };
+
+    // Validate: --subresource requires a workspace name
+    if args.subresource.is_some() && args.name.is_none() {
+        return Err("--subresource requires a workspace name or ID".into());
+    }
 
     // If NAME is specified, get single workspace
     if let Some(name) = &args.name {
@@ -75,19 +81,15 @@ pub async fn run_ws_command(
     let project_id_ref = project_id.as_deref();
 
     let results = fetch_from_organizations(organizations, |org| async move {
-        let workspaces = if let Some(prj_id) = project_id_ref {
-            client.get_workspaces_by_project(&org, prj_id, filter).await
-        } else {
-            client.get_workspaces_filtered(&org, filter).await
+        let query = WorkspaceQuery {
+            search: filter,
+            project_id: project_id_ref,
         };
+        let workspaces = client.get_workspaces(&org, query).await;
 
         match workspaces {
             Ok(ws) => {
-                debug!(
-                    "Found {} workspaces for org '{}' (after filtering)",
-                    ws.len(),
-                    org
-                );
+                debug!("Found {} workspaces for org '{}'", ws.len(), org);
                 Ok((org, ws))
             }
             Err(e) => {
@@ -125,13 +127,26 @@ async fn get_single_workspace(
         unreachable!()
     };
 
+    // Validate subresource usage
+    if args.subresource.is_some() && !matches!(args.output, OutputFormat::Json | OutputFormat::Yaml)
+    {
+        return Err(
+            "--subresource requires JSON or YAML output format (-o json or -o yaml)".into(),
+        );
+    }
+
     // If it's an ID (ws-...), we can fetch directly without knowing the org
     if name.starts_with("ws-") {
         let spinner = create_spinner(&format!("Fetching workspace '{}'...", name), cli.batch);
 
         match client.get_workspace_by_id(name).await {
-            Ok(Some((workspace, raw))) => {
+            Ok(Some((_workspace, raw))) => {
                 finish_spinner(spinner, "Found");
+
+                // Handle subresource if requested
+                if let Some(subresource) = &args.subresource {
+                    return fetch_and_output_subresource(client, cli, &raw, subresource).await;
+                }
 
                 // For JSON/YAML, return raw API response
                 if matches!(args.output, OutputFormat::Json | OutputFormat::Yaml) {
@@ -139,6 +154,8 @@ async fn get_single_workspace(
                     return Ok(());
                 }
 
+                let workspace: Workspace = serde_json::from_value(raw["data"].clone())
+                    .map_err(|e| format!("Failed to parse workspace: {}", e))?;
                 let org_name = workspace
                     .organization_name()
                     .unwrap_or("unknown")
@@ -188,8 +205,13 @@ async fn get_single_workspace(
 
     // Process results as they complete, stop on first match
     while let Some((org_name, result)) = futures.next().await {
-        if let Ok(Some((workspace, raw))) = result {
+        if let Ok(Some((_workspace, raw))) = result {
             finish_spinner(spinner, "Found");
+
+            // Handle subresource if requested
+            if let Some(subresource) = &args.subresource {
+                return fetch_and_output_subresource(client, cli, &raw, subresource).await;
+            }
 
             // For JSON/YAML, return raw API response
             if matches!(args.output, OutputFormat::Json | OutputFormat::Yaml) {
@@ -197,6 +219,8 @@ async fn get_single_workspace(
                 return Ok(());
             }
 
+            let workspace: Workspace = serde_json::from_value(raw["data"].clone())
+                .map_err(|e| format!("Failed to parse workspace: {}", e))?;
             let all_workspaces = vec![(org_name, vec![workspace])];
             output_results_sorted(all_workspaces, cli);
             return Ok(());
@@ -212,4 +236,51 @@ async fn get_single_workspace(
     };
 
     Err(format!("Workspace '{}' not found in {}", name, searched).into())
+}
+
+/// Fetch and output a workspace subresource
+async fn fetch_and_output_subresource(
+    client: &TfeClient,
+    cli: &Cli,
+    workspace_raw: &serde_json::Value,
+    subresource: &WsSubresource,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let Command::Get {
+        resource: GetResource::Ws(args),
+    } = &cli.command
+    else {
+        unreachable!()
+    };
+
+    // Map subresource enum to relationship key
+    let relationship_key = match subresource {
+        WsSubresource::Run => "current-run",
+        WsSubresource::State => "current-state-version",
+        WsSubresource::Config => "current-configuration-version",
+        WsSubresource::Assessment => "current-assessment-result",
+    };
+
+    // Get the related link from relationships
+    let url = workspace_raw["data"]["relationships"][relationship_key]["links"]["related"]
+        .as_str()
+        .ok_or_else(|| {
+            format!(
+                "No '{}' relationship found for this workspace",
+                relationship_key
+            )
+        })?;
+
+    let spinner = create_spinner(&format!("Fetching {}...", relationship_key), cli.batch);
+
+    match client.get_subresource(url).await {
+        Ok(raw) => {
+            finish_spinner(spinner, "Found");
+            output_raw(&raw, &args.output);
+            Ok(())
+        }
+        Err(e) => {
+            finish_spinner(spinner, "Error");
+            Err(e.into())
+        }
+    }
 }

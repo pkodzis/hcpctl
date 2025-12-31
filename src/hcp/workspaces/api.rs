@@ -6,16 +6,24 @@ use crate::config::api;
 use crate::error::{Result, TfeError};
 use crate::hcp::TfeClient;
 
-use super::models::{Workspace, WorkspacesResponse};
+use super::models::{Workspace, WorkspaceQuery, WorkspacesResponse};
 
 impl TfeClient {
-    /// Get all workspaces for an organization (with pagination)
-    pub async fn get_workspaces(&self, org: &str) -> Result<Vec<Workspace>> {
+    /// Get workspaces for an organization with optional filters
+    ///
+    /// Uses API query parameters for efficient server-side filtering:
+    /// - `search[name]` for fuzzy name search
+    /// - `filter[project][id]` for project filtering
+    pub async fn get_workspaces(
+        &self,
+        org: &str,
+        query: WorkspaceQuery<'_>,
+    ) -> Result<Vec<Workspace>> {
         let mut all_workspaces = Vec::new();
         let mut page = 1;
 
         loop {
-            let url = format!(
+            let mut url = format!(
                 "{}/{}/{}/{}?page[size]={}&page[number]={}",
                 self.base_url(),
                 api::ORGANIZATIONS,
@@ -24,6 +32,17 @@ impl TfeClient {
                 api::DEFAULT_PAGE_SIZE,
                 page
             );
+
+            // Add server-side filters
+            if let Some(s) = query.search {
+                url.push_str(&format!("&search[name]={}", urlencoding::encode(s)));
+            }
+            if let Some(prj) = query.project_id {
+                url.push_str(&format!(
+                    "&filter[project][id]={}",
+                    urlencoding::encode(prj)
+                ));
+            }
 
             debug!("Fetching workspaces page {} from: {}", page, url);
 
@@ -56,72 +75,22 @@ impl TfeClient {
                     break;
                 }
             } else {
-                // No pagination info means single page
                 break;
             }
 
-            // Safety check: if no workspaces returned, stop
             if workspace_count == 0 {
                 break;
             }
         }
 
         debug!(
-            "Fetched {} total workspaces for org '{}'",
+            "Fetched {} workspaces for org '{}' (search: {:?}, project: {:?})",
             all_workspaces.len(),
-            org
+            org,
+            query.search,
+            query.project_id
         );
         Ok(all_workspaces)
-    }
-
-    /// Get workspaces with optional filter
-    pub async fn get_workspaces_filtered(
-        &self,
-        org: &str,
-        filter: Option<&str>,
-    ) -> Result<Vec<Workspace>> {
-        let workspaces = self.get_workspaces(org).await?;
-
-        let filtered = match filter {
-            Some(f) => workspaces
-                .into_iter()
-                .filter(|ws| ws.matches_filter(f))
-                .collect(),
-            None => workspaces,
-        };
-
-        debug!(
-            "After filtering: {} workspaces for org '{}'",
-            filtered.len(),
-            org
-        );
-        Ok(filtered)
-    }
-
-    /// Get workspaces filtered by project (and optionally by name)
-    pub async fn get_workspaces_by_project(
-        &self,
-        org: &str,
-        project_id: &str,
-        filter: Option<&str>,
-    ) -> Result<Vec<Workspace>> {
-        let workspaces = self.get_workspaces(org).await?;
-
-        let filtered: Vec<Workspace> = workspaces
-            .into_iter()
-            .filter(|ws| ws.project_id() == Some(project_id))
-            .filter(|ws| match filter {
-                Some(f) => ws.matches_filter(f),
-                None => true,
-            })
-            .collect();
-
-        debug!(
-            "After filtering by project '{}': {} workspaces",
-            project_id,
-            filtered.len()
-        );
-        Ok(filtered)
     }
 
     /// Get a single workspace by ID (direct API call, no org needed)
@@ -191,6 +160,30 @@ impl TfeClient {
             status => Err(TfeError::Api {
                 status,
                 message: format!("Failed to fetch workspace '{}'", name),
+            }),
+        }
+    }
+
+    /// Fetch a subresource by its API URL
+    /// Used to fetch related resources like current-run, current-state-version, etc.
+    pub async fn get_subresource(&self, url: &str) -> Result<serde_json::Value> {
+        let full_url = format!("https://{}{}", self.host(), url);
+        debug!("Fetching subresource: {}", full_url);
+
+        let response = self.get(&full_url).send().await?;
+
+        match response.status().as_u16() {
+            200 => {
+                let raw: serde_json::Value = response.json().await?;
+                Ok(raw)
+            }
+            404 => Err(TfeError::Api {
+                status: 404,
+                message: format!("Subresource not found at '{}'", url),
+            }),
+            status => Err(TfeError::Api {
+                status,
+                message: format!("Failed to fetch subresource from '{}'", url),
             }),
         }
     }

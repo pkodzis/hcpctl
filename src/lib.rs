@@ -38,7 +38,7 @@ pub mod ui;
 
 pub use cli::{
     Cli, Command, GetResource, OcArgs, OrgArgs, OutputFormat, PrjArgs, PrjSortField, WsArgs,
-    WsSortField,
+    WsSortField, WsSubresource,
 };
 pub use error::{Result, TfeError};
 pub use hcp::{
