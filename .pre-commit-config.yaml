@@ -27,20 +27,28 @@ repos:
         name: cargo clippy
         entry: cargo clippy --all-targets --all-features -- -D warnings
         language: system
-        types: [rust]
+        types_or: [rust, toml]
         pass_filenames: false
 
       - id: cargo-check
         name: cargo check
         entry: cargo check --all-targets
         language: system
-        types: [rust]
+        types_or: [rust, toml]
         pass_filenames: false
+
+      - id: cargo-upgrade
+        name: cargo upgrade
+        entry: bash -c 'cargo upgrade --incompatible 2>/dev/null || true'
+        language: system
+        types_or: [rust, toml]
+        pass_filenames: false
+        stages: [pre-push]
 
       - id: cargo-test
         name: cargo test
         entry: cargo test
         language: system
-        types: [rust]
+        types_or: [rust, toml]
         pass_filenames: false
         stages: [pre-push]
