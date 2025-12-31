@@ -129,6 +129,17 @@ impl TfeResource for Organization {
         // For orgs, id and name are the same
         &self.id
     }
+
+    /// Override matches to also check external_id
+    ///
+    /// HCP API has inconsistent naming:
+    /// - `id` = organization name (e.g., "my-org")
+    /// - `external-id` = actual ID (e.g., "org-ABC123")
+    ///
+    /// This allows users to look up orgs by either.
+    fn matches(&self, input: &str) -> bool {
+        self.id() == input || self.name() == input || self.external_id() == input
+    }
 }
 
 #[cfg(test)]
@@ -217,6 +228,18 @@ mod tests {
         };
         assert!(org.matches("my-org"));
         assert!(!org.matches("other"));
+    }
+
+    #[test]
+    fn test_organization_matches_by_external_id() {
+        let org = create_test_org();
+        // Should match by name
+        assert!(org.matches("my-org"));
+        // Should match by external_id (org-123)
+        assert!(org.matches("org-123"));
+        // Should not match random string
+        assert!(!org.matches("other"));
+        assert!(!org.matches("org-999"));
     }
 
     #[test]
