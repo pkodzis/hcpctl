@@ -102,6 +102,10 @@ pub enum GetResource {
         visible_alias = "oauthclients"
     )]
     Oc(OcArgs),
+
+    /// Get runs (active runs by default - non_final states)
+    #[command(visible_alias = "runs")]
+    Run(RunArgs),
 }
 
 /// Arguments for 'get org' subcommand
@@ -243,6 +247,72 @@ pub struct OcArgs {
     pub output: OutputFormat,
 }
 
+/// Arguments for 'get run' subcommand
+///
+/// Lists only active (non-final) runs. Use --status to filter by specific statuses.
+#[derive(Parser, Debug, Clone)]
+#[command(
+    after_help = "NOTE: This command shows only active (non-final) runs.\n\
+                        Use --status to filter by specific non-final statuses (e.g. planning,applying).\n\
+                        Completed runs (applied, errored, canceled) are not shown."
+)]
+pub struct RunArgs {
+    /// Run ID (if specified, shows details for that run)
+    pub name: Option<String>,
+
+    /// Organization name (lists runs across org workspaces)
+    #[arg(long = "org", conflicts_with = "ws")]
+    pub org: Option<String>,
+
+    /// Workspace ID (lists runs for specific workspace, must start with ws-)
+    #[arg(long = "ws", conflicts_with = "org")]
+    pub ws: Option<String>,
+
+    /// Filter by workspace names (comma-separated, only with --org)
+    #[arg(long = "workspace-names", requires = "org")]
+    pub workspace_names: Option<String>,
+
+    /// Filter by specific non-final run statuses (comma-separated).
+    /// Valid values: pending, fetching, queuing, plan_queued, planning, planned,
+    /// cost_estimating, cost_estimated, policy_checking, policy_override,
+    /// policy_soft_failed, policy_checked, confirmed, post_plan_running,
+    /// post_plan_completed, applying, apply_queued
+    #[arg(long)]
+    pub status: Option<String>,
+
+    /// Output format
+    #[arg(short = 'o', long, value_enum, default_value_t = OutputFormat::Table)]
+    pub output: OutputFormat,
+
+    /// Fetch a related subresource (events, plan, apply). Requires run ID.
+    #[arg(long, value_enum, requires = "name")]
+    pub subresource: Option<RunSubresource>,
+
+    /// Download and display the full log (requires --subresource plan or apply)
+    #[arg(long, default_value_t = false)]
+    pub get_log: bool,
+
+    /// Tail the log in real-time until completion (requires --subresource plan or apply)
+    #[arg(long, default_value_t = false, conflicts_with = "get_log")]
+    pub tail_log: bool,
+
+    /// Output raw log without parsing (default: extract @message from JSON lines)
+    #[arg(long, default_value_t = false)]
+    pub raw: bool,
+
+    /// Sort results by field (default: created-at, newest first)
+    #[arg(short, long, value_enum, default_value_t = RunSortField::CreatedAt)]
+    pub sort: RunSortField,
+
+    /// Reverse sort order
+    #[arg(short = 'r', long, default_value_t = false)]
+    pub reverse: bool,
+
+    /// Skip confirmation prompt when results exceed 100
+    #[arg(short = 'y', long, default_value_t = false)]
+    pub yes: bool,
+}
+
 /// Output format options
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum OutputFormat {
@@ -276,6 +346,30 @@ pub enum WsSortField {
     UpdatedAt,
     /// Sort by Terraform version
     TfVersion,
+}
+
+/// Sort field options for runs
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum, Default)]
+pub enum RunSortField {
+    /// Sort by creation time (default: newest first)
+    #[default]
+    CreatedAt,
+    /// Sort by status
+    Status,
+    /// Sort by workspace ID
+    #[value(name = "ws-id")]
+    WsId,
+}
+
+/// Run subresources that can be fetched
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum RunSubresource {
+    /// Run events (run-events)
+    Events,
+    /// Plan details with log access
+    Plan,
+    /// Apply details with log access
+    Apply,
 }
 
 /// Workspace subresources that can be fetched
@@ -318,6 +412,16 @@ impl std::fmt::Display for PrjSortField {
         match self {
             PrjSortField::Name => write!(f, "name"),
             PrjSortField::Workspaces => write!(f, "workspaces"),
+        }
+    }
+}
+
+impl std::fmt::Display for RunSortField {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RunSortField::CreatedAt => write!(f, "created-at"),
+            RunSortField::Status => write!(f, "status"),
+            RunSortField::WsId => write!(f, "ws-id"),
         }
     }
 }
@@ -601,5 +705,231 @@ mod tests {
             }
             _ => panic!("Expected Get Org command"),
         }
+    }
+
+    // === Get run tests ===
+
+    #[test]
+    fn test_get_run_single() {
+        let cli = Cli::parse_from(["hcp", "get", "run", "run-abc123"]);
+        match cli.command {
+            Command::Get {
+                resource: GetResource::Run(args),
+            } => {
+                assert_eq!(args.name, Some("run-abc123".to_string()));
+                assert!(args.org.is_none());
+                assert!(args.ws.is_none());
+            }
+            _ => panic!("Expected Get Run command"),
+        }
+    }
+
+    #[test]
+    fn test_get_run_with_org() {
+        let cli = Cli::parse_from(["hcp", "get", "run", "--org", "my-org"]);
+        match cli.command {
+            Command::Get {
+                resource: GetResource::Run(args),
+            } => {
+                assert!(args.name.is_none());
+                assert_eq!(args.org, Some("my-org".to_string()));
+                assert!(args.ws.is_none());
+            }
+            _ => panic!("Expected Get Run command"),
+        }
+    }
+
+    #[test]
+    fn test_get_run_with_ws() {
+        let cli = Cli::parse_from(["hcp", "get", "run", "--ws", "ws-abc123"]);
+        match cli.command {
+            Command::Get {
+                resource: GetResource::Run(args),
+            } => {
+                assert!(args.name.is_none());
+                assert!(args.org.is_none());
+                assert_eq!(args.ws, Some("ws-abc123".to_string()));
+            }
+            _ => panic!("Expected Get Run command"),
+        }
+    }
+
+    #[test]
+    fn test_get_run_with_subresource() {
+        let cli = Cli::parse_from(["hcp", "get", "run", "run-abc123", "--subresource", "events"]);
+        match cli.command {
+            Command::Get {
+                resource: GetResource::Run(args),
+            } => {
+                assert_eq!(args.name, Some("run-abc123".to_string()));
+                assert_eq!(args.subresource, Some(RunSubresource::Events));
+            }
+            _ => panic!("Expected Get Run command"),
+        }
+    }
+
+    #[test]
+    fn test_get_run_with_subresource_plan() {
+        let cli = Cli::parse_from(["hcp", "get", "run", "run-abc123", "--subresource", "plan"]);
+        match cli.command {
+            Command::Get {
+                resource: GetResource::Run(args),
+            } => {
+                assert_eq!(args.name, Some("run-abc123".to_string()));
+                assert_eq!(args.subresource, Some(RunSubresource::Plan));
+                assert!(!args.get_log);
+                assert!(!args.tail_log);
+            }
+            _ => panic!("Expected Get Run command"),
+        }
+    }
+
+    #[test]
+    fn test_get_run_with_subresource_apply() {
+        let cli = Cli::parse_from(["hcp", "get", "run", "run-abc123", "--subresource", "apply"]);
+        match cli.command {
+            Command::Get {
+                resource: GetResource::Run(args),
+            } => {
+                assert_eq!(args.name, Some("run-abc123".to_string()));
+                assert_eq!(args.subresource, Some(RunSubresource::Apply));
+            }
+            _ => panic!("Expected Get Run command"),
+        }
+    }
+
+    #[test]
+    fn test_get_run_with_get_log() {
+        let cli = Cli::parse_from([
+            "hcp",
+            "get",
+            "run",
+            "run-abc123",
+            "--subresource",
+            "plan",
+            "--get-log",
+        ]);
+        match cli.command {
+            Command::Get {
+                resource: GetResource::Run(args),
+            } => {
+                assert_eq!(args.subresource, Some(RunSubresource::Plan));
+                assert!(args.get_log);
+                assert!(!args.tail_log);
+            }
+            _ => panic!("Expected Get Run command"),
+        }
+    }
+
+    #[test]
+    fn test_get_run_with_tail_log() {
+        let cli = Cli::parse_from([
+            "hcp",
+            "get",
+            "run",
+            "run-abc123",
+            "--subresource",
+            "apply",
+            "--tail-log",
+        ]);
+        match cli.command {
+            Command::Get {
+                resource: GetResource::Run(args),
+            } => {
+                assert_eq!(args.subresource, Some(RunSubresource::Apply));
+                assert!(!args.get_log);
+                assert!(args.tail_log);
+                assert!(!args.raw);
+            }
+            _ => panic!("Expected Get Run command"),
+        }
+    }
+
+    #[test]
+    fn test_get_run_with_raw_log() {
+        let cli = Cli::parse_from([
+            "hcp",
+            "get",
+            "run",
+            "run-abc123",
+            "--subresource",
+            "plan",
+            "--get-log",
+            "--raw",
+        ]);
+        match cli.command {
+            Command::Get {
+                resource: GetResource::Run(args),
+            } => {
+                assert!(args.get_log);
+                assert!(args.raw);
+            }
+            _ => panic!("Expected Get Run command"),
+        }
+    }
+
+    #[test]
+    fn test_get_run_with_status_filter() {
+        let cli = Cli::parse_from([
+            "hcp",
+            "get",
+            "run",
+            "--org",
+            "my-org",
+            "--status",
+            "planning,applying",
+        ]);
+        match cli.command {
+            Command::Get {
+                resource: GetResource::Run(args),
+            } => {
+                assert_eq!(args.status, Some("planning,applying".to_string()));
+            }
+            _ => panic!("Expected Get Run command"),
+        }
+    }
+
+    #[test]
+    fn test_get_run_sort_options() {
+        let cli = Cli::parse_from(["hcp", "get", "run", "--org", "my-org", "-s", "ws-id"]);
+        match cli.command {
+            Command::Get {
+                resource: GetResource::Run(args),
+            } => {
+                assert_eq!(args.sort, RunSortField::WsId);
+            }
+            _ => panic!("Expected Get Run command"),
+        }
+    }
+
+    #[test]
+    fn test_get_run_yes_flag() {
+        let cli = Cli::parse_from(["hcp", "get", "run", "--org", "my-org", "-y"]);
+        match cli.command {
+            Command::Get {
+                resource: GetResource::Run(args),
+            } => {
+                assert!(args.yes);
+            }
+            _ => panic!("Expected Get Run command"),
+        }
+    }
+
+    #[test]
+    fn test_get_run_alias() {
+        let cli = Cli::parse_from(["hcp", "get", "runs"]);
+        assert!(matches!(
+            cli.command,
+            Command::Get {
+                resource: GetResource::Run(_)
+            }
+        ));
+    }
+
+    #[test]
+    fn test_run_sort_field_display() {
+        assert_eq!(RunSortField::CreatedAt.to_string(), "created-at");
+        assert_eq!(RunSortField::Status.to_string(), "status");
+        assert_eq!(RunSortField::WsId.to_string(), "ws-id");
     }
 }

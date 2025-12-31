@@ -9,6 +9,7 @@ mod host;
 pub mod oauth_clients;
 pub mod organizations;
 pub mod projects;
+pub mod runs;
 pub mod traits;
 pub mod workspaces;
 
@@ -24,6 +25,7 @@ pub use organizations::{
     OrganizationWithTokens,
 };
 pub use projects::{run_prj_command, Project, ProjectAttributes, ProjectWorkspaces};
+pub use runs::{run_runs_command, Run, RunAttributes};
 pub use traits::TfeResource;
 pub use workspaces::{run_ws_command, Workspace, WorkspaceAttributes};
 
