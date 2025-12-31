@@ -2,13 +2,11 @@
 
 ## [0.2.0](https://github.com/pkodzis/hcpctl/compare/v0.1.0...v0.2.0) (2025-12-31)
 
-
 ### Features
 
 * runs support ([cf974fd](https://github.com/pkodzis/hcpctl/commit/cf974fdd3f0acfe8023929a08b6d24f8560e9e83))
 
 ## 0.1.0 (2025-12-31)
-
 
 ### Features
 
@@ -23,10 +21,7 @@
 * TF API host resolver ([51bc194](https://github.com/pkodzis/hcpctl/commit/51bc194929a65c90142fcb73bca83d9d4d4ac3b3))
 * yaml output ([508e8f4](https://github.com/pkodzis/hcpctl/commit/508e8f47344e49854614c2db273923fb6642fa0d))
 
-
 ### Bug Fixes
 
 * displaying org by id ([45251bb](https://github.com/pkodzis/hcpctl/commit/45251bb5cc2f225fbf0842e54ead2d4d30fb670e))
 * remove Cargo.lock from repo ([8070140](https://github.com/pkodzis/hcpctl/commit/8070140b7f5d0894ced87cfed3d9cf5afa7259d3))
-
-## Changelog
