@@ -5,7 +5,7 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::fs;
 
-use crate::config::{credentials, defaults};
+use crate::config::credentials;
 use crate::error::{Result, TfeError};
 
 /// Credentials file structure
@@ -113,7 +113,7 @@ impl TokenResolver {
         format!(
             "No API token found for host '{}'. Please provide a token using one of:\n\
              \n\
-             1. CLI argument:      hcp-cli --token <TOKEN>\n\
+             1. CLI argument:      hcpctl --token <TOKEN>\n\
              2. Environment var:   export HCP_TOKEN=<TOKEN>  (also: TFC_TOKEN, TFE_TOKEN)\n\
              3. Terraform login:   terraform login {}\n\
              \n\
@@ -140,12 +140,6 @@ impl TokenResolver {
     }
 }
 
-impl Default for TokenResolver {
-    fn default() -> Self {
-        Self::new(defaults::HOST)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -165,8 +159,62 @@ mod tests {
     }
 
     #[test]
-    fn test_resolver_default() {
-        let resolver = TokenResolver::default();
-        assert_eq!(resolver.host, defaults::HOST);
+    fn test_token_not_found_message_format() {
+        let resolver = TokenResolver::new("app.terraform.io");
+        let msg = resolver.token_not_found_message(None);
+        assert!(msg.contains("app.terraform.io"));
+        assert!(msg.contains("hcpctl --token"));
+        assert!(msg.contains("HCP_TOKEN"));
+        assert!(msg.contains("terraform login"));
+    }
+
+    #[test]
+    fn test_token_not_found_message_with_path() {
+        let resolver = TokenResolver::new("app.terraform.io");
+        let path = std::path::Path::new("/home/user/.terraform.d/credentials.tfrc.json");
+        let msg = resolver.token_not_found_message(Some(path));
+        assert!(msg.contains("app.terraform.io"));
+        assert!(msg.contains("/home/user/.terraform.d/credentials.tfrc.json"));
+    }
+
+    #[test]
+    fn test_credentials_file_parsing() {
+        let json = r#"{
+            "credentials": {
+                "app.terraform.io": {
+                    "token": "test-token-123"
+                },
+                "custom.host.com": {
+                    "token": "custom-token-456"
+                }
+            }
+        }"#;
+
+        let creds: TfeCredentials = serde_json::from_str(json).unwrap();
+        assert_eq!(creds.credentials.len(), 2);
+        assert_eq!(
+            creds.credentials.get("app.terraform.io").unwrap().token,
+            "test-token-123"
+        );
+        assert_eq!(
+            creds.credentials.get("custom.host.com").unwrap().token,
+            "custom-token-456"
+        );
+    }
+
+    #[test]
+    fn test_credentials_file_parsing_empty() {
+        let json = r#"{"credentials": {}}"#;
+        let creds: TfeCredentials = serde_json::from_str(json).unwrap();
+        assert!(creds.credentials.is_empty());
+    }
+
+    #[test]
+    fn test_get_credentials_path() {
+        let path = TokenResolver::get_credentials_path();
+        // Should return Some path on any platform
+        assert!(path.is_some());
+        let path = path.unwrap();
+        assert!(path.to_string_lossy().contains("credentials.tfrc.json"));
     }
 }

@@ -1,31 +1,60 @@
 //! TFE HTTP client for API interactions
 
-use log::debug;
 use reqwest::Client;
+use std::time::Duration;
 
-use super::models::{OrganizationsResponse, Workspace, WorkspacesResponse};
 use crate::config::api;
-use crate::error::{Result, TfeError};
 
 /// TFE API client
 pub struct TfeClient {
     client: Client,
     token: String,
     host: String,
+    /// Custom base URL override (for testing with mock servers)
+    base_url_override: Option<String>,
 }
 
 impl TfeClient {
-    /// Create a new TFE client
+    /// Create a new TFE client with optimized connection settings
     pub fn new(token: String, host: String) -> Self {
+        let client = Client::builder()
+            // Connection pool settings - reuse connections
+            .pool_max_idle_per_host(20)
+            .pool_idle_timeout(Duration::from_secs(90))
+            // TCP keepalive to maintain connections
+            .tcp_keepalive(Duration::from_secs(60))
+            // Timeouts
+            .connect_timeout(Duration::from_secs(10))
+            .timeout(Duration::from_secs(30))
+            .build()
+            .unwrap_or_else(|_| Client::new());
+
         Self {
-            client: Client::new(),
+            client,
             token,
             host,
+            base_url_override: None,
+        }
+    }
+
+    /// Create a client with custom base URL (for testing with mock servers)
+    #[cfg(test)]
+    pub fn with_base_url(token: String, host: String, base_url: String) -> Self {
+        let client = Client::builder().build().unwrap_or_else(|_| Client::new());
+
+        Self {
+            client,
+            token,
+            host,
+            base_url_override: Some(base_url),
         }
     }
 
     /// Build the base URL for API requests
-    fn base_url(&self) -> String {
+    pub(crate) fn base_url(&self) -> String {
+        if let Some(ref url) = self.base_url_override {
+            return url.clone();
+        }
         format!(
             "https://{}/{}",
             self.host,
@@ -33,119 +62,39 @@ impl TfeClient {
         )
     }
 
-    /// Create a request builder with standard headers
-    fn request(&self, url: &str) -> reqwest::RequestBuilder {
-        self.client
-            .get(url)
+    /// Get the host for building URLs
+    pub(crate) fn host(&self) -> &str {
+        &self.host
+    }
+
+    /// Add standard headers to a request builder
+    fn with_headers(&self, builder: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
+        builder
             .header("Authorization", format!("Bearer {}", self.token))
             .header("Content-Type", "application/vnd.api+json")
     }
 
-    /// Get all organizations accessible to the token
-    pub async fn get_organizations(&self) -> Result<Vec<String>> {
-        let url = format!("{}/{}", self.base_url(), api::ORGANIZATIONS);
-        debug!("Fetching organizations from: {}", url);
-
-        let response = self.request(&url).send().await?;
-
-        if !response.status().is_success() {
-            return Err(TfeError::Api {
-                status: response.status().as_u16(),
-                message: "Failed to fetch organizations".to_string(),
-            });
-        }
-
-        let orgs_response: OrganizationsResponse = response.json().await?;
-        Ok(orgs_response.data.into_iter().map(|org| org.id).collect())
+    /// Create a GET request builder with standard headers
+    pub(crate) fn get(&self, url: &str) -> reqwest::RequestBuilder {
+        self.with_headers(self.client.get(url))
     }
 
-    /// Get all workspaces for an organization (with pagination)
-    pub async fn get_workspaces(&self, org: &str) -> Result<Vec<Workspace>> {
-        let mut all_workspaces = Vec::new();
-        let mut page = 1;
-
-        loop {
-            let url = format!(
-                "{}/{}/{}/{}?page[size]={}&page[number]={}",
-                self.base_url(),
-                api::ORGANIZATIONS,
-                org,
-                api::WORKSPACES,
-                api::DEFAULT_PAGE_SIZE,
-                page
-            );
-
-            debug!("Fetching workspaces page {} from: {}", page, url);
-
-            let response = self.request(&url).send().await?;
-
-            if !response.status().is_success() {
-                return Err(TfeError::Api {
-                    status: response.status().as_u16(),
-                    message: format!("Failed to fetch workspaces for org '{}'", org),
-                });
-            }
-
-            let ws_response: WorkspacesResponse = response.json().await?;
-            let workspace_count = ws_response.data.len();
-            all_workspaces.extend(ws_response.data);
-
-            // Check if there are more pages
-            if let Some(meta) = ws_response.meta {
-                if let Some(pagination) = meta.pagination {
-                    debug!(
-                        "Page {}/{}, total workspaces: {}",
-                        pagination.current_page, pagination.total_pages, pagination.total_count
-                    );
-
-                    if page >= pagination.total_pages {
-                        break;
-                    }
-                    page += 1;
-                } else {
-                    break;
-                }
-            } else {
-                // No pagination info means single page
-                break;
-            }
-
-            // Safety check: if no workspaces returned, stop
-            if workspace_count == 0 {
-                break;
-            }
-        }
-
-        debug!(
-            "Fetched {} total workspaces for org '{}'",
-            all_workspaces.len(),
-            org
-        );
-        Ok(all_workspaces)
+    /// Create a POST request builder with standard headers
+    #[allow(dead_code)]
+    pub(crate) fn post(&self, url: &str) -> reqwest::RequestBuilder {
+        self.with_headers(self.client.post(url))
     }
 
-    /// Get workspaces with optional filter
-    pub async fn get_workspaces_filtered(
-        &self,
-        org: &str,
-        filter: Option<&str>,
-    ) -> Result<Vec<Workspace>> {
-        let workspaces = self.get_workspaces(org).await?;
+    /// Create a PATCH request builder with standard headers
+    #[allow(dead_code)]
+    pub(crate) fn patch(&self, url: &str) -> reqwest::RequestBuilder {
+        self.with_headers(self.client.patch(url))
+    }
 
-        let filtered = match filter {
-            Some(f) => workspaces
-                .into_iter()
-                .filter(|ws| ws.matches_filter(f))
-                .collect(),
-            None => workspaces,
-        };
-
-        debug!(
-            "After filtering: {} workspaces for org '{}'",
-            filtered.len(),
-            org
-        );
-        Ok(filtered)
+    /// Create a DELETE request builder with standard headers
+    #[allow(dead_code)]
+    pub(crate) fn delete(&self, url: &str) -> reqwest::RequestBuilder {
+        self.with_headers(self.client.delete(url))
     }
 }
 
@@ -164,5 +113,26 @@ mod tests {
         let client = TfeClient::new("my-token".to_string(), "tfe.example.com".to_string());
         assert_eq!(client.host, "tfe.example.com");
         assert_eq!(client.token, "my-token");
+    }
+
+    #[test]
+    fn test_host_getter() {
+        let client = TfeClient::new("token".to_string(), "custom.terraform.io".to_string());
+        assert_eq!(client.host(), "custom.terraform.io");
+    }
+
+    #[test]
+    fn test_base_url_with_app_terraform_io() {
+        let client = TfeClient::new("token".to_string(), "app.terraform.io".to_string());
+        assert_eq!(client.base_url(), "https://app.terraform.io/api/v2");
+    }
+
+    #[test]
+    fn test_base_url_strips_leading_slash() {
+        // Ensure base_url works correctly regardless of BASE_PATH format
+        let client = TfeClient::new("token".to_string(), "test.com".to_string());
+        let url = client.base_url();
+        assert!(!url.contains("//api")); // No double slashes
+        assert!(url.starts_with("https://"));
     }
 }

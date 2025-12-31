@@ -1,11 +1,11 @@
 #!/bin/bash
-# hcp-cli installer for Linux/macOS
-# Usage: curl -fsSL https://raw.githubusercontent.com/pkodzis/hcp-cli/main/scripts/install.sh | bash
+# hcpctl installer for Linux/macOS
+# Usage: curl -fsSL https://raw.githubusercontent.com/pkodzis/hcpctl/main/scripts/install.sh | bash
 
 set -e
 
-REPO="pkodzis/hcp-cli"
-BINARY_NAME="hcp-cli"
+REPO="pkodzis/hcpctl"
+BINARY_NAME="hcpctl"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/.local/bin}"
 
 # Colors

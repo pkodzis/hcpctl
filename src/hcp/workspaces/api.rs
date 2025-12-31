@@ -1,0 +1,431 @@
+//! Workspace API operations
+
+use log::debug;
+
+use crate::config::api;
+use crate::error::{Result, TfeError};
+use crate::hcp::TfeClient;
+
+use super::models::{Workspace, WorkspaceQuery, WorkspacesResponse};
+
+impl TfeClient {
+    /// Get workspaces for an organization with optional filters
+    ///
+    /// Uses API query parameters for efficient server-side filtering:
+    /// - `search[name]` for fuzzy name search
+    /// - `filter[project][id]` for project filtering
+    pub async fn get_workspaces(
+        &self,
+        org: &str,
+        query: WorkspaceQuery<'_>,
+    ) -> Result<Vec<Workspace>> {
+        let mut all_workspaces = Vec::new();
+        let mut page = 1;
+
+        loop {
+            let mut url = format!(
+                "{}/{}/{}/{}?page[size]={}&page[number]={}",
+                self.base_url(),
+                api::ORGANIZATIONS,
+                org,
+                api::WORKSPACES,
+                api::DEFAULT_PAGE_SIZE,
+                page
+            );
+
+            // Add server-side filters
+            if let Some(s) = query.search {
+                url.push_str(&format!("&search[name]={}", urlencoding::encode(s)));
+            }
+            if let Some(prj) = query.project_id {
+                url.push_str(&format!(
+                    "&filter[project][id]={}",
+                    urlencoding::encode(prj)
+                ));
+            }
+
+            debug!("Fetching workspaces page {} from: {}", page, url);
+
+            let response = self.get(&url).send().await?;
+
+            if !response.status().is_success() {
+                return Err(TfeError::Api {
+                    status: response.status().as_u16(),
+                    message: format!("Failed to fetch workspaces for org '{}'", org),
+                });
+            }
+
+            let ws_response: WorkspacesResponse = response.json().await?;
+            let workspace_count = ws_response.data.len();
+            all_workspaces.extend(ws_response.data);
+
+            // Check if there are more pages
+            if let Some(meta) = ws_response.meta {
+                if let Some(pagination) = meta.pagination {
+                    debug!(
+                        "Page {}/{}, total workspaces: {}",
+                        pagination.current_page, pagination.total_pages, pagination.total_count
+                    );
+
+                    if page >= pagination.total_pages {
+                        break;
+                    }
+                    page += 1;
+                } else {
+                    break;
+                }
+            } else {
+                break;
+            }
+
+            if workspace_count == 0 {
+                break;
+            }
+        }
+
+        debug!(
+            "Fetched {} workspaces for org '{}' (search: {:?}, project: {:?})",
+            all_workspaces.len(),
+            org,
+            query.search,
+            query.project_id
+        );
+        Ok(all_workspaces)
+    }
+
+    /// Get a single workspace by ID (direct API call, no org needed)
+    /// Returns both the typed model and raw JSON for flexible output
+    pub async fn get_workspace_by_id(
+        &self,
+        workspace_id: &str,
+    ) -> Result<Option<(Workspace, serde_json::Value)>> {
+        let url = format!("{}/{}/{}", self.base_url(), api::WORKSPACES, workspace_id);
+        debug!("Fetching workspace directly by ID: {}", url);
+
+        let response = self.get(&url).send().await?;
+
+        match response.status().as_u16() {
+            200 => {
+                // First get raw JSON
+                let raw: serde_json::Value = response.json().await?;
+                // Then deserialize model from the same data
+                let workspace: Workspace =
+                    serde_json::from_value(raw["data"].clone()).map_err(|e| TfeError::Api {
+                        status: 200,
+                        message: format!("Failed to parse workspace: {}", e),
+                    })?;
+                Ok(Some((workspace, raw)))
+            }
+            404 => Ok(None),
+            status => Err(TfeError::Api {
+                status,
+                message: format!("Failed to fetch workspace '{}'", workspace_id),
+            }),
+        }
+    }
+
+    /// Get a single workspace by name (requires org)
+    /// Returns both the typed model and raw JSON for flexible output
+    pub async fn get_workspace_by_name(
+        &self,
+        org: &str,
+        name: &str,
+    ) -> Result<Option<(Workspace, serde_json::Value)>> {
+        let url = format!(
+            "{}/{}/{}/{}/{}",
+            self.base_url(),
+            api::ORGANIZATIONS,
+            org,
+            api::WORKSPACES,
+            name
+        );
+
+        debug!("Fetching workspace by name: {}", url);
+
+        let response = self.get(&url).send().await?;
+
+        match response.status().as_u16() {
+            200 => {
+                // First get raw JSON
+                let raw: serde_json::Value = response.json().await?;
+                // Then deserialize model from the same data
+                let workspace: Workspace =
+                    serde_json::from_value(raw["data"].clone()).map_err(|e| TfeError::Api {
+                        status: 200,
+                        message: format!("Failed to parse workspace: {}", e),
+                    })?;
+                Ok(Some((workspace, raw)))
+            }
+            404 => Ok(None),
+            status => Err(TfeError::Api {
+                status,
+                message: format!("Failed to fetch workspace '{}'", name),
+            }),
+        }
+    }
+
+    /// Fetch a subresource by its API URL
+    /// Used to fetch related resources like current-run, current-state-version, etc.
+    pub async fn get_subresource(&self, url: &str) -> Result<serde_json::Value> {
+        let full_url = format!("https://{}{}", self.host(), url);
+        debug!("Fetching subresource: {}", full_url);
+
+        let response = self.get(&full_url).send().await?;
+
+        match response.status().as_u16() {
+            200 => {
+                let raw: serde_json::Value = response.json().await?;
+                Ok(raw)
+            }
+            404 => Err(TfeError::Api {
+                status: 404,
+                message: format!("Subresource not found at '{}'", url),
+            }),
+            status => Err(TfeError::Api {
+                status,
+                message: format!("Failed to fetch subresource from '{}'", url),
+            }),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::hcp::traits::TfeResource;
+    use wiremock::matchers::{method, path, query_param};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    fn create_test_client(base_url: &str) -> TfeClient {
+        TfeClient::with_base_url(
+            "test-token".to_string(),
+            "mock.terraform.io".to_string(),
+            base_url.to_string(),
+        )
+    }
+
+    fn workspace_json(id: &str, name: &str) -> serde_json::Value {
+        serde_json::json!({
+            "id": id,
+            "attributes": {
+                "name": name,
+                "execution-mode": "remote",
+                "resource-count": 10,
+                "locked": false,
+                "terraform-version": "1.5.0"
+            }
+        })
+    }
+
+    #[tokio::test]
+    async fn test_get_workspaces_success() {
+        let mock_server = MockServer::start().await;
+        let client = create_test_client(&mock_server.uri());
+
+        let response_body = serde_json::json!({
+            "data": [
+                workspace_json("ws-1", "workspace-1"),
+                workspace_json("ws-2", "workspace-2")
+            ]
+        });
+
+        Mock::given(method("GET"))
+            .and(path("/organizations/my-org/workspaces"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(&response_body))
+            .mount(&mock_server)
+            .await;
+
+        let result = client
+            .get_workspaces("my-org", WorkspaceQuery::default())
+            .await;
+
+        assert!(result.is_ok());
+        let workspaces = result.unwrap();
+        assert_eq!(workspaces.len(), 2);
+        assert_eq!(workspaces[0].name(), "workspace-1");
+        assert_eq!(workspaces[1].name(), "workspace-2");
+    }
+
+    #[tokio::test]
+    async fn test_get_workspaces_with_search() {
+        let mock_server = MockServer::start().await;
+        let client = create_test_client(&mock_server.uri());
+
+        let response_body = serde_json::json!({
+            "data": [workspace_json("ws-prod", "production")]
+        });
+
+        Mock::given(method("GET"))
+            .and(path("/organizations/my-org/workspaces"))
+            .and(query_param("search[name]", "prod"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(&response_body))
+            .mount(&mock_server)
+            .await;
+
+        let query = WorkspaceQuery {
+            search: Some("prod"),
+            project_id: None,
+        };
+        let result = client.get_workspaces("my-org", query).await;
+
+        assert!(result.is_ok());
+        let workspaces = result.unwrap();
+        assert_eq!(workspaces.len(), 1);
+        assert_eq!(workspaces[0].name(), "production");
+    }
+
+    #[tokio::test]
+    async fn test_get_workspaces_with_project_filter() {
+        let mock_server = MockServer::start().await;
+        let client = create_test_client(&mock_server.uri());
+
+        let response_body = serde_json::json!({
+            "data": [workspace_json("ws-prj", "project-ws")]
+        });
+
+        Mock::given(method("GET"))
+            .and(path("/organizations/my-org/workspaces"))
+            .and(query_param("filter[project][id]", "prj-123"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(&response_body))
+            .mount(&mock_server)
+            .await;
+
+        let query = WorkspaceQuery {
+            search: None,
+            project_id: Some("prj-123"),
+        };
+        let result = client.get_workspaces("my-org", query).await;
+
+        assert!(result.is_ok());
+        let workspaces = result.unwrap();
+        assert_eq!(workspaces.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_get_workspaces_api_error() {
+        let mock_server = MockServer::start().await;
+        let client = create_test_client(&mock_server.uri());
+
+        Mock::given(method("GET"))
+            .and(path("/organizations/my-org/workspaces"))
+            .respond_with(ResponseTemplate::new(403))
+            .mount(&mock_server)
+            .await;
+
+        let result = client
+            .get_workspaces("my-org", WorkspaceQuery::default())
+            .await;
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        match err {
+            TfeError::Api { status, message } => {
+                assert_eq!(status, 403);
+                assert!(message.contains("my-org"));
+            }
+            _ => panic!("Expected TfeError::Api"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_get_workspaces_empty() {
+        let mock_server = MockServer::start().await;
+        let client = create_test_client(&mock_server.uri());
+
+        let response_body = serde_json::json!({
+            "data": []
+        });
+
+        Mock::given(method("GET"))
+            .and(path("/organizations/my-org/workspaces"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(&response_body))
+            .mount(&mock_server)
+            .await;
+
+        let result = client
+            .get_workspaces("my-org", WorkspaceQuery::default())
+            .await;
+
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_get_workspace_by_id_success() {
+        let mock_server = MockServer::start().await;
+        let client = create_test_client(&mock_server.uri());
+
+        let response_body = serde_json::json!({
+            "data": workspace_json("ws-abc123", "my-workspace")
+        });
+
+        Mock::given(method("GET"))
+            .and(path("/workspaces/ws-abc123"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(&response_body))
+            .mount(&mock_server)
+            .await;
+
+        let result = client.get_workspace_by_id("ws-abc123").await;
+
+        assert!(result.is_ok());
+        let (workspace, _raw) = result.unwrap().unwrap();
+        assert_eq!(workspace.id, "ws-abc123");
+        assert_eq!(workspace.name(), "my-workspace");
+    }
+
+    #[tokio::test]
+    async fn test_get_workspace_by_id_not_found() {
+        let mock_server = MockServer::start().await;
+        let client = create_test_client(&mock_server.uri());
+
+        Mock::given(method("GET"))
+            .and(path("/workspaces/ws-nonexistent"))
+            .respond_with(ResponseTemplate::new(404))
+            .mount(&mock_server)
+            .await;
+
+        let result = client.get_workspace_by_id("ws-nonexistent").await;
+
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn test_get_workspace_by_name_success() {
+        let mock_server = MockServer::start().await;
+        let client = create_test_client(&mock_server.uri());
+
+        let response_body = serde_json::json!({
+            "data": workspace_json("ws-xyz", "production")
+        });
+
+        Mock::given(method("GET"))
+            .and(path("/organizations/my-org/workspaces/production"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(&response_body))
+            .mount(&mock_server)
+            .await;
+
+        let result = client.get_workspace_by_name("my-org", "production").await;
+
+        assert!(result.is_ok());
+        let (workspace, _raw) = result.unwrap().unwrap();
+        assert_eq!(workspace.name(), "production");
+    }
+
+    #[tokio::test]
+    async fn test_get_workspace_by_name_not_found() {
+        let mock_server = MockServer::start().await;
+        let client = create_test_client(&mock_server.uri());
+
+        Mock::given(method("GET"))
+            .and(path("/organizations/my-org/workspaces/nonexistent"))
+            .respond_with(ResponseTemplate::new(404))
+            .mount(&mock_server)
+            .await;
+
+        let result = client.get_workspace_by_name("my-org", "nonexistent").await;
+
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_none());
+    }
+}

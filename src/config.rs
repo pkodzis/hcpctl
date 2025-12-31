@@ -6,6 +6,9 @@ pub mod api {
     /// Organizations endpoint
     pub const ORGANIZATIONS: &str = "organizations";
 
+    /// Projects endpoint
+    pub const PROJECTS: &str = "projects";
+
     /// Workspaces endpoint
     pub const WORKSPACES: &str = "workspaces";
 
@@ -25,11 +28,14 @@ pub mod credentials {
     pub const TOKEN_ENV_VARS: &[&str] = &["HCP_TOKEN", "TFC_TOKEN", "TFE_TOKEN"];
 }
 
+/// Configuration constants for host resolution
+pub mod host {
+    /// Environment variable for hostname
+    pub const ENV_VAR: &str = "TFE_HOSTNAME";
+}
+
 /// Default values for CLI
 pub mod defaults {
-    /// Default TFE host
-    pub const HOST: &str = "app.terraform.io";
-
     /// Default log level
     pub const LOG_LEVEL: &str = "warn";
 }
@@ -52,8 +58,30 @@ mod tests {
     }
 
     #[test]
-    fn test_default_host_is_valid() {
-        assert!(defaults::HOST.contains('.'));
-        assert!(!defaults::HOST.starts_with("https://"));
+    fn test_host_env_var() {
+        assert_eq!(host::ENV_VAR, "TFE_HOSTNAME");
+    }
+
+    #[test]
+    fn test_api_endpoints() {
+        assert_eq!(api::ORGANIZATIONS, "organizations");
+        assert_eq!(api::PROJECTS, "projects");
+        assert_eq!(api::WORKSPACES, "workspaces");
+    }
+
+    #[test]
+    fn test_default_page_size() {
+        assert_eq!(api::DEFAULT_PAGE_SIZE, 100);
+    }
+
+    #[test]
+    fn test_credentials_file_paths() {
+        assert!(credentials::FILE_NAME.contains("credentials.tfrc.json"));
+        assert!(credentials::FILE_PATH_UNIX.contains(".terraform.d"));
+    }
+
+    #[test]
+    fn test_default_log_level() {
+        assert_eq!(defaults::LOG_LEVEL, "warn");
     }
 }

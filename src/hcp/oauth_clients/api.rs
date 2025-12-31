@@ -1,0 +1,298 @@
+//! OAuth Client API operations
+
+use log::debug;
+
+use crate::config::api;
+use crate::error::{Result, TfeError};
+use crate::hcp::TfeClient;
+
+use super::models::{OAuthClient, OAuthClientsResponse};
+
+impl TfeClient {
+    /// Get all OAuth clients for an organization (with pagination)
+    pub async fn get_oauth_clients(&self, org: &str) -> Result<Vec<OAuthClient>> {
+        let mut all_clients = Vec::new();
+        let mut page = 1;
+
+        loop {
+            let url = format!(
+                "{}/{}/{}/oauth-clients?page[size]={}&page[number]={}",
+                self.base_url(),
+                api::ORGANIZATIONS,
+                org,
+                api::DEFAULT_PAGE_SIZE,
+                page
+            );
+
+            debug!("Fetching oauth clients page {} from: {}", page, url);
+
+            let response = self.get(&url).send().await?;
+
+            if !response.status().is_success() {
+                return Err(TfeError::Api {
+                    status: response.status().as_u16(),
+                    message: format!("Failed to fetch OAuth clients for org '{}'", org),
+                });
+            }
+
+            let clients_response: OAuthClientsResponse = response.json().await?;
+            let client_count = clients_response.data.len();
+            all_clients.extend(clients_response.data);
+
+            // Check if there are more pages
+            if let Some(meta) = clients_response.meta {
+                if let Some(pagination) = meta.pagination {
+                    debug!(
+                        "Page {}/{}, total OAuth clients: {}",
+                        pagination.current_page, pagination.total_pages, pagination.total_count
+                    );
+
+                    if page >= pagination.total_pages {
+                        break;
+                    }
+                    page += 1;
+                } else {
+                    break;
+                }
+            } else {
+                // No pagination info means single page
+                break;
+            }
+
+            // Safety check: if no clients returned, stop
+            if client_count == 0 {
+                break;
+            }
+        }
+
+        debug!(
+            "Fetched {} total OAuth clients for org '{}'",
+            all_clients.len(),
+            org
+        );
+        Ok(all_clients)
+    }
+
+    /// Get a single OAuth client by ID
+    /// Returns both the typed model and raw JSON for flexible output
+    pub async fn get_oauth_client(
+        &self,
+        client_id: &str,
+    ) -> Result<(OAuthClient, serde_json::Value)> {
+        let url = format!("{}/oauth-clients/{}", self.base_url(), client_id);
+
+        debug!("Fetching OAuth client from: {}", url);
+
+        let response = self.get(&url).send().await?;
+
+        if !response.status().is_success() {
+            return Err(TfeError::Api {
+                status: response.status().as_u16(),
+                message: format!("Failed to fetch OAuth client '{}'", client_id),
+            });
+        }
+
+        // First get raw JSON
+        let raw: serde_json::Value = response.json().await?;
+        // Then deserialize model from the same data
+        let client: OAuthClient =
+            serde_json::from_value(raw["data"].clone()).map_err(|e| TfeError::Api {
+                status: 200,
+                message: format!("Failed to parse OAuth client: {}", e),
+            })?;
+        Ok((client, raw))
+    }
+
+    /// Get OAuth tokens for an organization (from the oauth-tokens link)
+    pub async fn get_oauth_tokens_for_org(
+        &self,
+        org: &str,
+    ) -> Result<Vec<super::models::OAuthToken>> {
+        let url = format!("{}/organizations/{}/oauth-tokens", self.base_url(), org);
+
+        debug!("Fetching OAuth tokens from: {}", url);
+
+        let response = self.get(&url).send().await?;
+
+        if !response.status().is_success() {
+            // Return empty vec instead of error for orgs without oauth tokens
+            debug!(
+                "No OAuth tokens found for org '{}' (status: {})",
+                org,
+                response.status()
+            );
+            return Ok(vec![]);
+        }
+
+        let tokens_response: super::models::OAuthTokensResponse = response.json().await?;
+        debug!(
+            "Fetched {} OAuth tokens for org '{}'",
+            tokens_response.data.len(),
+            org
+        );
+        Ok(tokens_response.data)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::hcp::traits::TfeResource;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    fn create_test_client(base_url: &str) -> TfeClient {
+        TfeClient::with_base_url(
+            "test-token".to_string(),
+            "mock.terraform.io".to_string(),
+            base_url.to_string(),
+        )
+    }
+
+    fn oauth_client_json(id: &str, name: &str) -> serde_json::Value {
+        serde_json::json!({
+            "id": id,
+            "type": "oauth-clients",
+            "attributes": {
+                "name": name,
+                "service-provider": "github",
+                "http-url": "https://github.com"
+            }
+        })
+    }
+
+    #[tokio::test]
+    async fn test_get_oauth_clients_success() {
+        let mock_server = MockServer::start().await;
+        let client = create_test_client(&mock_server.uri());
+
+        let response_body = serde_json::json!({
+            "data": [
+                oauth_client_json("oc-1", "GitHub Prod"),
+                oauth_client_json("oc-2", "GitLab Dev")
+            ]
+        });
+
+        Mock::given(method("GET"))
+            .and(path("/organizations/my-org/oauth-clients"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(&response_body))
+            .mount(&mock_server)
+            .await;
+
+        let result = client.get_oauth_clients("my-org").await;
+
+        assert!(result.is_ok());
+        let clients = result.unwrap();
+        assert_eq!(clients.len(), 2);
+        assert_eq!(clients[0].name(), "GitHub Prod");
+    }
+
+    #[tokio::test]
+    async fn test_get_oauth_clients_empty() {
+        let mock_server = MockServer::start().await;
+        let client = create_test_client(&mock_server.uri());
+
+        let response_body = serde_json::json!({ "data": [] });
+
+        Mock::given(method("GET"))
+            .and(path("/organizations/my-org/oauth-clients"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(&response_body))
+            .mount(&mock_server)
+            .await;
+
+        let result = client.get_oauth_clients("my-org").await;
+
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_get_oauth_clients_api_error() {
+        let mock_server = MockServer::start().await;
+        let client = create_test_client(&mock_server.uri());
+
+        Mock::given(method("GET"))
+            .and(path("/organizations/my-org/oauth-clients"))
+            .respond_with(ResponseTemplate::new(403))
+            .mount(&mock_server)
+            .await;
+
+        let result = client.get_oauth_clients("my-org").await;
+
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            TfeError::Api { status, .. } => assert_eq!(status, 403),
+            _ => panic!("Expected TfeError::Api"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_get_oauth_client_success() {
+        let mock_server = MockServer::start().await;
+        let client = create_test_client(&mock_server.uri());
+
+        let response_body = serde_json::json!({
+            "data": oauth_client_json("oc-abc123", "My GitHub")
+        });
+
+        Mock::given(method("GET"))
+            .and(path("/oauth-clients/oc-abc123"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(&response_body))
+            .mount(&mock_server)
+            .await;
+
+        let result = client.get_oauth_client("oc-abc123").await;
+
+        assert!(result.is_ok());
+        let (oauth_client, _raw) = result.unwrap();
+        assert_eq!(oauth_client.id, "oc-abc123");
+        assert_eq!(oauth_client.name(), "My GitHub");
+    }
+
+    #[tokio::test]
+    async fn test_get_oauth_tokens_for_org_success() {
+        let mock_server = MockServer::start().await;
+        let client = create_test_client(&mock_server.uri());
+
+        let response_body = serde_json::json!({
+            "data": [
+                {
+                    "id": "ot-1",
+                    "type": "oauth-tokens",
+                    "attributes": {}
+                }
+            ]
+        });
+
+        Mock::given(method("GET"))
+            .and(path("/organizations/my-org/oauth-tokens"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(&response_body))
+            .mount(&mock_server)
+            .await;
+
+        let result = client.get_oauth_tokens_for_org("my-org").await;
+
+        assert!(result.is_ok());
+        let tokens = result.unwrap();
+        assert_eq!(tokens.len(), 1);
+        assert_eq!(tokens[0].id, "ot-1");
+    }
+
+    #[tokio::test]
+    async fn test_get_oauth_tokens_not_found_returns_empty() {
+        let mock_server = MockServer::start().await;
+        let client = create_test_client(&mock_server.uri());
+
+        Mock::given(method("GET"))
+            .and(path("/organizations/my-org/oauth-tokens"))
+            .respond_with(ResponseTemplate::new(404))
+            .mount(&mock_server)
+            .await;
+
+        let result = client.get_oauth_tokens_for_org("my-org").await;
+
+        // Should return empty vec, not error
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_empty());
+    }
+}
