@@ -97,4 +97,61 @@ mod tests {
         // Verify TfeError is Send + Sync for async usage
         assert_send_sync::<TfeError>();
     }
+
+    #[test]
+    fn test_host_not_found_display() {
+        let err = TfeError::HostNotFound("No host configured".to_string());
+        assert!(err.to_string().contains("No host configured"));
+    }
+
+    #[test]
+    fn test_credentials_error_display() {
+        let err = TfeError::Credentials("Failed to parse file".to_string());
+        assert!(err.to_string().contains("Failed to parse file"));
+    }
+
+    #[test]
+    fn test_json_error_display() {
+        let err = TfeError::Json("Invalid JSON".to_string());
+        assert!(err.to_string().contains("JSON error"));
+        assert!(err.to_string().contains("Invalid JSON"));
+    }
+
+    #[test]
+    fn test_config_error_display() {
+        let err = TfeError::Config("Missing required config".to_string());
+        assert!(err.to_string().contains("Configuration error"));
+        assert!(err.to_string().contains("Missing required config"));
+    }
+
+    #[test]
+    fn test_from_serde_json_error() {
+        let json_err = serde_json::from_str::<serde_json::Value>("invalid json").unwrap_err();
+        let err: TfeError = json_err.into();
+        match err {
+            TfeError::Json(msg) => assert!(!msg.is_empty()),
+            _ => panic!("Expected TfeError::Json"),
+        }
+    }
+
+    #[test]
+    fn test_from_io_error() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "file not found");
+        let err: TfeError = io_err.into();
+        match err {
+            TfeError::Credentials(msg) => assert!(msg.contains("file not found")),
+            _ => panic!("Expected TfeError::Credentials"),
+        }
+    }
+
+    #[test]
+    fn test_error_source_http() {
+        use std::error::Error;
+        // For non-Http variants, source() should return None
+        let err = TfeError::Api {
+            status: 500,
+            message: "Server error".to_string(),
+        };
+        assert!(err.source().is_none());
+    }
 }

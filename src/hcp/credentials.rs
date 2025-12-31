@@ -157,4 +157,64 @@ mod tests {
         let resolver = TokenResolver::new("custom.host.com");
         assert_eq!(resolver.host, "custom.host.com");
     }
+
+    #[test]
+    fn test_token_not_found_message_format() {
+        let resolver = TokenResolver::new("app.terraform.io");
+        let msg = resolver.token_not_found_message(None);
+        assert!(msg.contains("app.terraform.io"));
+        assert!(msg.contains("hcpctl --token"));
+        assert!(msg.contains("HCP_TOKEN"));
+        assert!(msg.contains("terraform login"));
+    }
+
+    #[test]
+    fn test_token_not_found_message_with_path() {
+        let resolver = TokenResolver::new("app.terraform.io");
+        let path = std::path::Path::new("/home/user/.terraform.d/credentials.tfrc.json");
+        let msg = resolver.token_not_found_message(Some(path));
+        assert!(msg.contains("app.terraform.io"));
+        assert!(msg.contains("/home/user/.terraform.d/credentials.tfrc.json"));
+    }
+
+    #[test]
+    fn test_credentials_file_parsing() {
+        let json = r#"{
+            "credentials": {
+                "app.terraform.io": {
+                    "token": "test-token-123"
+                },
+                "custom.host.com": {
+                    "token": "custom-token-456"
+                }
+            }
+        }"#;
+
+        let creds: TfeCredentials = serde_json::from_str(json).unwrap();
+        assert_eq!(creds.credentials.len(), 2);
+        assert_eq!(
+            creds.credentials.get("app.terraform.io").unwrap().token,
+            "test-token-123"
+        );
+        assert_eq!(
+            creds.credentials.get("custom.host.com").unwrap().token,
+            "custom-token-456"
+        );
+    }
+
+    #[test]
+    fn test_credentials_file_parsing_empty() {
+        let json = r#"{"credentials": {}}"#;
+        let creds: TfeCredentials = serde_json::from_str(json).unwrap();
+        assert!(creds.credentials.is_empty());
+    }
+
+    #[test]
+    fn test_get_credentials_path() {
+        let path = TokenResolver::get_credentials_path();
+        // Should return Some path on any platform
+        assert!(path.is_some());
+        let path = path.unwrap();
+        assert!(path.to_string_lossy().contains("credentials.tfrc.json"));
+    }
 }

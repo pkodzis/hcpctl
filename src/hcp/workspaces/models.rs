@@ -271,4 +271,198 @@ mod tests {
         let ws: Workspace = serde_json::from_str(json).unwrap();
         assert_eq!(ws.project_id(), Some("prj-xyz"));
     }
+
+    // ===== WorkspaceQuery tests =====
+
+    #[test]
+    fn test_workspace_query_default() {
+        let query = WorkspaceQuery::default();
+        assert!(query.search.is_none());
+        assert!(query.project_id.is_none());
+    }
+
+    #[test]
+    fn test_workspace_query_with_search() {
+        let query = WorkspaceQuery {
+            search: Some("dev"),
+            project_id: None,
+        };
+        assert_eq!(query.search, Some("dev"));
+        assert!(query.project_id.is_none());
+    }
+
+    #[test]
+    fn test_workspace_query_with_project_id() {
+        let query = WorkspaceQuery {
+            search: None,
+            project_id: Some("prj-123"),
+        };
+        assert!(query.search.is_none());
+        assert_eq!(query.project_id, Some("prj-123"));
+    }
+
+    #[test]
+    fn test_workspace_query_with_both() {
+        let query = WorkspaceQuery {
+            search: Some("prod"),
+            project_id: Some("prj-456"),
+        };
+        assert_eq!(query.search, Some("prod"));
+        assert_eq!(query.project_id, Some("prj-456"));
+    }
+
+    // ===== Additional Workspace tests =====
+
+    #[test]
+    fn test_workspace_execution_mode() {
+        let ws = create_test_workspace("test", false);
+        assert_eq!(ws.execution_mode(), "remote");
+    }
+
+    #[test]
+    fn test_workspace_execution_mode_default() {
+        let ws = Workspace {
+            id: "ws-123".to_string(),
+            attributes: WorkspaceAttributes {
+                name: "test".to_string(),
+                execution_mode: None,
+                resource_count: None,
+                locked: None,
+                terraform_version: None,
+                updated_at: None,
+            },
+            relationships: None,
+        };
+        assert_eq!(ws.execution_mode(), "unknown");
+    }
+
+    #[test]
+    fn test_workspace_terraform_version() {
+        let ws = create_test_workspace("test", false);
+        assert_eq!(ws.terraform_version(), "1.5.0");
+    }
+
+    #[test]
+    fn test_workspace_terraform_version_default() {
+        let ws = Workspace {
+            id: "ws-123".to_string(),
+            attributes: WorkspaceAttributes {
+                name: "test".to_string(),
+                execution_mode: None,
+                resource_count: None,
+                locked: None,
+                terraform_version: None,
+                updated_at: None,
+            },
+            relationships: None,
+        };
+        assert_eq!(ws.terraform_version(), "unknown");
+    }
+
+    #[test]
+    fn test_workspace_updated_at() {
+        let ws = Workspace {
+            id: "ws-123".to_string(),
+            attributes: WorkspaceAttributes {
+                name: "test".to_string(),
+                execution_mode: None,
+                resource_count: None,
+                locked: None,
+                terraform_version: None,
+                updated_at: Some("2025-01-01T00:00:00Z".to_string()),
+            },
+            relationships: None,
+        };
+        assert_eq!(ws.updated_at(), "2025-01-01T00:00:00Z");
+    }
+
+    #[test]
+    fn test_workspace_updated_at_default() {
+        let ws = create_test_workspace("test", false);
+        assert_eq!(ws.updated_at(), "");
+    }
+
+    #[test]
+    fn test_workspace_organization_name() {
+        let ws = Workspace {
+            id: "ws-123".to_string(),
+            attributes: WorkspaceAttributes {
+                name: "test".to_string(),
+                execution_mode: None,
+                resource_count: None,
+                locked: None,
+                terraform_version: None,
+                updated_at: None,
+            },
+            relationships: Some(WorkspaceRelationships {
+                project: None,
+                organization: Some(RelationshipData {
+                    data: Some(RelationshipId {
+                        id: "my-org".to_string(),
+                        rel_type: Some("organizations".to_string()),
+                    }),
+                }),
+            }),
+        };
+        assert_eq!(ws.organization_name(), Some("my-org"));
+    }
+
+    #[test]
+    fn test_workspace_organization_name_none() {
+        let ws = create_test_workspace("test", false);
+        assert_eq!(ws.organization_name(), None);
+    }
+
+    #[test]
+    fn test_workspace_is_locked_default() {
+        let ws = Workspace {
+            id: "ws-123".to_string(),
+            attributes: WorkspaceAttributes {
+                name: "test".to_string(),
+                execution_mode: None,
+                resource_count: None,
+                locked: None,
+                terraform_version: None,
+                updated_at: None,
+            },
+            relationships: None,
+        };
+        assert!(!ws.is_locked());
+    }
+
+    #[test]
+    fn test_workspace_tfe_resource_trait() {
+        let ws = create_test_workspace("my-workspace", false);
+        assert_eq!(ws.id(), "ws-my-workspace");
+        assert_eq!(ws.name(), "my-workspace");
+        assert!(ws.matches("ws-my-workspace"));
+        assert!(ws.matches("my-workspace"));
+        assert!(!ws.matches("other"));
+    }
+
+    #[test]
+    fn test_workspaces_response_deserialization() {
+        let json = r#"{
+            "data": [
+                {
+                    "id": "ws-1",
+                    "attributes": {
+                        "name": "workspace-1"
+                    }
+                },
+                {
+                    "id": "ws-2",
+                    "attributes": {
+                        "name": "workspace-2"
+                    }
+                }
+            ]
+        }"#;
+
+        let response: WorkspacesResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(response.data.len(), 2);
+        assert_eq!(response.data[0].name(), "workspace-1");
+        assert_eq!(response.data[1].name(), "workspace-2");
+        assert!(response.meta.is_none());
+    }
 }

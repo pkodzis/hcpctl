@@ -141,4 +141,210 @@ mod tests {
         prj.attributes.description = Some("A test project".to_string());
         assert_eq!(prj.description(), "A test project");
     }
+
+    #[test]
+    fn test_project_tfe_resource_trait() {
+        let prj = create_test_project("prj-123", "my-project");
+        assert_eq!(prj.id(), "prj-123");
+        assert_eq!(prj.name(), "my-project");
+    }
+
+    #[test]
+    fn test_project_deserialization() {
+        let json = r#"{
+            "id": "prj-abc123",
+            "type": "projects",
+            "attributes": {
+                "name": "my-project",
+                "description": "Test project"
+            }
+        }"#;
+
+        let prj: Project = serde_json::from_str(json).unwrap();
+        assert_eq!(prj.id, "prj-abc123");
+        assert_eq!(prj.name(), "my-project");
+        assert_eq!(prj.description(), "Test project");
+        assert_eq!(prj.project_type, Some("projects".to_string()));
+    }
+
+    #[test]
+    fn test_project_deserialization_minimal() {
+        let json = r#"{
+            "id": "prj-abc123",
+            "attributes": {
+                "name": "my-project"
+            }
+        }"#;
+
+        let prj: Project = serde_json::from_str(json).unwrap();
+        assert_eq!(prj.id, "prj-abc123");
+        assert_eq!(prj.name(), "my-project");
+        assert_eq!(prj.description(), "");
+        assert!(prj.project_type.is_none());
+    }
+
+    #[test]
+    fn test_projects_response_deserialization() {
+        let json = r#"{
+            "data": [
+                {
+                    "id": "prj-1",
+                    "attributes": {
+                        "name": "project-1"
+                    }
+                },
+                {
+                    "id": "prj-2",
+                    "attributes": {
+                        "name": "project-2"
+                    }
+                }
+            ]
+        }"#;
+
+        let response: ProjectsResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(response.data.len(), 2);
+        assert_eq!(response.data[0].name(), "project-1");
+        assert_eq!(response.data[1].name(), "project-2");
+        assert!(response.meta.is_none());
+    }
+
+    // ===== ProjectWorkspaces tests =====
+
+    #[test]
+    fn test_project_workspaces_new() {
+        let pw = ProjectWorkspaces::new();
+        assert!(pw.is_empty());
+        assert_eq!(pw.count(), 0);
+    }
+
+    #[test]
+    fn test_project_workspaces_from_workspaces() {
+        use crate::hcp::workspaces::{Workspace, WorkspaceAttributes};
+
+        let workspaces = vec![
+            Workspace {
+                id: "ws-1".to_string(),
+                attributes: WorkspaceAttributes {
+                    name: "workspace-1".to_string(),
+                    execution_mode: None,
+                    resource_count: None,
+                    locked: None,
+                    terraform_version: None,
+                    updated_at: None,
+                },
+                relationships: None,
+            },
+            Workspace {
+                id: "ws-2".to_string(),
+                attributes: WorkspaceAttributes {
+                    name: "workspace-2".to_string(),
+                    execution_mode: None,
+                    resource_count: None,
+                    locked: None,
+                    terraform_version: None,
+                    updated_at: None,
+                },
+                relationships: None,
+            },
+        ];
+
+        let pw = ProjectWorkspaces::from_workspaces(workspaces);
+        assert!(!pw.is_empty());
+        assert_eq!(pw.count(), 2);
+    }
+
+    #[test]
+    fn test_project_workspaces_names() {
+        use crate::hcp::workspaces::{Workspace, WorkspaceAttributes};
+
+        let workspaces = vec![
+            Workspace {
+                id: "ws-1".to_string(),
+                attributes: WorkspaceAttributes {
+                    name: "alpha".to_string(),
+                    execution_mode: None,
+                    resource_count: None,
+                    locked: None,
+                    terraform_version: None,
+                    updated_at: None,
+                },
+                relationships: None,
+            },
+            Workspace {
+                id: "ws-2".to_string(),
+                attributes: WorkspaceAttributes {
+                    name: "beta".to_string(),
+                    execution_mode: None,
+                    resource_count: None,
+                    locked: None,
+                    terraform_version: None,
+                    updated_at: None,
+                },
+                relationships: None,
+            },
+        ];
+
+        let pw = ProjectWorkspaces::from_workspaces(workspaces);
+        let names = pw.names();
+        assert_eq!(names, vec!["alpha", "beta"]);
+    }
+
+    #[test]
+    fn test_project_workspaces_ids() {
+        use crate::hcp::workspaces::{Workspace, WorkspaceAttributes};
+
+        let workspaces = vec![
+            Workspace {
+                id: "ws-abc".to_string(),
+                attributes: WorkspaceAttributes {
+                    name: "alpha".to_string(),
+                    execution_mode: None,
+                    resource_count: None,
+                    locked: None,
+                    terraform_version: None,
+                    updated_at: None,
+                },
+                relationships: None,
+            },
+            Workspace {
+                id: "ws-xyz".to_string(),
+                attributes: WorkspaceAttributes {
+                    name: "beta".to_string(),
+                    execution_mode: None,
+                    resource_count: None,
+                    locked: None,
+                    terraform_version: None,
+                    updated_at: None,
+                },
+                relationships: None,
+            },
+        ];
+
+        let pw = ProjectWorkspaces::from_workspaces(workspaces);
+        let ids = pw.ids();
+        assert_eq!(ids, vec!["ws-abc", "ws-xyz"]);
+    }
+
+    #[test]
+    fn test_project_workspaces_name_id_pairs() {
+        use crate::hcp::workspaces::{Workspace, WorkspaceAttributes};
+
+        let workspaces = vec![Workspace {
+            id: "ws-123".to_string(),
+            attributes: WorkspaceAttributes {
+                name: "my-workspace".to_string(),
+                execution_mode: None,
+                resource_count: None,
+                locked: None,
+                terraform_version: None,
+                updated_at: None,
+            },
+            relationships: None,
+        }];
+
+        let pw = ProjectWorkspaces::from_workspaces(workspaces);
+        let pairs = pw.name_id_pairs();
+        assert_eq!(pairs, vec!["my-workspace (ws-123)"]);
+    }
 }

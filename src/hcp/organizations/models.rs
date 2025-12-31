@@ -257,4 +257,77 @@ mod tests {
         assert_eq!(org.default_project_id(), None);
         assert_eq!(org.oauth_tokens_link(), None);
     }
+
+    #[test]
+    fn test_organization_deserialization() {
+        let json = r#"{
+            "id": "my-org",
+            "type": "organizations",
+            "attributes": {
+                "name": "my-org",
+                "email": "admin@example.com",
+                "external-id": "org-ABC123",
+                "created-at": "2025-01-01T00:00:00Z",
+                "saml-enabled": true
+            }
+        }"#;
+
+        let org: Organization = serde_json::from_str(json).unwrap();
+        assert_eq!(org.id, "my-org");
+        assert_eq!(org.email(), "admin@example.com");
+        assert_eq!(org.external_id(), "org-ABC123");
+        assert!(org.saml_enabled());
+    }
+
+    #[test]
+    fn test_organization_deserialization_minimal() {
+        let json = r#"{"id": "minimal-org"}"#;
+
+        let org: Organization = serde_json::from_str(json).unwrap();
+        assert_eq!(org.id, "minimal-org");
+        assert_eq!(org.email(), "");
+        assert!(org.org_type.is_none());
+    }
+
+    #[test]
+    fn test_organizations_response_deserialization() {
+        let json = r#"{
+            "data": [
+                {"id": "org-1"},
+                {"id": "org-2"}
+            ]
+        }"#;
+
+        let response: OrganizationsResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(response.data.len(), 2);
+        assert_eq!(response.data[0].id, "org-1");
+        assert_eq!(response.data[1].id, "org-2");
+    }
+
+    #[test]
+    fn test_organization_with_relationships() {
+        let json = r#"{
+            "id": "my-org",
+            "relationships": {
+                "default-project": {
+                    "data": {
+                        "id": "prj-default",
+                        "type": "projects"
+                    }
+                },
+                "oauth-tokens": {
+                    "links": {
+                        "related": "/api/v2/organizations/my-org/oauth-tokens"
+                    }
+                }
+            }
+        }"#;
+
+        let org: Organization = serde_json::from_str(json).unwrap();
+        assert_eq!(org.default_project_id(), Some("prj-default"));
+        assert_eq!(
+            org.oauth_tokens_link(),
+            Some("/api/v2/organizations/my-org/oauth-tokens")
+        );
+    }
 }

@@ -61,4 +61,27 @@ mod tests {
     fn test_host_env_var() {
         assert_eq!(host::ENV_VAR, "TFE_HOSTNAME");
     }
+
+    #[test]
+    fn test_api_endpoints() {
+        assert_eq!(api::ORGANIZATIONS, "organizations");
+        assert_eq!(api::PROJECTS, "projects");
+        assert_eq!(api::WORKSPACES, "workspaces");
+    }
+
+    #[test]
+    fn test_default_page_size() {
+        assert_eq!(api::DEFAULT_PAGE_SIZE, 100);
+    }
+
+    #[test]
+    fn test_credentials_file_paths() {
+        assert!(credentials::FILE_NAME.contains("credentials.tfrc.json"));
+        assert!(credentials::FILE_PATH_UNIX.contains(".terraform.d"));
+    }
+
+    #[test]
+    fn test_default_log_level() {
+        assert_eq!(defaults::LOG_LEVEL, "warn");
+    }
 }

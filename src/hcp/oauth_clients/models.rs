@@ -304,4 +304,117 @@ mod tests {
         assert!(client.oauth_token_ids().is_empty());
         assert_eq!(client.organization_id(), None);
     }
+
+    #[test]
+    fn test_oauth_client_tfe_resource_trait() {
+        let client = create_test_oauth_client();
+        assert_eq!(client.id(), "oc-123");
+        assert_eq!(TfeResource::name(&client), "My GitHub Connection");
+        assert!(client.matches("oc-123"));
+        assert!(client.matches("My GitHub Connection"));
+        assert!(!client.matches("other"));
+    }
+
+    #[test]
+    fn test_oauth_client_api_url() {
+        let client = create_test_oauth_client();
+        assert_eq!(
+            client.attributes.api_url,
+            Some("https://api.github.com".to_string())
+        );
+    }
+
+    #[test]
+    fn test_oauth_client_callback_url() {
+        let client = create_test_oauth_client();
+        assert_eq!(
+            client.attributes.callback_url,
+            Some("https://app.terraform.io/callback".to_string())
+        );
+    }
+
+    #[test]
+    fn test_oauth_client_deserialization() {
+        let json = r#"{
+            "id": "oc-abc123",
+            "type": "oauth-clients",
+            "attributes": {
+                "created-at": "2025-01-01T00:00:00Z",
+                "service-provider": "gitlab",
+                "service-provider-display-name": "GitLab",
+                "name": "My GitLab",
+                "http-url": "https://gitlab.com",
+                "api-url": "https://gitlab.com/api/v4",
+                "callback-url": "https://app.terraform.io/callback",
+                "organization-scoped": false
+            }
+        }"#;
+
+        let client: OAuthClient = serde_json::from_str(json).unwrap();
+        assert_eq!(client.id, "oc-abc123");
+        assert_eq!(client.name(), "My GitLab");
+        assert_eq!(client.service_provider(), "gitlab");
+        assert!(!client.is_organization_scoped());
+    }
+
+    #[test]
+    fn test_oauth_client_deserialization_minimal() {
+        let json = r#"{
+            "id": "oc-minimal",
+            "attributes": {}
+        }"#;
+
+        let client: OAuthClient = serde_json::from_str(json).unwrap();
+        assert_eq!(client.id, "oc-minimal");
+        assert_eq!(client.name(), "oc-minimal");
+        assert_eq!(client.service_provider(), "unknown");
+    }
+
+    #[test]
+    fn test_oauth_clients_response_deserialization() {
+        let json = r#"{
+            "data": [
+                {
+                    "id": "oc-1",
+                    "attributes": {
+                        "name": "Client 1"
+                    }
+                },
+                {
+                    "id": "oc-2",
+                    "attributes": {
+                        "name": "Client 2"
+                    }
+                }
+            ]
+        }"#;
+
+        let response: OAuthClientsResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(response.data.len(), 2);
+        assert_eq!(response.data[0].name(), "Client 1");
+        assert_eq!(response.data[1].name(), "Client 2");
+    }
+
+    #[test]
+    fn test_oauth_client_oauth_tokens_empty_data() {
+        let client = OAuthClient {
+            id: "oc-123".to_string(),
+            client_type: None,
+            attributes: OAuthClientAttributes {
+                created_at: None,
+                service_provider: None,
+                service_provider_display_name: None,
+                name: None,
+                http_url: None,
+                api_url: None,
+                callback_url: None,
+                organization_scoped: None,
+            },
+            relationships: Some(OAuthClientRelationships {
+                organization: None,
+                oauth_tokens: Some(OAuthTokensRelationship { data: None }),
+            }),
+        };
+        assert!(client.oauth_token_ids().is_empty());
+    }
 }

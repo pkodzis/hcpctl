@@ -215,4 +215,42 @@ mod tests {
         assert!(msg.contains("host2.example.com"));
         assert!(msg.contains("2 hosts found"));
     }
+
+    #[test]
+    fn test_host_not_found_message_no_hosts() {
+        let path = std::path::Path::new("/home/user/.terraform.d/credentials.tfrc.json");
+        let msg = HostResolver::host_not_found_message(Some(path), None);
+        assert!(msg.contains("no hosts found"));
+        assert!(msg.contains(".terraform.d"));
+    }
+
+    #[test]
+    fn test_credentials_parsing() {
+        let json = r#"{
+            "credentials": {
+                "app.terraform.io": {"token": "abc"},
+                "tfe.example.com": {"token": "xyz"}
+            }
+        }"#;
+
+        let creds: TfeCredentials = serde_json::from_str(json).unwrap();
+        assert_eq!(creds.credentials.len(), 2);
+        assert!(creds.credentials.contains_key("app.terraform.io"));
+        assert!(creds.credentials.contains_key("tfe.example.com"));
+    }
+
+    #[test]
+    fn test_credentials_parsing_empty() {
+        let json = r#"{"credentials": {}}"#;
+        let creds: TfeCredentials = serde_json::from_str(json).unwrap();
+        assert!(creds.credentials.is_empty());
+    }
+
+    #[test]
+    fn test_get_credentials_path() {
+        let path = HostResolver::get_credentials_path();
+        assert!(path.is_some());
+        let path = path.unwrap();
+        assert!(path.to_string_lossy().contains("credentials.tfrc.json"));
+    }
 }

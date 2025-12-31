@@ -89,4 +89,79 @@ mod tests {
         assert_eq!(successes, vec![1, 3]);
         assert!(had_errors);
     }
+
+    #[test]
+    fn test_collect_org_results_empty() {
+        let results: Vec<Result<i32, (String, TfeError)>> = vec![];
+        let (successes, had_errors) = collect_org_results(results, &None, "workspaces");
+        assert!(successes.is_empty());
+        assert!(!had_errors);
+    }
+
+    #[test]
+    fn test_collect_org_results_all_errors() {
+        let results: Vec<Result<i32, (String, TfeError)>> = vec![
+            Err(("org1".to_string(), TfeError::Config("error1".to_string()))),
+            Err(("org2".to_string(), TfeError::Config("error2".to_string()))),
+        ];
+        let (successes, had_errors) = collect_org_results(results, &None, "projects");
+        assert!(successes.is_empty());
+        assert!(had_errors);
+    }
+
+    #[test]
+    fn test_collect_org_results_with_complex_type() {
+        #[allow(clippy::type_complexity)]
+        let results: Vec<Result<(String, Vec<u32>), (String, TfeError)>> = vec![
+            Ok(("org1".to_string(), vec![1, 2])),
+            Ok(("org2".to_string(), vec![3, 4, 5])),
+        ];
+        let (successes, had_errors) = collect_org_results(results, &None, "data");
+        assert_eq!(successes.len(), 2);
+        assert_eq!(successes[0].1.len(), 2);
+        assert_eq!(successes[1].1.len(), 3);
+        assert!(!had_errors);
+    }
+
+    #[tokio::test]
+    async fn test_fetch_from_organizations() {
+        let orgs = vec!["org1".to_string(), "org2".to_string()];
+        let results = fetch_from_organizations(orgs, |org| async move {
+            Ok::<_, (String, TfeError)>(format!("result-{}", org))
+        })
+        .await;
+
+        assert_eq!(results.len(), 2);
+        assert!(results[0].is_ok());
+        assert!(results[1].is_ok());
+        assert_eq!(results[0].as_ref().unwrap(), "result-org1");
+        assert_eq!(results[1].as_ref().unwrap(), "result-org2");
+    }
+
+    #[tokio::test]
+    async fn test_fetch_from_organizations_with_error() {
+        let orgs = vec!["org1".to_string(), "fail".to_string()];
+        let results = fetch_from_organizations(orgs, |org| async move {
+            if org == "fail" {
+                Err((org, TfeError::Config("simulated error".to_string())))
+            } else {
+                Ok::<_, (String, TfeError)>(format!("result-{}", org))
+            }
+        })
+        .await;
+
+        assert_eq!(results.len(), 2);
+        assert!(results[0].is_ok());
+        assert!(results[1].is_err());
+    }
+
+    #[tokio::test]
+    async fn test_fetch_from_organizations_empty() {
+        let orgs: Vec<String> = vec![];
+        let results =
+            fetch_from_organizations(orgs, |org| async move { Ok::<_, (String, TfeError)>(org) })
+                .await;
+
+        assert!(results.is_empty());
+    }
 }

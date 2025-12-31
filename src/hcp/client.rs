@@ -10,6 +10,8 @@ pub struct TfeClient {
     client: Client,
     token: String,
     host: String,
+    /// Custom base URL override (for testing with mock servers)
+    base_url_override: Option<String>,
 }
 
 impl TfeClient {
@@ -31,11 +33,28 @@ impl TfeClient {
             client,
             token,
             host,
+            base_url_override: None,
+        }
+    }
+
+    /// Create a client with custom base URL (for testing with mock servers)
+    #[cfg(test)]
+    pub fn with_base_url(token: String, host: String, base_url: String) -> Self {
+        let client = Client::builder().build().unwrap_or_else(|_| Client::new());
+
+        Self {
+            client,
+            token,
+            host,
+            base_url_override: Some(base_url),
         }
     }
 
     /// Build the base URL for API requests
     pub(crate) fn base_url(&self) -> String {
+        if let Some(ref url) = self.base_url_override {
+            return url.clone();
+        }
         format!(
             "https://{}/{}",
             self.host,
@@ -94,5 +113,26 @@ mod tests {
         let client = TfeClient::new("my-token".to_string(), "tfe.example.com".to_string());
         assert_eq!(client.host, "tfe.example.com");
         assert_eq!(client.token, "my-token");
+    }
+
+    #[test]
+    fn test_host_getter() {
+        let client = TfeClient::new("token".to_string(), "custom.terraform.io".to_string());
+        assert_eq!(client.host(), "custom.terraform.io");
+    }
+
+    #[test]
+    fn test_base_url_with_app_terraform_io() {
+        let client = TfeClient::new("token".to_string(), "app.terraform.io".to_string());
+        assert_eq!(client.base_url(), "https://app.terraform.io/api/v2");
+    }
+
+    #[test]
+    fn test_base_url_strips_leading_slash() {
+        // Ensure base_url works correctly regardless of BASE_PATH format
+        let client = TfeClient::new("token".to_string(), "test.com".to_string());
+        let url = client.base_url();
+        assert!(!url.contains("//api")); // No double slashes
+        assert!(url.starts_with("https://"));
     }
 }

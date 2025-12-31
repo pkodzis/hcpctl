@@ -235,3 +235,152 @@ fn test_aliases() {
         "'get workspaces' alias should work"
     );
 }
+
+/// Test that 'get oc' (OAuth clients) alias works
+#[test]
+fn test_oauth_client_alias() {
+    let output = Command::new(hcpctl_bin())
+        .args(["get", "oc", "--help"])
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "'get oc' should work");
+
+    let output = Command::new(hcpctl_bin())
+        .args(["get", "oauth-clients", "--help"])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "'get oauth-clients' alias should work"
+    );
+}
+
+/// Test that output formats are documented
+#[test]
+fn test_output_formats_documented() {
+    let output = Command::new(hcpctl_bin())
+        .args(["get", "ws", "--help"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    assert!(stdout.contains("table"), "Should document table format");
+    assert!(stdout.contains("json"), "Should document json format");
+    assert!(stdout.contains("yaml"), "Should document yaml format");
+    assert!(stdout.contains("csv"), "Should document csv format");
+}
+
+/// Test that --batch flag is documented
+#[test]
+fn test_batch_flag_documented() {
+    let output = Command::new(hcpctl_bin()).arg("--help").output().unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    assert!(
+        stdout.contains("--batch") || stdout.contains("-b"),
+        "Should document --batch option"
+    );
+}
+
+/// Test that --no-header flag is documented
+#[test]
+fn test_no_header_flag_documented() {
+    let output = Command::new(hcpctl_bin()).arg("--help").output().unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    assert!(
+        stdout.contains("--no-header"),
+        "Should document --no-header option"
+    );
+}
+
+/// Test that sort options are documented for ws
+#[test]
+fn test_ws_sort_options_documented() {
+    let output = Command::new(hcpctl_bin())
+        .args(["get", "ws", "--help"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    assert!(stdout.contains("--sort"), "Should document --sort option");
+    assert!(stdout.contains("name"), "Should list name sort field");
+}
+
+/// Test that project filter is documented for ws
+#[test]
+fn test_ws_project_filter_documented() {
+    let output = Command::new(hcpctl_bin())
+        .args(["get", "ws", "--help"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    assert!(
+        stdout.contains("--prj") || stdout.contains("-p"),
+        "Should document --prj option"
+    );
+}
+
+/// Test that group-by-prj flag is documented
+#[test]
+fn test_ws_group_by_prj_documented() {
+    let output = Command::new(hcpctl_bin())
+        .args(["get", "ws", "--help"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    assert!(
+        stdout.contains("--group-by-prj"),
+        "Should document --group-by-prj option"
+    );
+}
+
+/// Test that prj workspace info flags are documented
+#[test]
+fn test_prj_workspace_flags_documented() {
+    let output = Command::new(hcpctl_bin())
+        .args(["get", "prj", "--help"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    assert!(stdout.contains("--with-ws"), "Should document --with-ws");
+}
+
+/// Test invalid subcommand is rejected
+#[test]
+fn test_invalid_subcommand_rejected() {
+    let output = Command::new(hcpctl_bin())
+        .args(["get", "invalid-resource"])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+}
+
+/// Test that global options come before subcommand
+#[test]
+fn test_global_options_before_subcommand() {
+    let output = Command::new(hcpctl_bin())
+        .args(["--batch", "--no-header", "get", "org", "--help"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+}

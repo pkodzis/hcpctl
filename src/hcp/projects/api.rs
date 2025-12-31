@@ -153,3 +153,158 @@ impl TfeClient {
         Ok(counts)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use wiremock::matchers::{method, path, query_param};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    fn create_test_client(base_url: &str) -> TfeClient {
+        TfeClient::with_base_url(
+            "test-token".to_string(),
+            "mock.terraform.io".to_string(),
+            base_url.to_string(),
+        )
+    }
+
+    fn project_json(id: &str, name: &str) -> serde_json::Value {
+        serde_json::json!({
+            "id": id,
+            "type": "projects",
+            "attributes": {
+                "name": name
+            }
+        })
+    }
+
+    #[tokio::test]
+    async fn test_get_projects_success() {
+        let mock_server = MockServer::start().await;
+        let client = create_test_client(&mock_server.uri());
+
+        let response_body = serde_json::json!({
+            "data": [
+                project_json("prj-1", "project-1"),
+                project_json("prj-2", "project-2")
+            ]
+        });
+
+        Mock::given(method("GET"))
+            .and(path("/organizations/my-org/projects"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(&response_body))
+            .mount(&mock_server)
+            .await;
+
+        let result = client.get_projects("my-org", None).await;
+
+        assert!(result.is_ok());
+        let projects = result.unwrap();
+        assert_eq!(projects.len(), 2);
+        assert_eq!(projects[0].name(), "project-1");
+        assert_eq!(projects[1].name(), "project-2");
+    }
+
+    #[tokio::test]
+    async fn test_get_projects_with_search() {
+        let mock_server = MockServer::start().await;
+        let client = create_test_client(&mock_server.uri());
+
+        let response_body = serde_json::json!({
+            "data": [project_json("prj-prod", "production")]
+        });
+
+        Mock::given(method("GET"))
+            .and(path("/organizations/my-org/projects"))
+            .and(query_param("q", "prod"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(&response_body))
+            .mount(&mock_server)
+            .await;
+
+        let result = client.get_projects("my-org", Some("prod")).await;
+
+        assert!(result.is_ok());
+        let projects = result.unwrap();
+        assert_eq!(projects.len(), 1);
+        assert_eq!(projects[0].name(), "production");
+    }
+
+    #[tokio::test]
+    async fn test_get_projects_empty() {
+        let mock_server = MockServer::start().await;
+        let client = create_test_client(&mock_server.uri());
+
+        let response_body = serde_json::json!({ "data": [] });
+
+        Mock::given(method("GET"))
+            .and(path("/organizations/my-org/projects"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(&response_body))
+            .mount(&mock_server)
+            .await;
+
+        let result = client.get_projects("my-org", None).await;
+
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_get_projects_api_error() {
+        let mock_server = MockServer::start().await;
+        let client = create_test_client(&mock_server.uri());
+
+        Mock::given(method("GET"))
+            .and(path("/organizations/my-org/projects"))
+            .respond_with(ResponseTemplate::new(500))
+            .mount(&mock_server)
+            .await;
+
+        let result = client.get_projects("my-org", None).await;
+
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            TfeError::Api { status, .. } => assert_eq!(status, 500),
+            _ => panic!("Expected TfeError::Api"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_get_project_by_id_success() {
+        let mock_server = MockServer::start().await;
+        let client = create_test_client(&mock_server.uri());
+
+        let response_body = serde_json::json!({
+            "data": project_json("prj-abc123", "my-project")
+        });
+
+        Mock::given(method("GET"))
+            .and(path("/projects/prj-abc123"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(&response_body))
+            .mount(&mock_server)
+            .await;
+
+        let result = client.get_project_by_id("prj-abc123").await;
+
+        assert!(result.is_ok());
+        let (project, _raw) = result.unwrap().unwrap();
+        assert_eq!(project.id, "prj-abc123");
+        assert_eq!(project.name(), "my-project");
+    }
+
+    #[tokio::test]
+    async fn test_get_project_by_id_not_found() {
+        let mock_server = MockServer::start().await;
+        let client = create_test_client(&mock_server.uri());
+
+        Mock::given(method("GET"))
+            .and(path("/projects/prj-nonexistent"))
+            .respond_with(ResponseTemplate::new(404))
+            .mount(&mock_server)
+            .await;
+
+        let result = client.get_project_by_id("prj-nonexistent").await;
+
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_none());
+    }
+}
