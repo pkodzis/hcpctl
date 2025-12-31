@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/pkodzis/hcpctl/compare/v0.1.0...v0.2.0) (2025-12-31)
+
+
+### Features
+
+* runs support ([cf974fd](https://github.com/pkodzis/hcpctl/commit/cf974fdd3f0acfe8023929a08b6d24f8560e9e83))
+
 ## 0.1.0 (2025-12-31)
 
 
