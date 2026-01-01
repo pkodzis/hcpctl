@@ -6,6 +6,7 @@ mod client;
 mod credentials;
 pub mod helpers;
 mod host;
+pub mod logs;
 pub mod oauth_clients;
 pub mod organizations;
 pub mod projects;
@@ -19,6 +20,7 @@ pub use client::TfeClient;
 pub use credentials::TokenResolver;
 pub use helpers::{collect_org_results, fetch_from_organizations, log_completion};
 pub use host::HostResolver;
+pub use logs::run_logs_command;
 pub use oauth_clients::{run_oc_command, OAuthClient, OAuthClientAttributes, OAuthToken};
 pub use organizations::{
     resolve_organizations, run_org_command, Organization, OrganizationAttributes,

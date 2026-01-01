@@ -37,14 +37,14 @@ pub mod output;
 pub mod ui;
 
 pub use cli::{
-    Cli, Command, GetResource, OcArgs, OrgArgs, OutputFormat, PrjArgs, PrjSortField, RunArgs,
-    RunSortField, RunSubresource, WsArgs, WsSortField, WsSubresource,
+    Cli, Command, GetResource, LogsArgs, OcArgs, OrgArgs, OutputFormat, PrjArgs, PrjSortField,
+    RunArgs, RunSortField, RunSubresource, WsArgs, WsSortField, WsSubresource,
 };
 pub use error::{Result, TfeError};
 pub use hcp::{
-    run_oc_command, run_org_command, run_prj_command, run_runs_command, run_ws_command,
-    HostResolver, OAuthClient, Organization, Project, Run, TfeClient, TfeResource, TokenResolver,
-    Workspace,
+    run_logs_command, run_oc_command, run_org_command, run_prj_command, run_runs_command,
+    run_ws_command, HostResolver, OAuthClient, Organization, Project, Run, TfeClient, TfeResource,
+    TokenResolver, Workspace,
 };
 pub use output::{
     output_oauth_clients, output_organizations, output_projects, output_results_sorted,

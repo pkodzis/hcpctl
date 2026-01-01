@@ -362,7 +362,7 @@ async fn fetch_and_output_plan(
     };
 
     if tail_log {
-        return tail_plan_log(client, cli, run_id, args.raw).await;
+        return tail_plan_log(client, cli.batch, run_id, args.raw).await;
     }
 
     let spinner = create_spinner("Fetching plan...", cli.batch);
@@ -416,7 +416,7 @@ async fn fetch_and_output_apply(
     };
 
     if tail_log {
-        return tail_apply_log(client, cli, run_id, args.raw).await;
+        return tail_apply_log(client, cli.batch, run_id, args.raw).await;
     }
 
     let spinner = create_spinner("Fetching apply...", cli.batch);
@@ -500,79 +500,89 @@ fn print_human_readable_log(content: &str) {
     }
 }
 
-/// Tail plan log until completion
+/// Fetch and print log for a run (plan or apply)
 ///
-/// Polls the plan status and log content, displaying new lines as they appear.
-/// Stops when the plan reaches a final state (finished, errored, canceled, unreachable).
-async fn tail_plan_log(
+/// Public function used by both `get run --subresource` and `logs` commands.
+///
+/// # Arguments
+/// * `client` - TFE API client
+/// * `run_id` - Run ID to fetch logs for
+/// * `is_apply` - If true, fetch apply log; if false, fetch plan log
+/// * `raw` - If true, output raw log; if false, extract @message from JSON lines
+pub async fn fetch_and_print_log(
     client: &TfeClient,
-    cli: &Cli,
     run_id: &str,
+    is_apply: bool,
     raw: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    const POLL_INTERVAL: Duration = Duration::from_secs(2);
-
-    let mut last_log_len = 0;
-    let mut spinner = create_spinner("Tailing plan log...", cli.batch);
-
-    loop {
+    let log_url = if is_apply {
+        let apply = client.get_run_apply(run_id).await?;
+        apply.attributes.log_read_url
+    } else {
         let plan = client.get_run_plan(run_id).await?;
+        plan.attributes.log_read_url
+    };
 
-        // Fetch and display new log content
-        if let Some(log_url) = &plan.attributes.log_read_url {
-            if let Ok(content) = client.get_log_content(log_url).await {
-                if content.len() > last_log_len {
-                    // On first content, finish the spinner
-                    if last_log_len == 0 {
-                        finish_spinner(spinner.take(), "Streaming...");
-                    }
-                    // Print only new content
-                    let new_content = &content[last_log_len..];
-                    if raw {
-                        print!("{}", new_content);
-                    } else {
-                        print_human_readable_log(new_content);
-                    }
-                    io::stdout().flush().ok();
-                    last_log_len = content.len();
-                }
-            }
-        }
-
-        // Check if plan has reached final state
-        if plan.is_final() {
-            break;
-        }
-
-        sleep(POLL_INTERVAL).await;
-    }
-
-    // Finish spinner if never got any content
-    finish_spinner(spinner.take(), "Complete");
-    Ok(())
+    output_log(client, &log_url, raw).await
 }
 
-/// Tail apply log until completion
-///
-/// Polls the apply status and log content, displaying new lines as they appear.
-/// Stops when the apply reaches a final state (finished, errored, canceled, unreachable).
+/// Tail plan log - delegates to unified tail_log
+async fn tail_plan_log(
+    client: &TfeClient,
+    batch: bool,
+    run_id: &str,
+    raw: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    tail_log(client, batch, run_id, false, raw).await
+}
+
+/// Tail apply log - delegates to unified tail_log
 async fn tail_apply_log(
     client: &TfeClient,
-    cli: &Cli,
+    batch: bool,
     run_id: &str,
+    raw: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    tail_log(client, batch, run_id, true, raw).await
+}
+
+/// Unified log tailing for both plan and apply
+///
+/// Polls the plan/apply status and log content, displaying new lines as they appear.
+/// Stops when the resource reaches a final state (finished, errored, canceled, unreachable).
+///
+/// # Arguments
+/// * `client` - TFE API client
+/// * `batch` - If true, no spinners (batch mode)
+/// * `run_id` - Run ID to tail logs for
+/// * `is_apply` - If true, tail apply log; if false, tail plan log
+/// * `raw` - If true, output raw log; if false, extract @message from JSON lines
+pub async fn tail_log(
+    client: &TfeClient,
+    batch: bool,
+    run_id: &str,
+    is_apply: bool,
     raw: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     const POLL_INTERVAL: Duration = Duration::from_secs(2);
 
+    let resource_name = if is_apply { "apply" } else { "plan" };
     let mut last_log_len = 0;
-    let mut spinner = create_spinner("Tailing apply log...", cli.batch);
+    let mut spinner = create_spinner(&format!("Tailing {} log...", resource_name), batch);
 
     loop {
-        let apply = client.get_run_apply(run_id).await?;
+        // Fetch log URL and final state based on resource type
+        let (log_url, is_final) = if is_apply {
+            let apply = client.get_run_apply(run_id).await?;
+            (apply.attributes.log_read_url.clone(), apply.is_final())
+        } else {
+            let plan = client.get_run_plan(run_id).await?;
+            (plan.attributes.log_read_url.clone(), plan.is_final())
+        };
 
         // Fetch and display new log content
-        if let Some(log_url) = &apply.attributes.log_read_url {
-            if let Ok(content) = client.get_log_content(log_url).await {
+        if let Some(url) = &log_url {
+            if let Ok(content) = client.get_log_content(url).await {
                 if content.len() > last_log_len {
                     // On first content, finish the spinner
                     if last_log_len == 0 {
@@ -591,8 +601,8 @@ async fn tail_apply_log(
             }
         }
 
-        // Check if apply has reached final state
-        if apply.is_final() {
+        // Check if resource has reached final state
+        if is_final {
             break;
         }
 

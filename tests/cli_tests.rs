@@ -384,3 +384,77 @@ fn test_global_options_before_subcommand() {
 
     assert!(output.status.success());
 }
+
+/// Test that 'logs' subcommand help shows expected options
+#[test]
+fn test_logs_help_flag() {
+    let output = Command::new(hcpctl_bin())
+        .args(["logs", "--help"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    // Verify key options are documented
+    assert!(stdout.contains("--apply"), "Should document --apply option");
+    assert!(
+        stdout.contains("--follow"),
+        "Should document --follow option"
+    );
+    assert!(stdout.contains("--raw"), "Should document --raw option");
+    assert!(stdout.contains("--org"), "Should document --org option");
+    assert!(stdout.contains("-f"), "Should have short -f for follow");
+    assert!(stdout.contains("-a"), "Should have short -a for apply");
+}
+
+/// Test that 'log' alias works
+#[test]
+fn test_logs_alias() {
+    let output = Command::new(hcpctl_bin())
+        .args(["log", "--help"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    assert!(
+        stdout.contains("--follow"),
+        "Should document --follow option"
+    );
+}
+
+/// Test that logs target types are documented
+#[test]
+fn test_logs_target_types_documented() {
+    let output = Command::new(hcpctl_bin())
+        .args(["logs", "--help"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    assert!(stdout.contains("run-"), "Should document run ID format");
+    assert!(
+        stdout.contains("ws-"),
+        "Should document workspace ID format"
+    );
+    assert!(
+        stdout.contains("workspace name"),
+        "Should document workspace name"
+    );
+}
+
+/// Test that main help shows logs command
+#[test]
+fn test_main_help_shows_logs() {
+    let output = Command::new(hcpctl_bin()).arg("--help").output().unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    assert!(stdout.contains("logs"), "Should show logs command");
+    assert!(stdout.contains("log]"), "Should show log alias");
+}
