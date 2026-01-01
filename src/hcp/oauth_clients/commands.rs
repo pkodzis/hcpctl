@@ -96,7 +96,7 @@ async fn get_single_oauth_client(
 
         match client.get_oauth_client(name).await {
             Ok((oauth_client, raw)) => {
-                finish_spinner(spinner, "Found");
+                finish_spinner(spinner);
 
                 // For JSON/YAML, return raw API response
                 if matches!(args.output, OutputFormat::Json | OutputFormat::Yaml) {
@@ -113,7 +113,7 @@ async fn get_single_oauth_client(
                 return Ok(());
             }
             Err(e) => {
-                finish_spinner(spinner, "Error");
+                finish_spinner(spinner);
                 return Err(e.into());
             }
         }
@@ -157,7 +157,7 @@ async fn get_single_oauth_client(
                 .collect();
 
             if !found.is_empty() {
-                finish_spinner(spinner, "Found");
+                finish_spinner(spinner);
 
                 // For JSON/YAML with name search, we need to fetch the raw JSON
                 // (we only have the model from list, not raw JSON)
@@ -176,7 +176,7 @@ async fn get_single_oauth_client(
         }
     }
 
-    finish_spinner(spinner, "Not found");
+    finish_spinner(spinner);
 
     let searched = if organizations.len() == 1 {
         format!("organization '{}'", organizations[0])

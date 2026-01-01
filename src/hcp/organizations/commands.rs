@@ -66,12 +66,12 @@ pub async fn run_org_command(
             // Direct API call - returns raw JSON
             match client.get_organization(name).await? {
                 Some((_org, raw)) => {
-                    finish_spinner(spinner, "Done");
+                    finish_spinner(spinner);
                     output_raw(&raw, &args.output);
                     return Ok(());
                 }
                 None => {
-                    finish_spinner(spinner, "Not found");
+                    finish_spinner(spinner);
                     return Err(format!("Organization '{}' not found", name).into());
                 }
             }
@@ -86,7 +86,7 @@ pub async fn run_org_command(
         organizations.retain(|org| org.matches(name));
 
         if organizations.is_empty() {
-            finish_spinner(spinner, "Not found");
+            finish_spinner(spinner);
             return Err(format!("Organization '{}' not found", name).into());
         }
     }
@@ -125,7 +125,7 @@ pub async fn run_org_command(
         }
     }
 
-    finish_spinner(spinner, "Done");
+    finish_spinner(spinner);
 
     // Combine organizations with their tokens
     let orgs_with_tokens: Vec<OrganizationWithTokens> = organizations

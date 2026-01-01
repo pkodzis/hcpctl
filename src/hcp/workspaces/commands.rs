@@ -141,7 +141,7 @@ async fn get_single_workspace(
 
         match client.get_workspace_by_id(name).await {
             Ok(Some((_workspace, raw))) => {
-                finish_spinner(spinner, "Found");
+                finish_spinner(spinner);
 
                 // Handle subresource if requested
                 if let Some(subresource) = &args.subresource {
@@ -165,11 +165,11 @@ async fn get_single_workspace(
                 return Ok(());
             }
             Ok(None) => {
-                finish_spinner(spinner, "Not found");
+                finish_spinner(spinner);
                 return Err(format!("Workspace '{}' not found", name).into());
             }
             Err(e) => {
-                finish_spinner(spinner, "Error");
+                finish_spinner(spinner);
                 return Err(e.into());
             }
         }
@@ -206,7 +206,7 @@ async fn get_single_workspace(
     // Process results as they complete, stop on first match
     while let Some((org_name, result)) = futures.next().await {
         if let Ok(Some((_workspace, raw))) = result {
-            finish_spinner(spinner, "Found");
+            finish_spinner(spinner);
 
             // Handle subresource if requested
             if let Some(subresource) = &args.subresource {
@@ -227,7 +227,7 @@ async fn get_single_workspace(
         }
     }
 
-    finish_spinner(spinner, "Not found");
+    finish_spinner(spinner);
 
     let searched = if organizations.len() == 1 {
         format!("organization '{}'", organizations[0])
@@ -274,12 +274,12 @@ async fn fetch_and_output_subresource(
 
     match client.get_subresource(url).await {
         Ok(raw) => {
-            finish_spinner(spinner, "Found");
+            finish_spinner(spinner);
             output_raw(&raw, &args.output);
             Ok(())
         }
         Err(e) => {
-            finish_spinner(spinner, "Error");
+            finish_spinner(spinner);
             Err(e.into())
         }
     }

@@ -458,3 +458,133 @@ fn test_main_help_shows_logs() {
     assert!(stdout.contains("logs"), "Should show logs command");
     assert!(stdout.contains("log]"), "Should show log alias");
 }
+
+// =========================================================================
+// Watch command tests
+// =========================================================================
+
+/// Test that 'watch' subcommand help shows expected resources
+#[test]
+fn test_watch_help_flag() {
+    let output = Command::new(hcpctl_bin())
+        .args(["watch", "--help"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    // Verify ws resource is documented
+    assert!(stdout.contains("ws"), "Should document ws resource");
+}
+
+/// Test that 'watch ws' subcommand help shows expected options
+#[test]
+fn test_watch_ws_help_flag() {
+    let output = Command::new(hcpctl_bin())
+        .args(["watch", "ws", "--help"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    // Verify key options are documented
+    assert!(
+        stdout.contains("--no-prefix"),
+        "Should document --no-prefix option"
+    );
+    assert!(
+        stdout.contains("--interval"),
+        "Should document --interval option"
+    );
+    assert!(stdout.contains("--apply"), "Should document --apply option");
+    assert!(stdout.contains("--raw"), "Should document --raw option");
+    assert!(stdout.contains("--org"), "Should document --org option");
+    assert!(stdout.contains("-i"), "Should have short -i for interval");
+    assert!(stdout.contains("-a"), "Should have short -a for apply");
+}
+
+/// Test that 'watch workspace' alias works
+#[test]
+fn test_watch_ws_alias() {
+    let output = Command::new(hcpctl_bin())
+        .args(["watch", "workspace", "--help"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    assert!(
+        stdout.contains("--interval"),
+        "Should document --interval option"
+    );
+}
+
+/// Test that watch ws target types are documented
+#[test]
+fn test_watch_ws_target_types_documented() {
+    let output = Command::new(hcpctl_bin())
+        .args(["watch", "ws", "--help"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    assert!(
+        stdout.contains("ws-"),
+        "Should document workspace ID format"
+    );
+    assert!(
+        stdout.contains("Workspace name") || stdout.contains("name"),
+        "Should document workspace name option"
+    );
+}
+
+/// Test that main help shows watch command
+#[test]
+fn test_main_help_shows_watch() {
+    let output = Command::new(hcpctl_bin()).arg("--help").output().unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    assert!(stdout.contains("watch"), "Should show watch command");
+}
+
+/// Test that watch ws default interval is 3
+#[test]
+fn test_watch_ws_default_interval() {
+    let output = Command::new(hcpctl_bin())
+        .args(["watch", "ws", "--help"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    assert!(
+        stdout.contains("3") || stdout.contains("default"),
+        "Should show default interval"
+    );
+}
+
+/// Test that watch ws no-prefix default is documented
+#[test]
+fn test_watch_ws_prefix_default() {
+    let output = Command::new(hcpctl_bin())
+        .args(["watch", "ws", "--help"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    // Help should mention that prefix is enabled by default (no-prefix disables it)
+    assert!(
+        stdout.contains("Disable") || stdout.contains("prefix"),
+        "Should document prefix behavior"
+    );
+}

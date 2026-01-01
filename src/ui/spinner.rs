@@ -22,27 +22,25 @@ pub fn create_spinner(message: &str, quiet: bool) -> Option<ProgressBar> {
     Some(spinner)
 }
 
-/// Finish spinner with a message
-pub fn finish_spinner(spinner: Option<ProgressBar>, message: &str) {
+/// Finish spinner - clears it completely without leaving a message
+///
+/// The spinner disappears without leaving any trace in the terminal.
+pub fn finish_spinner(spinner: Option<ProgressBar>) {
     if let Some(s) = spinner {
-        s.finish_with_message(message.to_string());
+        s.finish_and_clear();
     }
 }
 
-/// Finish spinner with appropriate message based on results
+/// Finish spinner - clears it completely
+///
+/// Always clears the spinner without leaving any trace.
 pub fn finish_spinner_with_status<T>(
     spinner: Option<ProgressBar>,
-    results: &[T],
-    had_errors: bool,
+    _results: &[T],
+    _had_errors: bool,
 ) {
     if let Some(s) = spinner {
-        if had_errors && results.is_empty() {
-            s.finish_and_clear();
-        } else if had_errors {
-            s.finish_with_message("Completed with errors");
-        } else {
-            s.finish_with_message("Done");
-        }
+        s.finish_and_clear();
     }
 }
 
@@ -58,7 +56,7 @@ mod tests {
     #[test]
     fn test_finish_spinner_none() {
         // Should not panic
-        finish_spinner(None, "Done");
+        finish_spinner(None);
     }
 
     #[test]

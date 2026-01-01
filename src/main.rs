@@ -6,7 +6,8 @@ use std::process::ExitCode;
 
 use hcpctl::{
     run_logs_command, run_oc_command, run_org_command, run_prj_command, run_runs_command,
-    run_ws_command, Cli, Command, GetResource, HostResolver, TfeClient, TokenResolver,
+    run_watch_ws_command, run_ws_command, Cli, Command, GetResource, HostResolver, TfeClient,
+    TokenResolver, WatchResource,
 };
 
 #[tokio::main]
@@ -47,5 +48,8 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
             GetResource::Run(_) => run_runs_command(&client, &cli).await,
         },
         Command::Logs(args) => run_logs_command(&client, &cli, args).await,
+        Command::Watch { resource } => match resource {
+            WatchResource::Ws(args) => run_watch_ws_command(&client, &cli, args).await,
+        },
     }
 }

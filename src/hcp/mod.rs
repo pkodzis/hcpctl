@@ -12,6 +12,7 @@ pub mod organizations;
 pub mod projects;
 pub mod runs;
 pub mod traits;
+pub mod watch;
 pub mod workspaces;
 
 use serde::Deserialize;
@@ -29,7 +30,11 @@ pub use organizations::{
 pub use projects::{run_prj_command, Project, ProjectAttributes, ProjectWorkspaces};
 pub use runs::{run_runs_command, Run, RunAttributes};
 pub use traits::TfeResource;
-pub use workspaces::{run_ws_command, Workspace, WorkspaceAttributes};
+pub use watch::run_watch_ws_command;
+pub use workspaces::{
+    extract_current_run_id, resolve_workspace, run_ws_command, ResolvedWorkspace, Workspace,
+    WorkspaceAttributes, WorkspaceTarget,
+};
 
 /// Pagination metadata from TFE API (shared across resources)
 #[derive(Deserialize, Debug, Default)]
