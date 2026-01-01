@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.0](https://github.com/pkodzis/hcpctl/compare/v0.2.0...v0.3.0) (2026-01-01)
+
+
+### Features
+
+* logs command ([acd80db](https://github.com/pkodzis/hcpctl/commit/acd80dbe7ac9061edf4977a0d1faffcae9804333))
+* watch ws command to live observe ongoing ws runs ([0de0514](https://github.com/pkodzis/hcpctl/commit/0de0514fd0e05fad704f8f4881561f79c6635144))
+
 ## [0.2.0](https://github.com/pkodzis/hcpctl/compare/v0.1.0...v0.2.0) (2025-12-31)
 
 ### Features
