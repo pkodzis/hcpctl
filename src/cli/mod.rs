@@ -69,6 +69,21 @@ pub enum Command {
         #[command(subcommand)]
         resource: GetResource,
     },
+
+    /// View logs for a run (plan or apply)
+    ///
+    /// Target can be:
+    ///   run-xxx  Run ID - directly fetches logs for that run
+    ///   ws-xxx   Workspace ID - fetches current-run logs
+    ///   name     Workspace name - fetches current-run logs (requires --org)
+    #[command(visible_alias = "log", verbatim_doc_comment)]
+    Logs(LogsArgs),
+
+    /// Watch resources for changes
+    Watch {
+        #[command(subcommand)]
+        resource: WatchResource,
+    },
 }
 
 /// Resource types for the 'get' command
@@ -311,6 +326,77 @@ pub struct RunArgs {
     /// Skip confirmation prompt when results exceed 100
     #[arg(short = 'y', long, default_value_t = false)]
     pub yes: bool,
+}
+
+/// Arguments for 'logs' command
+#[derive(Parser, Debug)]
+pub struct LogsArgs {
+    /// Run ID (run-xxx), workspace ID (ws-xxx), or workspace name
+    ///
+    ///   run-xxx  directly fetches logs for that run
+    ///   ws-xxx   fetches logs for workspace's current run
+    ///   name     workspace name, fetches current run (requires --org)
+    #[arg(verbatim_doc_comment)]
+    pub target: String,
+
+    /// Organization name (required when target is a workspace name)
+    #[arg(short = 'O', long)]
+    pub org: Option<String>,
+
+    /// Show apply log instead of plan log (default: plan)
+    #[arg(short = 'a', long, default_value_t = false)]
+    pub apply: bool,
+
+    /// Follow log output in real-time until completion (like tail -f)
+    #[arg(short = 'f', long, default_value_t = false)]
+    pub follow: bool,
+
+    /// Output raw log without parsing (default: extract @message from JSON lines)
+    #[arg(long, default_value_t = false)]
+    pub raw: bool,
+}
+
+/// Resource types for the 'watch' command
+#[derive(Subcommand, Debug)]
+pub enum WatchResource {
+    /// Watch a workspace for new runs and stream their logs
+    ///
+    /// Continuously monitors a workspace for new runs. When a new run starts,
+    /// automatically streams its logs until completion, then watches for the
+    /// next run. Logs are prefixed with [run-xxx] by default.
+    #[command(visible_alias = "workspace", verbatim_doc_comment)]
+    Ws(WatchWsArgs),
+}
+
+/// Arguments for 'watch ws' subcommand
+#[derive(Parser, Debug)]
+pub struct WatchWsArgs {
+    /// Workspace ID (ws-xxx) or workspace name
+    ///
+    ///   ws-xxx   Workspace ID - watches directly
+    ///   name     Workspace name - requires --org or auto-discovery
+    #[arg(verbatim_doc_comment)]
+    pub target: String,
+
+    /// Organization name (optional - will search all orgs if not specified)
+    #[arg(short = 'O', long)]
+    pub org: Option<String>,
+
+    /// Show apply logs instead of plan logs (default: plan)
+    #[arg(short = 'a', long, default_value_t = false)]
+    pub apply: bool,
+
+    /// Disable [run-xxx] prefix on log output (default: prefix enabled)
+    #[arg(long = "no-prefix", default_value_t = false)]
+    pub no_prefix: bool,
+
+    /// Poll interval in seconds (default: 3)
+    #[arg(short = 'i', long, default_value_t = 3)]
+    pub interval: u64,
+
+    /// Output raw log without parsing (default: extract @message from JSON lines)
+    #[arg(long, default_value_t = false)]
+    pub raw: bool,
 }
 
 /// Output format options
@@ -931,5 +1017,86 @@ mod tests {
         assert_eq!(RunSortField::CreatedAt.to_string(), "created-at");
         assert_eq!(RunSortField::Status.to_string(), "status");
         assert_eq!(RunSortField::WsId.to_string(), "ws-id");
+    }
+
+    #[test]
+    fn test_logs_command_with_run_id() {
+        let cli = Cli::parse_from(["hcp", "logs", "run-abc123"]);
+        match cli.command {
+            Command::Logs(args) => {
+                assert_eq!(args.target, "run-abc123");
+                assert!(!args.apply);
+                assert!(!args.follow);
+                assert!(!args.raw);
+                assert!(args.org.is_none());
+            }
+            _ => panic!("Expected Logs command"),
+        }
+    }
+
+    #[test]
+    fn test_logs_command_with_workspace_name() {
+        let cli = Cli::parse_from(["hcp", "logs", "my-workspace", "-O", "my-org"]);
+        match cli.command {
+            Command::Logs(args) => {
+                assert_eq!(args.target, "my-workspace");
+                assert_eq!(args.org, Some("my-org".to_string()));
+            }
+            _ => panic!("Expected Logs command"),
+        }
+    }
+
+    #[test]
+    fn test_logs_command_with_apply_flag() {
+        let cli = Cli::parse_from(["hcp", "logs", "run-abc123", "--apply"]);
+        match cli.command {
+            Command::Logs(args) => {
+                assert!(args.apply);
+            }
+            _ => panic!("Expected Logs command"),
+        }
+    }
+
+    #[test]
+    fn test_logs_command_with_follow_flag() {
+        let cli = Cli::parse_from(["hcp", "logs", "run-abc123", "-f"]);
+        match cli.command {
+            Command::Logs(args) => {
+                assert!(args.follow);
+            }
+            _ => panic!("Expected Logs command"),
+        }
+    }
+
+    #[test]
+    fn test_logs_command_with_raw_flag() {
+        let cli = Cli::parse_from(["hcp", "logs", "run-abc123", "--raw"]);
+        match cli.command {
+            Command::Logs(args) => {
+                assert!(args.raw);
+            }
+            _ => panic!("Expected Logs command"),
+        }
+    }
+
+    #[test]
+    fn test_logs_command_all_options() {
+        let cli = Cli::parse_from(["hcp", "logs", "my-ws", "-O", "my-org", "-a", "-f", "--raw"]);
+        match cli.command {
+            Command::Logs(args) => {
+                assert_eq!(args.target, "my-ws");
+                assert_eq!(args.org, Some("my-org".to_string()));
+                assert!(args.apply);
+                assert!(args.follow);
+                assert!(args.raw);
+            }
+            _ => panic!("Expected Logs command"),
+        }
+    }
+
+    #[test]
+    fn test_logs_alias() {
+        let cli = Cli::parse_from(["hcp", "log", "run-abc123"]);
+        assert!(matches!(cli.command, Command::Logs(_)));
     }
 }

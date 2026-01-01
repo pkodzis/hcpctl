@@ -149,7 +149,7 @@ async fn get_single_project(
 
         match client.get_project_by_id(name).await {
             Ok(Some((project, raw))) => {
-                finish_spinner(spinner, "Found");
+                finish_spinner(spinner);
 
                 // For JSON/YAML, return raw API response
                 if matches!(args.output, OutputFormat::Json | OutputFormat::Yaml) {
@@ -183,11 +183,11 @@ async fn get_single_project(
                 return Ok(());
             }
             Ok(None) => {
-                finish_spinner(spinner, "Not found");
+                finish_spinner(spinner);
                 return Err(format!("Project '{}' not found", name).into());
             }
             Err(e) => {
-                finish_spinner(spinner, "Error");
+                finish_spinner(spinner);
                 return Err(e.into());
             }
         }
@@ -224,7 +224,7 @@ async fn get_single_project(
     // Process results as they complete, stop on first match
     while let Some((org_name, result)) = futures.next().await {
         if let Ok(Some((project, raw))) = result {
-            finish_spinner(spinner, "Found");
+            finish_spinner(spinner);
 
             // For JSON/YAML, return raw API response
             if matches!(args.output, OutputFormat::Json | OutputFormat::Yaml) {
@@ -253,7 +253,7 @@ async fn get_single_project(
         }
     }
 
-    finish_spinner(spinner, "Not found");
+    finish_spinner(spinner);
 
     let searched = if organizations.len() == 1 {
         format!("organization '{}'", organizations[0])

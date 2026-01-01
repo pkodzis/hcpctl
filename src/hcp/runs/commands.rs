@@ -98,7 +98,7 @@ async fn get_single_run(
 
     match client.get_run_by_id(run_id).await {
         Ok(Some((run, raw))) => {
-            finish_spinner(spinner, "Found");
+            finish_spinner(spinner);
 
             // Handle subresource if requested
             if let Some(subresource) = &args.subresource {
@@ -118,11 +118,11 @@ async fn get_single_run(
             Ok(())
         }
         Ok(None) => {
-            finish_spinner(spinner, "Not found");
+            finish_spinner(spinner);
             Err(format!("Run '{}' not found", run_id).into())
         }
         Err(e) => {
-            finish_spinner(spinner, "Error");
+            finish_spinner(spinner);
             Err(e.into())
         }
     }
@@ -181,7 +181,7 @@ async fn fetch_workspace_runs(
         .await?;
 
     if initial_runs.len() > CONFIRM_THRESHOLD {
-        finish_spinner(spinner, &format!("Found > {} runs", CONFIRM_THRESHOLD));
+        finish_spinner(spinner);
 
         if !auto_confirm && !cli.batch {
             let confirm = Confirm::new()
@@ -203,11 +203,11 @@ async fn fetch_workspace_runs(
         // Fetch all runs
         let spinner = create_spinner("Fetching all runs...", cli.batch);
         let all_runs = client.get_runs_for_workspace(ws_id, query, None).await?;
-        finish_spinner(spinner, &format!("Found {} runs", all_runs.len()));
+        finish_spinner(spinner);
         return Ok(all_runs);
     }
 
-    finish_spinner(spinner, &format!("Found {} runs", initial_runs.len()));
+    finish_spinner(spinner);
     Ok(initial_runs)
 }
 
@@ -230,7 +230,7 @@ async fn fetch_org_runs(
         .await?;
 
     if initial_runs.len() > CONFIRM_THRESHOLD {
-        finish_spinner(spinner, &format!("Found > {} runs", CONFIRM_THRESHOLD));
+        finish_spinner(spinner);
 
         if !auto_confirm && !cli.batch {
             let confirm = Confirm::new()
@@ -252,11 +252,11 @@ async fn fetch_org_runs(
         // Fetch all runs
         let spinner = create_spinner("Fetching all runs...", cli.batch);
         let all_runs = client.get_runs_for_organization(org, query, None).await?;
-        finish_spinner(spinner, &format!("Found {} runs", all_runs.len()));
+        finish_spinner(spinner);
         return Ok(all_runs);
     }
 
-    finish_spinner(spinner, &format!("Found {} runs", initial_runs.len()));
+    finish_spinner(spinner);
     Ok(initial_runs)
 }
 
@@ -334,13 +334,13 @@ async fn fetch_and_output_events(
 
     match client.get_subresource(url).await {
         Ok(raw) => {
-            finish_spinner(spinner, "Found");
+            finish_spinner(spinner);
             let events_response: RunEventsResponse = serde_json::from_value(raw.clone())?;
             output_run_events(&events_response.data, &args.output, cli.no_header, &raw);
             Ok(())
         }
         Err(e) => {
-            finish_spinner(spinner, "Error");
+            finish_spinner(spinner);
             Err(e.into())
         }
     }
@@ -362,14 +362,14 @@ async fn fetch_and_output_plan(
     };
 
     if tail_log {
-        return tail_plan_log(client, cli, run_id, args.raw).await;
+        return tail_plan_log(client, cli.batch, run_id, args.raw).await;
     }
 
-    let spinner = create_spinner("Fetching plan...", cli.batch);
+    let spinner = create_spinner("Fetching plan details...", cli.batch);
 
     match client.get_run_plan(run_id).await {
         Ok(plan) => {
-            finish_spinner(spinner, "Found");
+            finish_spinner(spinner);
 
             if get_log {
                 return output_log(client, &plan.attributes.log_read_url, args.raw).await;
@@ -394,7 +394,7 @@ async fn fetch_and_output_plan(
             Ok(())
         }
         Err(e) => {
-            finish_spinner(spinner, "Error");
+            finish_spinner(spinner);
             Err(e.into())
         }
     }
@@ -416,14 +416,14 @@ async fn fetch_and_output_apply(
     };
 
     if tail_log {
-        return tail_apply_log(client, cli, run_id, args.raw).await;
+        return tail_apply_log(client, cli.batch, run_id, args.raw).await;
     }
 
-    let spinner = create_spinner("Fetching apply...", cli.batch);
+    let spinner = create_spinner("Fetching apply details...", cli.batch);
 
     match client.get_run_apply(run_id).await {
         Ok(apply) => {
-            finish_spinner(spinner, "Found");
+            finish_spinner(spinner);
 
             if get_log {
                 return output_log(client, &apply.attributes.log_read_url, args.raw).await;
@@ -447,7 +447,7 @@ async fn fetch_and_output_apply(
             Ok(())
         }
         Err(e) => {
-            finish_spinner(spinner, "Error");
+            finish_spinner(spinner);
             Err(e.into())
         }
     }
@@ -476,107 +476,96 @@ async fn output_log(
     Ok(())
 }
 
-/// Print human-readable log by extracting @message from JSON lines
+// Use shared log parsing from log_utils module
+use super::log_utils::print_human_readable_log;
+
+/// Fetch and print log for a run (plan or apply)
 ///
-/// For lines starting with '{', tries to parse as JSON and extract @message.
-/// For other lines (headers, plain text), prints them as-is.
-fn print_human_readable_log(content: &str) {
-    for line in content.lines() {
-        if line.starts_with('{') {
-            // Try to parse as JSON and extract @message
-            if let Ok(json) = serde_json::from_str::<serde_json::Value>(line) {
-                if let Some(message) = json.get("@message").and_then(|m| m.as_str()) {
-                    println!("{}", message);
-                }
-                // Skip JSON lines without @message
-            } else {
-                // If JSON parsing fails, print as-is
-                println!("{}", line);
-            }
-        } else {
-            // Non-JSON lines (headers, etc.) - print as-is
-            println!("{}", line);
-        }
-    }
+/// Public function used by both `get run --subresource` and `logs` commands.
+///
+/// # Arguments
+/// * `client` - TFE API client
+/// * `run_id` - Run ID to fetch logs for
+/// * `is_apply` - If true, fetch apply log; if false, fetch plan log
+/// * `raw` - If true, output raw log; if false, extract @message from JSON lines
+pub async fn fetch_and_print_log(
+    client: &TfeClient,
+    run_id: &str,
+    is_apply: bool,
+    raw: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let log_url = if is_apply {
+        let apply = client.get_run_apply(run_id).await?;
+        apply.attributes.log_read_url
+    } else {
+        let plan = client.get_run_plan(run_id).await?;
+        plan.attributes.log_read_url
+    };
+
+    output_log(client, &log_url, raw).await
 }
 
-/// Tail plan log until completion
-///
-/// Polls the plan status and log content, displaying new lines as they appear.
-/// Stops when the plan reaches a final state (finished, errored, canceled, unreachable).
+/// Tail plan log - delegates to unified tail_log
 async fn tail_plan_log(
     client: &TfeClient,
-    cli: &Cli,
+    batch: bool,
     run_id: &str,
     raw: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    const POLL_INTERVAL: Duration = Duration::from_secs(2);
-
-    let mut last_log_len = 0;
-    let mut spinner = create_spinner("Tailing plan log...", cli.batch);
-
-    loop {
-        let plan = client.get_run_plan(run_id).await?;
-
-        // Fetch and display new log content
-        if let Some(log_url) = &plan.attributes.log_read_url {
-            if let Ok(content) = client.get_log_content(log_url).await {
-                if content.len() > last_log_len {
-                    // On first content, finish the spinner
-                    if last_log_len == 0 {
-                        finish_spinner(spinner.take(), "Streaming...");
-                    }
-                    // Print only new content
-                    let new_content = &content[last_log_len..];
-                    if raw {
-                        print!("{}", new_content);
-                    } else {
-                        print_human_readable_log(new_content);
-                    }
-                    io::stdout().flush().ok();
-                    last_log_len = content.len();
-                }
-            }
-        }
-
-        // Check if plan has reached final state
-        if plan.is_final() {
-            break;
-        }
-
-        sleep(POLL_INTERVAL).await;
-    }
-
-    // Finish spinner if never got any content
-    finish_spinner(spinner.take(), "Complete");
-    Ok(())
+    tail_log(client, batch, run_id, false, raw).await
 }
 
-/// Tail apply log until completion
-///
-/// Polls the apply status and log content, displaying new lines as they appear.
-/// Stops when the apply reaches a final state (finished, errored, canceled, unreachable).
+/// Tail apply log - delegates to unified tail_log
 async fn tail_apply_log(
     client: &TfeClient,
-    cli: &Cli,
+    batch: bool,
     run_id: &str,
+    raw: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    tail_log(client, batch, run_id, true, raw).await
+}
+
+/// Unified log tailing for both plan and apply
+///
+/// Polls the plan/apply status and log content, displaying new lines as they appear.
+/// Stops when the resource reaches a final state (finished, errored, canceled, unreachable).
+///
+/// # Arguments
+/// * `client` - TFE API client
+/// * `batch` - If true, no spinners (batch mode)
+/// * `run_id` - Run ID to tail logs for
+/// * `is_apply` - If true, tail apply log; if false, tail plan log
+/// * `raw` - If true, output raw log; if false, extract @message from JSON lines
+pub async fn tail_log(
+    client: &TfeClient,
+    batch: bool,
+    run_id: &str,
+    is_apply: bool,
     raw: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     const POLL_INTERVAL: Duration = Duration::from_secs(2);
 
+    let resource_name = if is_apply { "apply" } else { "plan" };
     let mut last_log_len = 0;
-    let mut spinner = create_spinner("Tailing apply log...", cli.batch);
+    let mut spinner = create_spinner(&format!("Tailing {} log...", resource_name), batch);
 
     loop {
-        let apply = client.get_run_apply(run_id).await?;
+        // Fetch log URL and final state based on resource type
+        let (log_url, is_final) = if is_apply {
+            let apply = client.get_run_apply(run_id).await?;
+            (apply.attributes.log_read_url.clone(), apply.is_final())
+        } else {
+            let plan = client.get_run_plan(run_id).await?;
+            (plan.attributes.log_read_url.clone(), plan.is_final())
+        };
 
         // Fetch and display new log content
-        if let Some(log_url) = &apply.attributes.log_read_url {
-            if let Ok(content) = client.get_log_content(log_url).await {
+        if let Some(url) = &log_url {
+            if let Ok(content) = client.get_log_content(url).await {
                 if content.len() > last_log_len {
                     // On first content, finish the spinner
                     if last_log_len == 0 {
-                        finish_spinner(spinner.take(), "Streaming...");
+                        finish_spinner(spinner.take());
                     }
                     // Print only new content
                     let new_content = &content[last_log_len..];
@@ -591,8 +580,8 @@ async fn tail_apply_log(
             }
         }
 
-        // Check if apply has reached final state
-        if apply.is_final() {
+        // Check if resource has reached final state
+        if is_final {
             break;
         }
 
@@ -600,7 +589,7 @@ async fn tail_apply_log(
     }
 
     // Finish spinner if never got any content
-    finish_spinner(spinner.take(), "Complete");
+    finish_spinner(spinner.take());
     Ok(())
 }
 
@@ -613,42 +602,5 @@ mod tests {
         assert_eq!(CONFIRM_THRESHOLD, 100);
     }
 
-    #[test]
-    fn test_print_human_readable_log_json_lines() {
-        // Capture what would be printed - just verify no panic
-        let log = r#"Terraform v1.12.2
-on linux_amd64
-{"@level":"info","@message":"Terraform 1.12.2","@module":"terraform.ui","type":"version"}
-{"@level":"info","@message":"Plan: 1 to add, 0 to change, 0 to destroy.","type":"planned_change"}
-"#;
-        // This should not panic
-        print_human_readable_log(log);
-    }
-
-    #[test]
-    fn test_print_human_readable_log_plain_text() {
-        let log = "Just plain text\nNo JSON here\n";
-        // This should not panic and print as-is
-        print_human_readable_log(log);
-    }
-
-    #[test]
-    fn test_print_human_readable_log_mixed() {
-        let log = r#"Header line
-{"@message":"First message"}
-Plain text in between
-{"@message":"Second message","other_field":"ignored"}
-{"no_message_field":"this line skipped"}
-Footer
-"#;
-        // This should not panic
-        print_human_readable_log(log);
-    }
-
-    #[test]
-    fn test_print_human_readable_log_invalid_json() {
-        let log = "{invalid json}\n{\"@message\":\"valid\"}\n";
-        // Invalid JSON should be printed as-is
-        print_human_readable_log(log);
-    }
+    // Note: print_human_readable_log tests moved to log_utils module
 }

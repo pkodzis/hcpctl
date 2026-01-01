@@ -6,11 +6,13 @@ mod client;
 mod credentials;
 pub mod helpers;
 mod host;
+pub mod logs;
 pub mod oauth_clients;
 pub mod organizations;
 pub mod projects;
 pub mod runs;
 pub mod traits;
+pub mod watch;
 pub mod workspaces;
 
 use serde::Deserialize;
@@ -19,6 +21,7 @@ pub use client::TfeClient;
 pub use credentials::TokenResolver;
 pub use helpers::{collect_org_results, fetch_from_organizations, log_completion};
 pub use host::HostResolver;
+pub use logs::run_logs_command;
 pub use oauth_clients::{run_oc_command, OAuthClient, OAuthClientAttributes, OAuthToken};
 pub use organizations::{
     resolve_organizations, run_org_command, Organization, OrganizationAttributes,
@@ -27,7 +30,11 @@ pub use organizations::{
 pub use projects::{run_prj_command, Project, ProjectAttributes, ProjectWorkspaces};
 pub use runs::{run_runs_command, Run, RunAttributes};
 pub use traits::TfeResource;
-pub use workspaces::{run_ws_command, Workspace, WorkspaceAttributes};
+pub use watch::run_watch_ws_command;
+pub use workspaces::{
+    extract_current_run_id, resolve_workspace, run_ws_command, ResolvedWorkspace, Workspace,
+    WorkspaceAttributes, WorkspaceTarget,
+};
 
 /// Pagination metadata from TFE API (shared across resources)
 #[derive(Deserialize, Debug, Default)]
