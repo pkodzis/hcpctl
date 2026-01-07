@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.4.0](https://github.com/pkodzis/hcpctl/compare/v0.3.1...v0.4.0) (2026-01-07)
+
+
+### Features
+
+* checking for update ([93bc88e](https://github.com/pkodzis/hcpctl/commit/93bc88efc582c036cb60ae5f739c59a65560e159))
+* invite org users ([93bc88e](https://github.com/pkodzis/hcpctl/commit/93bc88efc582c036cb60ae5f739c59a65560e159))
+* listing teams; abstracted pagination ([93bc88e](https://github.com/pkodzis/hcpctl/commit/93bc88efc582c036cb60ae5f739c59a65560e159))
+* listing teams; abstracted pagination; invite org users; checking for update ([58cf3d7](https://github.com/pkodzis/hcpctl/commit/58cf3d77162868de4205384a9539432739f0e741))
+
 ## [0.3.1](https://github.com/pkodzis/hcpctl/compare/v0.3.0...v0.3.1) (2026-01-07)
 
 
