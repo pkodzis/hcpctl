@@ -7,8 +7,8 @@ use std::process::ExitCode;
 use hcpctl::{
     run_delete_org_member_command, run_invite_command, run_logs_command, run_oc_command,
     run_org_command, run_org_member_command, run_prj_command, run_runs_command, run_team_command,
-    run_watch_ws_command, run_ws_command, Cli, Command, DeleteResource, GetResource, HostResolver,
-    TfeClient, TokenResolver, UpdateChecker, WatchResource,
+    run_update, run_watch_ws_command, run_ws_command, Cli, Command, DeleteResource, GetResource,
+    HostResolver, TfeClient, TokenResolver, UpdateChecker, WatchResource,
 };
 
 #[tokio::main]
@@ -28,6 +28,11 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         .init();
 
     info!("Starting HCP CLI v{}", env!("CARGO_PKG_VERSION"));
+
+    // Handle update command early (doesn't require TFE credentials)
+    if matches!(cli.command, Command::Update) {
+        return run_update().await;
+    }
 
     // Start background update check (non-blocking, only in interactive mode)
     let update_handle = if !cli.batch {
@@ -67,6 +72,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
             WatchResource::Ws(args) => run_watch_ws_command(&client, &cli, args).await,
         },
         Command::Invite(args) => run_invite_command(&client, &cli, args).await,
+        Command::Update => unreachable!(), // Handled above
     };
 
     // Show update notification if available (non-blocking check completed)

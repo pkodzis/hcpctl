@@ -7,7 +7,9 @@ use log::debug;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::fs;
+use std::io::Write;
 use std::path::PathBuf;
+use std::process::{Command, Stdio};
 use std::time::SystemTime;
 use tokio::sync::oneshot;
 
@@ -201,8 +203,6 @@ fn is_newer(latest: &str, current: &str) -> bool {
 fn format_update_message(current: &str, latest: &str) -> String {
     use comfy_table::{presets::UTF8_BORDERS_ONLY, Table};
 
-    let install_cmd = get_install_command();
-
     let mut table = Table::new();
     table.load_preset(UTF8_BORDERS_ONLY);
 
@@ -212,25 +212,103 @@ fn format_update_message(current: &str, latest: &str) -> String {
     )]);
     table.add_row(vec![String::new()]);
     table.add_row(vec!["To update, run:".to_string()]);
-    table.add_row(vec![format!("  {}", install_cmd)]);
+    table.add_row(vec!["  hcpctl update".to_string()]);
 
     format!("\n{}", table)
 }
 
-/// Get platform-specific install command
-fn get_install_command() -> String {
+/// Run the update command - checks for updates and installs if available
+pub async fn run_update() -> Result<(), Box<dyn std::error::Error>> {
+    let current_version = env!("CARGO_PKG_VERSION");
+
+    println!("Checking for updates...");
+
+    // Fetch latest version
+    let latest = match fetch_latest_version().await {
+        Ok(v) => v,
+        Err(e) => {
+            return Err(format!("Failed to check for updates: {}", e).into());
+        }
+    };
+
+    if !is_newer(&latest, current_version) {
+        println!("✓ hcpctl is up to date (v{})", current_version);
+        return Ok(());
+    }
+
+    println!("Updating hcpctl: {} → {}", current_version, latest);
+
+    // Fetch the install script using reqwest (no curl dependency)
+    let script_url = get_install_script_url();
+    let script = fetch_install_script(script_url).await?;
+
+    // Execute the script
+    #[cfg(not(target_os = "windows"))]
+    {
+        let mut child = Command::new("bash").stdin(Stdio::piped()).spawn()?;
+
+        if let Some(mut stdin) = child.stdin.take() {
+            stdin.write_all(script.as_bytes())?;
+        }
+
+        let status = child.wait()?;
+        if !status.success() {
+            return Err("Update failed. Please try manually.".into());
+        }
+    }
+
     #[cfg(target_os = "windows")]
     {
-        format!(
-            "Invoke-RestMethod {} | Invoke-Expression",
-            config::install::WINDOWS_SCRIPT
-        )
+        let mut child = Command::new("powershell")
+            .arg("-Command")
+            .arg("-")
+            .stdin(Stdio::piped())
+            .spawn()?;
+
+        if let Some(mut stdin) = child.stdin.take() {
+            stdin.write_all(script.as_bytes())?;
+        }
+
+        let status = child.wait()?;
+        if !status.success() {
+            return Err("Update failed. Please try manually.".into());
+        }
+    }
+
+    println!("✓ Successfully updated to v{}", latest);
+    Ok(())
+}
+
+/// Get the install script URL for the current platform
+fn get_install_script_url() -> &'static str {
+    #[cfg(target_os = "windows")]
+    {
+        config::install::WINDOWS_SCRIPT
     }
 
     #[cfg(not(target_os = "windows"))]
     {
-        format!("curl -fsSL {} | bash", config::install::UNIX_SCRIPT)
+        config::install::UNIX_SCRIPT
     }
+}
+
+/// Fetch the install script content
+async fn fetch_install_script(url: &str) -> Result<String, Box<dyn std::error::Error>> {
+    let client = Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()?;
+
+    let response = client
+        .get(url)
+        .header("User-Agent", "hcpctl-updater")
+        .send()
+        .await?;
+
+    if !response.status().is_success() {
+        return Err(format!("Failed to download install script: {}", response.status()).into());
+    }
+
+    Ok(response.text().await?)
 }
 
 #[cfg(test)]
@@ -250,10 +328,11 @@ mod tests {
     }
 
     #[test]
-    fn test_get_install_command_not_empty() {
-        let cmd = get_install_command();
-        assert!(!cmd.is_empty());
-        assert!(cmd.contains("hcpctl"));
+    fn test_get_install_script_url_not_empty() {
+        let url = get_install_script_url();
+        assert!(!url.is_empty());
+        assert!(url.contains("hcpctl"));
+        assert!(url.starts_with("https://"));
     }
 
     #[test]
