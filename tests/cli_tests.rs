@@ -588,3 +588,95 @@ fn test_watch_ws_prefix_default() {
         "Should document prefix behavior"
     );
 }
+
+// =============================================================================
+// Delete org-member tests
+// =============================================================================
+
+/// Test that 'delete org-member' requires ID argument
+#[test]
+fn test_delete_org_member_requires_id() {
+    let output = Command::new(hcpctl_bin())
+        .args(["delete", "org-member"])
+        .output()
+        .unwrap();
+
+    // Should fail - ID is required
+    assert!(
+        !output.status.success(),
+        "delete org-member without ID should fail"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("required") || stderr.contains("ID"),
+        "Error should mention required argument"
+    );
+}
+
+/// Test that 'delete org-member' help shows expected options
+#[test]
+fn test_delete_org_member_help() {
+    let output = Command::new(hcpctl_bin())
+        .args(["delete", "org-member", "--help"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    // Should document the ID/email argument
+    assert!(
+        stdout.contains("ou-xxx") || stdout.contains("Membership ID"),
+        "Should document membership ID format"
+    );
+    assert!(
+        stdout.contains("email") || stdout.contains("Email"),
+        "Should document email option"
+    );
+    assert!(stdout.contains("--org"), "Should document --org option");
+    assert!(
+        stdout.contains("-y") || stdout.contains("--yes"),
+        "Should document skip confirmation option"
+    );
+}
+
+/// Test that 'get org-member' help shows expected options
+#[test]
+fn test_get_org_member_help() {
+    let output = Command::new(hcpctl_bin())
+        .args(["get", "org-member", "--help"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    assert!(stdout.contains("--org"), "Should document --org option");
+    assert!(
+        stdout.contains("--filter") || stdout.contains("-f"),
+        "Should document filter option"
+    );
+    assert!(
+        stdout.contains("--status"),
+        "Should document status filter option"
+    );
+}
+
+/// Test that 'invite' command help shows expected options
+#[test]
+fn test_invite_help() {
+    let output = Command::new(hcpctl_bin())
+        .args(["invite", "--help"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    assert!(stdout.contains("--org"), "Should document --org option");
+    assert!(
+        stdout.contains("EMAIL") || stdout.contains("email"),
+        "Should document email argument"
+    );
+    assert!(stdout.contains("--teams"), "Should document teams option");
+}

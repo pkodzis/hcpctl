@@ -2,7 +2,7 @@
 
 use serde::Deserialize;
 
-use crate::hcp::traits::TfeResource;
+use crate::hcp::traits::{PaginatedResponse, TfeResource};
 use crate::hcp::PaginationMeta;
 
 /// Response wrapper for oauth clients list
@@ -11,6 +11,16 @@ pub struct OAuthClientsResponse {
     pub data: Vec<OAuthClient>,
     #[serde(default)]
     pub meta: Option<PaginationMeta>,
+}
+
+impl PaginatedResponse<OAuthClient> for OAuthClientsResponse {
+    fn into_data(self) -> Vec<OAuthClient> {
+        self.data
+    }
+
+    fn meta(&self) -> Option<&PaginationMeta> {
+        self.meta.as_ref()
+    }
 }
 
 /// OAuth Client data from TFE API

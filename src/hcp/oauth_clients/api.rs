@@ -11,66 +11,11 @@ use super::models::{OAuthClient, OAuthClientsResponse};
 impl TfeClient {
     /// Get all OAuth clients for an organization (with pagination)
     pub async fn get_oauth_clients(&self, org: &str) -> Result<Vec<OAuthClient>> {
-        let mut all_clients = Vec::new();
-        let mut page = 1;
+        let path = format!("/{}/{}/oauth-clients", api::ORGANIZATIONS, org);
+        let error_context = format!("OAuth clients for organization '{}'", org);
 
-        loop {
-            let url = format!(
-                "{}/{}/{}/oauth-clients?page[size]={}&page[number]={}",
-                self.base_url(),
-                api::ORGANIZATIONS,
-                org,
-                api::DEFAULT_PAGE_SIZE,
-                page
-            );
-
-            debug!("Fetching oauth clients page {} from: {}", page, url);
-
-            let response = self.get(&url).send().await?;
-
-            if !response.status().is_success() {
-                return Err(TfeError::Api {
-                    status: response.status().as_u16(),
-                    message: format!("Failed to fetch OAuth clients for org '{}'", org),
-                });
-            }
-
-            let clients_response: OAuthClientsResponse = response.json().await?;
-            let client_count = clients_response.data.len();
-            all_clients.extend(clients_response.data);
-
-            // Check if there are more pages
-            if let Some(meta) = clients_response.meta {
-                if let Some(pagination) = meta.pagination {
-                    debug!(
-                        "Page {}/{}, total OAuth clients: {}",
-                        pagination.current_page, pagination.total_pages, pagination.total_count
-                    );
-
-                    if page >= pagination.total_pages {
-                        break;
-                    }
-                    page += 1;
-                } else {
-                    break;
-                }
-            } else {
-                // No pagination info means single page
-                break;
-            }
-
-            // Safety check: if no clients returned, stop
-            if client_count == 0 {
-                break;
-            }
-        }
-
-        debug!(
-            "Fetched {} total OAuth clients for org '{}'",
-            all_clients.len(),
-            org
-        );
-        Ok(all_clients)
+        self.fetch_all_pages::<OAuthClient, OAuthClientsResponse>(&path, &error_context)
+            .await
     }
 
     /// Get a single OAuth client by ID

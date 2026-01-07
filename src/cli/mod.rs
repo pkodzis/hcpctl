@@ -70,6 +70,12 @@ pub enum Command {
         resource: GetResource,
     },
 
+    /// Delete resources
+    Delete {
+        #[command(subcommand)]
+        resource: DeleteResource,
+    },
+
     /// View logs for a run (plan or apply)
     ///
     /// Target can be:
@@ -84,6 +90,9 @@ pub enum Command {
         #[command(subcommand)]
         resource: WatchResource,
     },
+
+    /// Invite a user to an organization
+    Invite(InviteArgs),
 }
 
 /// Resource types for the 'get' command
@@ -121,6 +130,30 @@ pub enum GetResource {
     /// Get runs (active runs by default - non_final states)
     #[command(visible_alias = "runs")]
     Run(RunArgs),
+
+    /// Get teams in an organization
+    #[command(visible_alias = "teams")]
+    Team(TeamArgs),
+
+    /// Get organization members
+    #[command(
+        visible_alias = "org-members",
+        visible_alias = "orgmember",
+        visible_alias = "orgmembers"
+    )]
+    OrgMember(OrgMemberArgs),
+}
+
+/// Resource types for the 'delete' command
+#[derive(Subcommand, Debug)]
+pub enum DeleteResource {
+    /// Delete organization member (remove from organization)
+    #[command(
+        visible_alias = "org-members",
+        visible_alias = "orgmember",
+        visible_alias = "orgmembers"
+    )]
+    OrgMember(DeleteOrgMemberArgs),
 }
 
 /// Arguments for 'get org' subcommand
@@ -136,6 +169,67 @@ pub struct OrgArgs {
     /// Output format
     #[arg(short = 'o', long, value_enum, default_value_t = OutputFormat::Table)]
     pub output: OutputFormat,
+}
+
+/// Arguments for 'get team' subcommand
+#[derive(Parser, Debug)]
+pub struct TeamArgs {
+    /// Team name or ID (if specified, shows details for that team)
+    pub name: Option<String>,
+
+    /// Organization name (required)
+    #[arg(long = "org")]
+    pub org: Option<String>,
+
+    /// Filter teams by name (substring match)
+    #[arg(short, long)]
+    pub filter: Option<String>,
+
+    /// Output format
+    #[arg(short = 'o', long, value_enum, default_value_t = OutputFormat::Table)]
+    pub output: OutputFormat,
+}
+
+/// Arguments for 'get org-member' subcommand
+#[derive(Parser, Debug)]
+pub struct OrgMemberArgs {
+    /// Membership ID (ou-xxx) - if specified, shows details for that membership
+    pub id: Option<String>,
+
+    /// Organization name (if not specified, lists members from all organizations)
+    #[arg(long = "org")]
+    pub org: Option<String>,
+
+    /// Filter by email (substring match)
+    #[arg(short, long)]
+    pub filter: Option<String>,
+
+    /// Filter by status (active, invited)
+    #[arg(long)]
+    pub status: Option<String>,
+
+    /// Output format
+    #[arg(short = 'o', long, value_enum, default_value_t = OutputFormat::Table)]
+    pub output: OutputFormat,
+}
+
+/// Arguments for 'delete org-member' subcommand
+#[derive(Parser, Debug)]
+pub struct DeleteOrgMemberArgs {
+    /// Membership ID (ou-xxx) or email address to delete
+    ///
+    ///   ou-xxx   Membership ID - deletes directly
+    ///   email    Email address - requires --org to identify the membership
+    #[arg(verbatim_doc_comment)]
+    pub id: String,
+
+    /// Organization name (required when argument is an email)
+    #[arg(long = "org")]
+    pub org: Option<String>,
+
+    /// Skip confirmation prompt
+    #[arg(short = 'y', long, default_value_t = false)]
+    pub yes: bool,
 }
 
 /// Arguments for 'get prj' subcommand
@@ -354,6 +448,26 @@ pub struct LogsArgs {
     /// Output raw log without parsing (default: extract @message from JSON lines)
     #[arg(long, default_value_t = false)]
     pub raw: bool,
+}
+
+/// Arguments for 'invite' command
+#[derive(Parser, Debug)]
+pub struct InviteArgs {
+    /// Email address of user to invite
+    #[arg(long)]
+    pub email: String,
+
+    /// Organization name to invite user to
+    #[arg(long = "org")]
+    pub org: String,
+
+    /// Team ID(s) to add user to (comma-separated, e.g. team-xxx,team-yyy)
+    #[arg(long)]
+    pub teams: Option<String>,
+
+    /// Output format
+    #[arg(short = 'o', long, value_enum, default_value_t = OutputFormat::Table)]
+    pub output: OutputFormat,
 }
 
 /// Resource types for the 'watch' command

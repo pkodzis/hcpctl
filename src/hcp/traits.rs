@@ -1,5 +1,7 @@
 //! Common traits for TFE resources
 
+use crate::hcp::PaginationMeta;
+
 /// Common trait for all TFE resources (organizations, projects, workspaces)
 ///
 /// This trait provides a unified interface for resource identification
@@ -17,6 +19,17 @@ pub trait TfeResource {
     fn matches(&self, input: &str) -> bool {
         self.id() == input || self.name() == input
     }
+}
+
+/// Trait for API responses that contain paginated data
+///
+/// Implement this trait for any `XResponse` struct to enable use with
+/// `TfeClient::fetch_all_pages()` helper.
+pub trait PaginatedResponse<T> {
+    /// Consume self and return the data items
+    fn into_data(self) -> Vec<T>;
+    /// Get reference to pagination metadata
+    fn meta(&self) -> Option<&PaginationMeta>;
 }
 
 #[cfg(test)]
