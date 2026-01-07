@@ -110,6 +110,9 @@ pub enum Command {
 
     /// Invite a user to an organization
     Invite(InviteArgs),
+
+    /// Update hcpctl to the latest version
+    Update,
 }
 
 #[cfg(test)]
