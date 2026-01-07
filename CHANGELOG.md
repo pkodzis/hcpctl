@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.1](https://github.com/pkodzis/hcpctl/compare/v0.3.0...v0.3.1) (2026-01-07)
+
+
+### Bug Fixes
+
+* install.sh get_latest_version failing on Mac ([d25dc46](https://github.com/pkodzis/hcpctl/commit/d25dc46785a97f6a955517d069c853f4e3f3590f))
+* install.sh get_latest_version failing on Mac ([525fc9b](https://github.com/pkodzis/hcpctl/commit/525fc9bffe2abacb2c0247df40684fa9d8f773b4))
+
 ## [0.3.0](https://github.com/pkodzis/hcpctl/compare/v0.2.0...v0.3.0) (2026-01-01)
 
 
