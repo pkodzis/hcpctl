@@ -15,6 +15,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 info() { echo -e "${GREEN}[INFO]${NC} $1"; }
+info_n() { echo -n -e "${GREEN}[INFO]${NC} $1"; }  # No newline
 warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 error() { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
 
@@ -66,20 +67,21 @@ download_and_verify() {
     local base_url="https://github.com/${REPO}/releases/download/${VERSION}"
     local archive="${BINARY_NAME}_${VERSION}_${PLATFORM}.tar.gz"
 
-    info "Downloading ${archive}..."
+    info "Downloading ${base_url}/${archive} ..."
     curl -fsSL -O "${base_url}/${archive}" || error "Failed to download archive"
 
     info "Downloading SHA256SUMS..."
     curl -fsSL -O "${base_url}/SHA256SUMS" || error "Failed to download checksums"
 
     # Verify checksum
-    info "Verifying checksum..."
+    info_n "Verifying checksum... "
     if command -v sha256sum &> /dev/null; then
-        grep "${archive}" SHA256SUMS | sha256sum -c - || error "Checksum verification failed!"
+        grep "${archive}" SHA256SUMS | sha256sum -c - > /dev/null 2>&1 && echo "OK" || { echo "FAILED"; error "Checksum verification failed!"; }
     elif command -v shasum &> /dev/null; then
-        grep "${archive}" SHA256SUMS | shasum -a 256 -c - || error "Checksum verification failed!"
+        grep "${archive}" SHA256SUMS | shasum -a 256 -c - > /dev/null 2>&1 && echo "OK" || { echo "FAILED"; error "Checksum verification failed!"; }
     else
-        warn "No sha256sum/shasum found, skipping checksum verification"
+        echo "skipped"
+        warn "No sha256sum/shasum found"
     fi
 
     # Verify GPG signature if available

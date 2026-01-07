@@ -31,7 +31,7 @@ try {
     $Archive = "${BinaryName}_${Version}_${Platform}.zip"
 
     # Download archive
-    Write-Info "Downloading $Archive..."
+    Write-Info "Downloading $BaseUrl/$Archive ..."
     Invoke-WebRequest -Uri "$BaseUrl/$Archive" -OutFile $Archive
 
     # Download checksums
@@ -39,34 +39,71 @@ try {
     Invoke-WebRequest -Uri "$BaseUrl/SHA256SUMS" -OutFile "SHA256SUMS"
 
     # Verify checksum
-    Write-Info "Verifying checksum..."
+    Write-Host "[INFO] Verifying checksum... " -ForegroundColor Green -NoNewline
     $ExpectedHash = (Get-Content SHA256SUMS | Where-Object { $_ -match $Archive } | ForEach-Object { ($_ -split '\s+')[0] })
     $ActualHash = (Get-FileHash -Path $Archive -Algorithm SHA256).Hash.ToLower()
 
     if ($ExpectedHash -ne $ActualHash) {
+        Write-Host "FAILED" -ForegroundColor Red
         Write-Err "Checksum verification failed!`nExpected: $ExpectedHash`nActual: $ActualHash"
     }
-    Write-Info "Checksum verified!"
+    Write-Host "OK" -ForegroundColor Green
 
     # Try GPG verification if gpg is available
+    $gpgAvailable = $false
     try {
         $null = Get-Command gpg -ErrorAction Stop
-
-        Write-Info "Downloading GPG signature..."
-        Invoke-WebRequest -Uri "$BaseUrl/SHA256SUMS.sig" -OutFile "SHA256SUMS.sig" -ErrorAction Stop
-
-        Write-Info "Downloading public key..."
-        Invoke-WebRequest -Uri "https://raw.githubusercontent.com/$Repo/main/public-key.asc" -OutFile "public-key.asc" -ErrorAction Stop
-
-        & gpg --import public-key.asc 2>$null
-        $gpgResult = & gpg --verify SHA256SUMS.sig SHA256SUMS 2>&1
-        if ($LASTEXITCODE -eq 0) {
-            Write-Info "GPG signature verified!"
-        } else {
-            Write-Warn "GPG signature verification failed - proceeding anyway (checksum passed)"
-        }
+        $gpgAvailable = $true
     } catch {
-        Write-Warn "GPG not available or signature not found, skipping GPG verification"
+        Write-Warn "GPG not installed, skipping signature verification (install: winget install GnuPG.Gpg4win)"
+    }
+
+    if ($gpgAvailable) {
+        $sigDownloaded = $false
+        $keyDownloaded = $false
+
+        try {
+            Write-Info "Downloading GPG signature..."
+            Invoke-WebRequest -Uri "$BaseUrl/SHA256SUMS.sig" -OutFile "SHA256SUMS.sig" -ErrorAction Stop
+            $sigDownloaded = $true
+        } catch {
+            Write-Warn "GPG signature not found for this release"
+        }
+
+        if ($sigDownloaded) {
+            try {
+                Write-Info "Downloading public key..."
+                Invoke-WebRequest -Uri "https://raw.githubusercontent.com/$Repo/main/public-key.asc" -OutFile "public-key.asc" -ErrorAction Stop
+                $keyDownloaded = $true
+            } catch {
+                Write-Warn "Public key not found, skipping GPG verification"
+            }
+        }
+
+        if ($sigDownloaded -and $keyDownloaded) {
+            # Import key and verify - gpg outputs to stderr even on success, so we capture all output
+            $ErrorActionPreference = "Continue"
+
+            Write-Host "[INFO] Importing GPG key... " -ForegroundColor Green -NoNewline
+            $null = & gpg --batch --yes --import public-key.asc 2>&1
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "FAILED" -ForegroundColor Yellow
+                Write-Warn "GPG key import failed - skipping signature verification"
+            } else {
+                Write-Host "OK" -ForegroundColor Green
+
+                Write-Host "[INFO] Verifying GPG signature... " -ForegroundColor Green -NoNewline
+                $null = & gpg --batch --verify SHA256SUMS.sig SHA256SUMS 2>&1
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Host "OK" -ForegroundColor Green
+                } else {
+                    Write-Host "FAILED" -ForegroundColor Yellow
+                    Write-Warn "GPG signature verification failed - proceeding anyway (checksum passed)"
+                }
+            }
+
+            $ErrorActionPreference = "Stop"
+        }
     }
 
     # Extract
