@@ -1,10 +1,12 @@
-//! Output formatting module for all resources (organizations, projects, workspaces, oauth clients, runs)
+//! Output formatting module for all resources (organizations, projects, workspaces, oauth clients, runs, teams)
 
 mod common;
 mod oauth_clients;
+pub mod org_memberships;
 mod organizations;
 mod projects;
 mod runs;
+mod teams;
 mod workspaces;
 
 pub use common::{escape_csv, output_raw};
@@ -12,6 +14,7 @@ pub use oauth_clients::output_oauth_clients;
 pub use organizations::output_organizations;
 pub use projects::output_projects;
 pub use runs::{output_apply, output_plan, output_run_events, output_runs};
+pub use teams::output_teams;
 pub use workspaces::WorkspaceRow;
 
 use workspaces::output_workspaces;

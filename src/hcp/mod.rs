@@ -8,9 +8,11 @@ pub mod helpers;
 mod host;
 pub mod logs;
 pub mod oauth_clients;
+pub mod org_memberships;
 pub mod organizations;
 pub mod projects;
 pub mod runs;
+pub mod teams;
 pub mod traits;
 pub mod watch;
 pub mod workspaces;
@@ -23,13 +25,18 @@ pub use helpers::{collect_org_results, fetch_from_organizations, log_completion}
 pub use host::HostResolver;
 pub use logs::run_logs_command;
 pub use oauth_clients::{run_oc_command, OAuthClient, OAuthClientAttributes, OAuthToken};
+pub use org_memberships::{
+    run_delete_org_member_command, run_invite_command, run_org_member_command,
+    OrganizationMembership, OrganizationMembershipAttributes,
+};
 pub use organizations::{
     resolve_organizations, run_org_command, Organization, OrganizationAttributes,
     OrganizationWithTokens,
 };
 pub use projects::{run_prj_command, Project, ProjectAttributes, ProjectWorkspaces};
 pub use runs::{run_runs_command, Run, RunAttributes};
-pub use traits::TfeResource;
+pub use teams::{run_team_command, Team, TeamAttributes};
+pub use traits::{PaginatedResponse, TfeResource};
 pub use watch::run_watch_ws_command;
 pub use workspaces::{
     extract_current_run_id, resolve_workspace, run_ws_command, ResolvedWorkspace, Workspace,
@@ -37,13 +44,13 @@ pub use workspaces::{
 };
 
 /// Pagination metadata from TFE API (shared across resources)
-#[derive(Deserialize, Debug, Default)]
+#[derive(Deserialize, Debug, Default, Clone)]
 pub struct PaginationMeta {
     pub pagination: Option<Pagination>,
 }
 
 /// Pagination details
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct Pagination {
     #[serde(rename = "current-page")]
     pub current_page: u32,

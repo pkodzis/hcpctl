@@ -2,7 +2,7 @@
 
 use serde::Deserialize;
 
-use crate::hcp::traits::TfeResource;
+use crate::hcp::traits::{PaginatedResponse, TfeResource};
 use crate::hcp::PaginationMeta;
 
 /// Query options for listing workspaces
@@ -20,6 +20,16 @@ pub struct WorkspacesResponse {
     pub data: Vec<Workspace>,
     #[serde(default)]
     pub meta: Option<PaginationMeta>,
+}
+
+impl PaginatedResponse<Workspace> for WorkspacesResponse {
+    fn into_data(self) -> Vec<Workspace> {
+        self.data
+    }
+
+    fn meta(&self) -> Option<&PaginationMeta> {
+        self.meta.as_ref()
+    }
 }
 
 /// Workspace data from TFE API

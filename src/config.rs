@@ -15,6 +15,9 @@ pub mod api {
     /// Runs endpoint
     pub const RUNS: &str = "runs";
 
+    /// Teams endpoint
+    pub const TEAMS: &str = "teams";
+
     /// Default page size for API requests
     pub const DEFAULT_PAGE_SIZE: u32 = 100;
 }
@@ -41,6 +44,31 @@ pub mod host {
 pub mod defaults {
     /// Default log level
     pub const LOG_LEVEL: &str = "warn";
+}
+
+/// Configuration for update checker
+pub mod update {
+    use std::time::Duration;
+
+    /// GitHub repository for releases (owner/repo)
+    pub const GITHUB_REPO: &str = "pkodzis/hcpctl";
+
+    /// How often to check for updates
+    pub const CHECK_INTERVAL: Duration = Duration::from_secs(24 * 60 * 60); // 24 hours
+
+    /// Timeout for GitHub API request
+    pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(3);
+
+    /// Install script URLs
+    pub mod install {
+        /// Unix install script
+        pub const UNIX_SCRIPT: &str =
+            "https://raw.githubusercontent.com/pkodzis/hcpctl/main/scripts/install.sh";
+
+        /// Windows install script
+        pub const WINDOWS_SCRIPT: &str =
+            "https://raw.githubusercontent.com/pkodzis/hcpctl/main/scripts/install.ps1";
+    }
 }
 
 #[cfg(test)]
@@ -71,6 +99,7 @@ mod tests {
         assert_eq!(api::PROJECTS, "projects");
         assert_eq!(api::WORKSPACES, "workspaces");
         assert_eq!(api::RUNS, "runs");
+        assert_eq!(api::TEAMS, "teams");
     }
 
     #[test]

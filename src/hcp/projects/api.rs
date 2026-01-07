@@ -17,71 +17,17 @@ impl TfeClient {
     /// When `search` is provided, uses API's `q=` parameter for case-insensitive server-side filtering.
     /// This is more efficient than fetching all projects and filtering locally.
     pub async fn get_projects(&self, org: &str, search: Option<&str>) -> Result<Vec<Project>> {
-        let mut all_projects = Vec::new();
-        let mut page = 1;
+        // Build path with optional query param
+        let mut path = format!("/{}/{}/{}", api::ORGANIZATIONS, org, api::PROJECTS);
 
-        loop {
-            let mut url = format!(
-                "{}/{}/{}/{}?page[size]={}&page[number]={}",
-                self.base_url(),
-                api::ORGANIZATIONS,
-                org,
-                api::PROJECTS,
-                api::DEFAULT_PAGE_SIZE,
-                page
-            );
-
-            // Add server-side search if specified
-            if let Some(s) = search {
-                url.push_str(&format!("&q={}", urlencoding::encode(s)));
-            }
-
-            debug!("Fetching projects page {} from: {}", page, url);
-
-            let response = self.get(&url).send().await?;
-
-            if !response.status().is_success() {
-                return Err(TfeError::Api {
-                    status: response.status().as_u16(),
-                    message: format!("Failed to fetch projects for org '{}'", org),
-                });
-            }
-
-            let prj_response: ProjectsResponse = response.json().await?;
-            let project_count = prj_response.data.len();
-            all_projects.extend(prj_response.data);
-
-            // Check if there are more pages
-            if let Some(meta) = prj_response.meta {
-                if let Some(pagination) = meta.pagination {
-                    debug!(
-                        "Page {}/{}, total projects: {}",
-                        pagination.current_page, pagination.total_pages, pagination.total_count
-                    );
-
-                    if page >= pagination.total_pages {
-                        break;
-                    }
-                    page += 1;
-                } else {
-                    break;
-                }
-            } else {
-                break;
-            }
-
-            if project_count == 0 {
-                break;
-            }
+        if let Some(s) = search {
+            path.push_str(&format!("?q={}", urlencoding::encode(s)));
         }
 
-        debug!(
-            "Fetched {} total projects for org '{}' (search: {:?})",
-            all_projects.len(),
-            org,
-            search
-        );
-        Ok(all_projects)
+        let error_context = format!("projects for organization '{}' (search: {:?})", org, search);
+
+        self.fetch_all_pages::<Project, ProjectsResponse>(&path, &error_context)
+            .await
     }
 
     /// Get a single project by ID (direct API call, no org needed)

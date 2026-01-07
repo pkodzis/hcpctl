@@ -1,9 +1,13 @@
 //! TFE HTTP client for API interactions
 
+use log::debug;
 use reqwest::Client;
+use serde::de::DeserializeOwned;
 use std::time::Duration;
 
 use crate::config::api;
+use crate::error::{Result, TfeError};
+use crate::hcp::traits::PaginatedResponse;
 
 /// TFE API client
 pub struct TfeClient {
@@ -96,6 +100,85 @@ impl TfeClient {
     pub(crate) fn delete(&self, url: &str) -> reqwest::RequestBuilder {
         self.with_headers(self.client.delete(url))
     }
+
+    /// Fetch all pages from a paginated API endpoint
+    ///
+    /// # Arguments
+    /// * `path` - API path (e.g., "/organizations/my-org/teams" or with query "...?search=foo")
+    /// * `error_context` - Context for error messages (e.g., "teams for organization 'my-org'")
+    ///
+    /// # Type Parameters
+    /// * `T` - The item type (e.g., Team, Workspace)
+    /// * `R` - The response type that implements PaginatedResponse<T>
+    pub async fn fetch_all_pages<T, R>(&self, path: &str, error_context: &str) -> Result<Vec<T>>
+    where
+        R: DeserializeOwned + PaginatedResponse<T>,
+    {
+        let mut all_items = Vec::new();
+        let mut page = 1;
+
+        // Detect if path already has query params
+        let separator = if path.contains('?') { "&" } else { "?" };
+
+        loop {
+            let url = format!(
+                "{}{}{}page[size]={}&page[number]={}",
+                self.base_url(),
+                path,
+                separator,
+                api::DEFAULT_PAGE_SIZE,
+                page
+            );
+
+            debug!("Fetching page {} from: {}", page, url);
+
+            let response = self.get(&url).send().await?;
+
+            if !response.status().is_success() {
+                return Err(TfeError::Api {
+                    status: response.status().as_u16(),
+                    message: format!("Failed to fetch {}", error_context),
+                });
+            }
+
+            let resp: R = response.json().await?;
+            let meta = resp.meta().cloned();
+            let items = resp.into_data();
+            let count = items.len();
+            all_items.extend(items);
+
+            // Check if there are more pages
+            if let Some(m) = meta {
+                if let Some(p) = m.pagination {
+                    debug!(
+                        "Page {}/{}, total items: {}",
+                        p.current_page, p.total_pages, p.total_count
+                    );
+
+                    if page >= p.total_pages {
+                        break;
+                    }
+                    page += 1;
+                } else {
+                    break;
+                }
+            } else {
+                break;
+            }
+
+            // Safety: if no items returned, stop
+            if count == 0 {
+                break;
+            }
+        }
+
+        debug!(
+            "Fetched {} total items for {}",
+            all_items.len(),
+            error_context
+        );
+        Ok(all_items)
+    }
 }
 
 #[cfg(test)]
@@ -134,5 +217,15 @@ mod tests {
         let url = client.base_url();
         assert!(!url.contains("//api")); // No double slashes
         assert!(url.starts_with("https://"));
+    }
+
+    #[test]
+    fn test_path_separator_detection() {
+        // Test that fetch_all_pages correctly handles ? vs & for query params
+        let path_without_query = "/organizations/my-org/teams";
+        let path_with_query = "/organizations/my-org/workspaces?search[name]=foo";
+
+        assert!(!path_without_query.contains('?'));
+        assert!(path_with_query.contains('?'));
     }
 }

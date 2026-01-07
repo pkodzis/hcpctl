@@ -35,19 +35,22 @@ pub mod error;
 pub mod hcp;
 pub mod output;
 pub mod ui;
+pub mod update;
 
 pub use cli::{
-    Cli, Command, GetResource, LogsArgs, OcArgs, OrgArgs, OutputFormat, PrjArgs, PrjSortField,
-    RunArgs, RunSortField, RunSubresource, WatchResource, WatchWsArgs, WsArgs, WsSortField,
-    WsSubresource,
+    Cli, Command, DeleteOrgMemberArgs, DeleteResource, GetResource, InviteArgs, LogsArgs, OcArgs,
+    OrgArgs, OrgMemberArgs, OutputFormat, PrjArgs, PrjSortField, RunArgs, RunSortField,
+    RunSubresource, TeamArgs, WatchResource, WatchWsArgs, WsArgs, WsSortField, WsSubresource,
 };
 pub use error::{Result, TfeError};
 pub use hcp::{
-    run_logs_command, run_oc_command, run_org_command, run_prj_command, run_runs_command,
+    run_delete_org_member_command, run_invite_command, run_logs_command, run_oc_command,
+    run_org_command, run_org_member_command, run_prj_command, run_runs_command, run_team_command,
     run_watch_ws_command, run_ws_command, HostResolver, OAuthClient, Organization, Project, Run,
-    TfeClient, TfeResource, TokenResolver, Workspace,
+    Team, TfeClient, TfeResource, TokenResolver, Workspace,
 };
 pub use output::{
     output_oauth_clients, output_organizations, output_projects, output_results_sorted,
     output_runs, WorkspaceRow,
 };
+pub use update::{UpdateChecker, UpdateHandle};

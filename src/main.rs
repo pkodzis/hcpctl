@@ -5,9 +5,10 @@ use log::info;
 use std::process::ExitCode;
 
 use hcpctl::{
-    run_logs_command, run_oc_command, run_org_command, run_prj_command, run_runs_command,
-    run_watch_ws_command, run_ws_command, Cli, Command, GetResource, HostResolver, TfeClient,
-    TokenResolver, WatchResource,
+    run_delete_org_member_command, run_invite_command, run_logs_command, run_oc_command,
+    run_org_command, run_org_member_command, run_prj_command, run_runs_command, run_team_command,
+    run_watch_ws_command, run_ws_command, Cli, Command, DeleteResource, GetResource, HostResolver,
+    TfeClient, TokenResolver, UpdateChecker, WatchResource,
 };
 
 #[tokio::main]
@@ -28,6 +29,13 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
 
     info!("Starting HCP CLI v{}", env!("CARGO_PKG_VERSION"));
 
+    // Start background update check (non-blocking, only in interactive mode)
+    let update_handle = if !cli.batch {
+        UpdateChecker::new().check_async()
+    } else {
+        None
+    };
+
     // Resolve host with fallback logic (CLI -> env var -> credentials file)
     // In batch mode, error on multiple hosts instead of interactive selection
     let host = HostResolver::resolve(cli.host.as_deref(), cli.batch)?;
@@ -39,17 +47,34 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     // Create TFE client
     let client = TfeClient::new(token, host);
 
-    match &cli.command {
+    let result = match &cli.command {
         Command::Get { resource } => match resource {
             GetResource::Org(_) => run_org_command(&client, &cli).await,
             GetResource::Prj(_) => run_prj_command(&client, &cli).await,
             GetResource::Ws(_) => run_ws_command(&client, &cli).await,
             GetResource::Oc(_) => run_oc_command(&client, &cli).await,
             GetResource::Run(_) => run_runs_command(&client, &cli).await,
+            GetResource::Team(_) => run_team_command(&client, &cli).await,
+            GetResource::OrgMember(_) => run_org_member_command(&client, &cli).await,
+        },
+        Command::Delete { resource } => match resource {
+            DeleteResource::OrgMember(args) => {
+                run_delete_org_member_command(&client, &cli, args).await
+            }
         },
         Command::Logs(args) => run_logs_command(&client, &cli, args).await,
         Command::Watch { resource } => match resource {
             WatchResource::Ws(args) => run_watch_ws_command(&client, &cli, args).await,
         },
+        Command::Invite(args) => run_invite_command(&client, &cli, args).await,
+    };
+
+    // Show update notification if available (non-blocking check completed)
+    if let Some(handle) = update_handle {
+        if let Some(msg) = handle.get() {
+            eprintln!("{}", msg);
+        }
     }
+
+    result
 }

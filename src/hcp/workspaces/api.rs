@@ -19,78 +19,29 @@ impl TfeClient {
         org: &str,
         query: WorkspaceQuery<'_>,
     ) -> Result<Vec<Workspace>> {
-        let mut all_workspaces = Vec::new();
-        let mut page = 1;
+        // Build path with optional query params
+        let mut path = format!("/{}/{}/{}", api::ORGANIZATIONS, org, api::WORKSPACES);
 
-        loop {
-            let mut url = format!(
-                "{}/{}/{}/{}?page[size]={}&page[number]={}",
-                self.base_url(),
-                api::ORGANIZATIONS,
-                org,
-                api::WORKSPACES,
-                api::DEFAULT_PAGE_SIZE,
-                page
-            );
-
-            // Add server-side filters
-            if let Some(s) = query.search {
-                url.push_str(&format!("&search[name]={}", urlencoding::encode(s)));
-            }
-            if let Some(prj) = query.project_id {
-                url.push_str(&format!(
-                    "&filter[project][id]={}",
-                    urlencoding::encode(prj)
-                ));
-            }
-
-            debug!("Fetching workspaces page {} from: {}", page, url);
-
-            let response = self.get(&url).send().await?;
-
-            if !response.status().is_success() {
-                return Err(TfeError::Api {
-                    status: response.status().as_u16(),
-                    message: format!("Failed to fetch workspaces for org '{}'", org),
-                });
-            }
-
-            let ws_response: WorkspacesResponse = response.json().await?;
-            let workspace_count = ws_response.data.len();
-            all_workspaces.extend(ws_response.data);
-
-            // Check if there are more pages
-            if let Some(meta) = ws_response.meta {
-                if let Some(pagination) = meta.pagination {
-                    debug!(
-                        "Page {}/{}, total workspaces: {}",
-                        pagination.current_page, pagination.total_pages, pagination.total_count
-                    );
-
-                    if page >= pagination.total_pages {
-                        break;
-                    }
-                    page += 1;
-                } else {
-                    break;
-                }
-            } else {
-                break;
-            }
-
-            if workspace_count == 0 {
-                break;
-            }
+        let mut query_parts = Vec::new();
+        if let Some(s) = query.search {
+            query_parts.push(format!("search[name]={}", urlencoding::encode(s)));
+        }
+        if let Some(prj) = query.project_id {
+            query_parts.push(format!("filter[project][id]={}", urlencoding::encode(prj)));
         }
 
-        debug!(
-            "Fetched {} workspaces for org '{}' (search: {:?}, project: {:?})",
-            all_workspaces.len(),
-            org,
-            query.search,
-            query.project_id
+        if !query_parts.is_empty() {
+            path.push('?');
+            path.push_str(&query_parts.join("&"));
+        }
+
+        let error_context = format!(
+            "workspaces for organization '{}' (search: {:?}, project: {:?})",
+            org, query.search, query.project_id
         );
-        Ok(all_workspaces)
+
+        self.fetch_all_pages::<Workspace, WorkspacesResponse>(&path, &error_context)
+            .await
     }
 
     /// Get a single workspace by ID (direct API call, no org needed)

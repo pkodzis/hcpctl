@@ -2,7 +2,7 @@
 
 use serde::Deserialize;
 
-use crate::hcp::traits::TfeResource;
+use crate::hcp::traits::{PaginatedResponse, TfeResource};
 use crate::hcp::PaginationMeta;
 
 /// Response wrapper for projects list
@@ -11,6 +11,16 @@ pub struct ProjectsResponse {
     pub data: Vec<Project>,
     #[serde(default)]
     pub meta: Option<PaginationMeta>,
+}
+
+impl PaginatedResponse<Project> for ProjectsResponse {
+    fn into_data(self) -> Vec<Project> {
+        self.data
+    }
+
+    fn meta(&self) -> Option<&PaginationMeta> {
+        self.meta.as_ref()
+    }
 }
 
 /// Project data from TFE API
