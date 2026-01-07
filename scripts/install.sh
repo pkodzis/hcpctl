@@ -48,7 +48,7 @@ detect_platform() {
 
 # Get latest release version
 get_latest_version() {
-    VERSION=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name"' | sed -E 's/.*"([^"]+)".*/\1/')
+    VERSION=$(curl -fsSIL "https://github.com/${REPO}/releases/latest" 2>/dev/null | grep -i '^location:' | sed -E 's|.*/tag/([^[:space:]]+).*|\1|')
     if [[ -z "$VERSION" ]]; then
         error "Failed to get latest version"
     fi
