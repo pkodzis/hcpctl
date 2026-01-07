@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.1](https://github.com/pkodzis/hcpctl/compare/v0.4.0...v0.4.1) (2026-01-07)
+
+
+### Bug Fixes
+
+* split cli definitions ([bdf8ca4](https://github.com/pkodzis/hcpctl/commit/bdf8ca4ecc9cb98bfa6832263878724a9d0371c8))
+* split cli definitions ([7159d7b](https://github.com/pkodzis/hcpctl/commit/7159d7b018f71868d0b7ab06ef205c7655197efd))
+
 ## [0.4.0](https://github.com/pkodzis/hcpctl/compare/v0.3.1...v0.4.0) (2026-01-07)
 
 
