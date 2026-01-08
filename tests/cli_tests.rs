@@ -680,3 +680,75 @@ fn test_invite_help() {
     );
     assert!(stdout.contains("--teams"), "Should document teams option");
 }
+
+// === Purge command tests ===
+
+/// Test that 'purge' subcommand shows resources
+#[test]
+fn test_purge_help_flag() {
+    let output = Command::new(hcpctl_bin())
+        .args(["purge", "--help"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    // Verify resources are listed
+    assert!(stdout.contains("state"), "Should document state resource");
+    assert!(
+        stdout.contains("IRREVERSIBLE") || stdout.contains("confirmation"),
+        "Should warn about destructive nature"
+    );
+}
+
+/// Test that 'purge state' subcommand help shows expected options
+#[test]
+fn test_purge_state_help_flag() {
+    let output = Command::new(hcpctl_bin())
+        .args(["purge", "state", "--help"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    // Verify key options are documented
+    assert!(
+        stdout.contains("ws-") || stdout.contains("workspace"),
+        "Should document workspace ID requirement"
+    );
+    assert!(
+        stdout.contains("WORKSPACE_ID") || stdout.contains("workspace-id"),
+        "Should show workspace-id argument"
+    );
+}
+
+/// Test that 'purge state' requires workspace ID argument
+#[test]
+fn test_purge_state_requires_workspace_id() {
+    let output = Command::new(hcpctl_bin())
+        .args(["purge", "state"])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("WORKSPACE_ID") || stderr.contains("required"),
+        "Should indicate workspace ID is required"
+    );
+}
+
+/// Test that 'purge state' is documented in main help
+#[test]
+fn test_main_help_shows_purge() {
+    let output = Command::new(hcpctl_bin()).arg("--help").output().unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("purge") || stdout.contains("Purge"),
+        "Should show purge command in main help"
+    );
+}
