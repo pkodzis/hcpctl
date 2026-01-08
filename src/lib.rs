@@ -39,15 +39,17 @@ pub mod update;
 
 pub use cli::{
     Cli, Command, DeleteOrgMemberArgs, DeleteResource, GetResource, InviteArgs, LogsArgs, OcArgs,
-    OrgArgs, OrgMemberArgs, OutputFormat, PrjArgs, PrjSortField, RunArgs, RunSortField,
-    RunSubresource, TeamArgs, WatchResource, WatchWsArgs, WsArgs, WsSortField, WsSubresource,
+    OrgArgs, OrgMemberArgs, OutputFormat, PrjArgs, PrjSortField, PurgeResource, PurgeStateArgs,
+    RunArgs, RunSortField, RunSubresource, TeamArgs, WatchResource, WatchWsArgs, WsArgs,
+    WsSortField, WsSubresource,
 };
 pub use error::{Result, TfeError};
 pub use hcp::{
     run_delete_org_member_command, run_invite_command, run_logs_command, run_oc_command,
-    run_org_command, run_org_member_command, run_prj_command, run_runs_command, run_team_command,
-    run_watch_ws_command, run_ws_command, HostResolver, OAuthClient, Organization, Project, Run,
-    Team, TfeClient, TfeResource, TokenResolver, Workspace,
+    run_org_command, run_org_member_command, run_prj_command, run_purge_state_command,
+    run_runs_command, run_team_command, run_watch_ws_command, run_ws_command, HostResolver,
+    OAuthClient, Organization, Project, Run, Team, TfeClient, TfeResource, TokenResolver,
+    Workspace,
 };
 pub use output::{
     output_oauth_clients, output_organizations, output_projects, output_results_sorted,

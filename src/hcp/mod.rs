@@ -12,6 +12,7 @@ pub mod org_memberships;
 pub mod organizations;
 pub mod projects;
 pub mod runs;
+pub mod state;
 pub mod teams;
 pub mod traits;
 pub mod watch;
@@ -35,6 +36,7 @@ pub use organizations::{
 };
 pub use projects::{run_prj_command, Project, ProjectAttributes, ProjectWorkspaces};
 pub use runs::{run_runs_command, Run, RunAttributes};
+pub use state::run_purge_state_command;
 pub use teams::{run_team_command, Team, TeamAttributes};
 pub use traits::{PaginatedResponse, TfeResource};
 pub use watch::run_watch_ws_command;

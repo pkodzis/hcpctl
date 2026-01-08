@@ -10,4 +10,7 @@ pub use models::{
     RelationshipData, RelationshipId, Workspace, WorkspaceAttributes, WorkspaceQuery,
     WorkspaceRelationships, WorkspacesResponse,
 };
-pub use resolver::{extract_current_run_id, resolve_workspace, ResolvedWorkspace, WorkspaceTarget};
+pub use resolver::{
+    extract_current_run_id, parse_workspace_target, resolve_workspace, ResolvedWorkspace,
+    WorkspaceTarget,
+};

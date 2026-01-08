@@ -138,6 +138,78 @@ impl TfeClient {
             }),
         }
     }
+
+    /// Lock a workspace to prevent concurrent modifications
+    pub async fn lock_workspace(&self, workspace_id: &str) -> Result<()> {
+        let url = format!(
+            "{}/{}/{}/actions/lock",
+            self.base_url(),
+            api::WORKSPACES,
+            workspace_id
+        );
+
+        debug!("Locking workspace: {}", workspace_id);
+
+        let response = self.post(&url).send().await?;
+
+        match response.status().as_u16() {
+            200 => Ok(()),
+            404 => Err(TfeError::Api {
+                status: 404,
+                message: format!("Workspace '{}' not found", workspace_id),
+            }),
+            409 => Err(TfeError::Api {
+                status: 409,
+                message: format!(
+                    "Workspace '{}' is already locked or has an active run",
+                    workspace_id
+                ),
+            }),
+            status => {
+                let body = response.text().await.unwrap_or_default();
+                Err(TfeError::Api {
+                    status,
+                    message: format!("Failed to lock workspace '{}': {}", workspace_id, body),
+                })
+            }
+        }
+    }
+
+    /// Unlock a workspace
+    pub async fn unlock_workspace(&self, workspace_id: &str) -> Result<()> {
+        let url = format!(
+            "{}/{}/{}/actions/unlock",
+            self.base_url(),
+            api::WORKSPACES,
+            workspace_id
+        );
+
+        debug!("Unlocking workspace: {}", workspace_id);
+
+        let response = self.post(&url).send().await?;
+
+        match response.status().as_u16() {
+            200 => Ok(()),
+            404 => Err(TfeError::Api {
+                status: 404,
+                message: format!("Workspace '{}' not found", workspace_id),
+            }),
+            409 => Err(TfeError::Api {
+                status: 409,
+                message: format!(
+                    "Workspace '{}' is not locked or locked by another user/run",
+                    workspace_id
+                ),
+            }),
+            status => {
+                let body = response.text().await.unwrap_or_default();
+                Err(TfeError::Api {
+                    status,
+                    message: format!("Failed to unlock workspace '{}': {}", workspace_id, body),
+                })
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -378,5 +450,91 @@ mod tests {
 
         assert!(result.is_ok());
         assert!(result.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn test_lock_workspace_success() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/workspaces/ws-123/actions/lock"))
+            .respond_with(ResponseTemplate::new(200))
+            .mount(&mock_server)
+            .await;
+
+        let client = create_test_client(&mock_server.uri());
+        let result = client.lock_workspace("ws-123").await;
+
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_lock_workspace_already_locked() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/workspaces/ws-123/actions/lock"))
+            .respond_with(ResponseTemplate::new(409))
+            .mount(&mock_server)
+            .await;
+
+        let client = create_test_client(&mock_server.uri());
+        let result = client.lock_workspace("ws-123").await;
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("already locked"));
+    }
+
+    #[tokio::test]
+    async fn test_lock_workspace_not_found() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/workspaces/ws-notfound/actions/lock"))
+            .respond_with(ResponseTemplate::new(404))
+            .mount(&mock_server)
+            .await;
+
+        let client = create_test_client(&mock_server.uri());
+        let result = client.lock_workspace("ws-notfound").await;
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("not found"));
+    }
+
+    #[tokio::test]
+    async fn test_unlock_workspace_success() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/workspaces/ws-123/actions/unlock"))
+            .respond_with(ResponseTemplate::new(200))
+            .mount(&mock_server)
+            .await;
+
+        let client = create_test_client(&mock_server.uri());
+        let result = client.unlock_workspace("ws-123").await;
+
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_unlock_workspace_not_locked() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/workspaces/ws-123/actions/unlock"))
+            .respond_with(ResponseTemplate::new(409))
+            .mount(&mock_server)
+            .await;
+
+        let client = create_test_client(&mock_server.uri());
+        let result = client.unlock_workspace("ws-123").await;
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("not locked"));
     }
 }

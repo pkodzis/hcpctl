@@ -4,6 +4,7 @@
 //! - hcpctl get org [NAME]           - list organizations or get one
 //! - hcpctl get prj [NAME] -o ORG    - list projects or get one
 //! - hcpctl get ws [NAME] -o ORG     - list workspaces or get one
+//! - hcpctl purge state <ws-id>      - purge all resources from workspace state
 
 mod common;
 mod delete;
@@ -11,6 +12,7 @@ mod enums;
 mod get;
 mod invite;
 mod logs;
+mod purge;
 mod watch;
 
 use clap::{Parser, Subcommand};
@@ -24,6 +26,7 @@ pub use enums::{PrjSortField, RunSortField, RunSubresource, WsSortField, WsSubre
 pub use get::{GetResource, OcArgs, OrgArgs, OrgMemberArgs, PrjArgs, RunArgs, TeamArgs, WsArgs};
 pub use invite::InviteArgs;
 pub use logs::LogsArgs;
+pub use purge::{PurgeResource, PurgeStateArgs};
 pub use watch::{WatchResource, WatchWsArgs};
 
 const AFTER_LONG_HELP: &str = r#"HOST RESOLUTION:
@@ -91,6 +94,16 @@ pub enum Command {
     Delete {
         #[command(subcommand)]
         resource: DeleteResource,
+    },
+
+    /// Purge resources (destructive operations with mandatory confirmation)
+    ///
+    /// These operations are IRREVERSIBLE and always require interactive confirmation.
+    /// The --batch flag is ignored for purge commands.
+    #[command(verbatim_doc_comment)]
+    Purge {
+        #[command(subcommand)]
+        resource: PurgeResource,
     },
 
     /// View logs for a run (plan or apply)

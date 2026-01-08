@@ -31,6 +31,15 @@ pub fn finish_spinner(spinner: Option<ProgressBar>) {
     }
 }
 
+/// Finish spinner with a success message that persists in the terminal
+///
+/// Instead of clearing, shows a checkmark with the provided message.
+pub fn finish_spinner_with_message(spinner: Option<ProgressBar>, message: &str) {
+    if let Some(s) = spinner {
+        s.finish_with_message(format!("✓ {}", message));
+    }
+}
+
 /// Finish spinner - clears it completely
 ///
 /// Always clears the spinner without leaving any trace.
