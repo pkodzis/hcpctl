@@ -1,3 +1,4 @@
+<!-- markdownlint-disable MD013 -->
 # hcpctl
 
 A CLI for HCP Terraform (formerly Terraform Cloud/Enterprise).
@@ -8,6 +9,28 @@ hcpctl get ws my-workspace       # Get specific workspace
 hcpctl get prj -o yaml           # List projects as YAML
 hcpctl get org                   # List organizations
 ```
+
+## Features
+
+| Command | Resources | Capabilities |
+|---------|-----------|--------------|
+| `get` | `org` | List/filter organizations |
+| | `prj` | List/filter/sort projects, show workspace counts/names/IDs |
+| | `ws` | List/filter/sort workspaces, group by org/project, fetch subresources (current-run, current-state-version, current-configuration-version, current-assessment-result) |
+| | `run` | List active runs (non-final states), filter by status/workspace, fetch subresources (events, plan, apply), stream/download logs |
+| | `team` | List/filter teams in organization |
+| | `oc` | List/filter OAuth clients (VCS connections) |
+| | `org-member` | List/filter organization members by email/status |
+| `logs` | — | View plan/apply logs for run or workspace's current run, follow in real-time |
+| `watch` | `ws` | Continuously monitor workspace for new runs, auto-stream logs |
+| `invite` | — | Invite user to organization, optionally assign to teams |
+| `delete` | `org-member` | Remove user from organization (by ID or email) |
+| `purge` | `state` | Zero out all resources from workspace state (with mandatory confirmation) |
+| `update` | — | Self-update to latest version |
+
+**Output formats:** `table` (default), `json`, `yaml`, `csv`
+
+**Global options:** `--host`, `--token`, `--batch` (no prompts/spinners), `--no-header`
 
 ## Documentation
 
@@ -127,4 +150,4 @@ cargo test
 
 ## License
 
-[MIT](LICENSE)
+[GPL-3.0 license](LICENSE)
