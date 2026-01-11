@@ -35,7 +35,7 @@ pub use organizations::{
     OrganizationWithTokens,
 };
 pub use projects::{run_prj_command, Project, ProjectAttributes, ProjectWorkspaces};
-pub use runs::{run_runs_command, Run, RunAttributes};
+pub use runs::{run_purge_run_command, run_runs_command, Run, RunAttributes};
 pub use state::run_purge_state_command;
 pub use teams::{run_team_command, Team, TeamAttributes};
 pub use traits::{PaginatedResponse, TfeResource};

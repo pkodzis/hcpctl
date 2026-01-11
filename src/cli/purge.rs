@@ -40,6 +40,35 @@ pub enum PurgeResource {
     ///   tracked by Terraform.
     #[command(verbatim_doc_comment)]
     State(PurgeStateArgs),
+
+    /// Cancel/discard pending runs blocking a workspace
+    ///
+    /// Cancels or discards all pending runs that are blocking a workspace,
+    /// including the current run holding the workspace lock if applicable.
+    ///
+    /// PROCEDURE:
+    ///   1. Resolves workspace by name or ID (auto-discovers organization)
+    ///   2. Fetches all pending runs and current run
+    ///   3. Displays summary table with run details
+    ///   4. Requires user confirmation
+    ///   5. Processes runs: pending first (newest→oldest), then current run
+    ///   6. Uses appropriate action (cancel/discard) based on run state
+    ///
+    /// ACTIONS:
+    ///   - cancel: Interrupts actively executing run (planning/applying)
+    ///   - discard: Skips run waiting for confirmation or priority
+    ///
+    /// USE CASES:
+    ///   - Clearing stacked pending runs from CI/CD
+    ///   - Unblocking workspace stuck on failed/abandoned run
+    ///   - Cleaning up runs before workspace maintenance
+    ///
+    /// NOTES:
+    ///   - Use --dry-run to preview without making changes
+    ///   - Workspace name can be used (auto-discovers organization)
+    ///   - Workspace ID (ws-xxx) can also be used directly
+    #[command(verbatim_doc_comment, visible_alias = "runs")]
+    Run(PurgeRunArgs),
 }
 
 /// Arguments for 'purge state' subcommand
@@ -51,6 +80,26 @@ pub struct PurgeStateArgs {
     /// You can find the workspace ID using: hcpctl get ws NAME --org ORG -o json
     #[arg(verbatim_doc_comment)]
     pub workspace_id: String,
+}
+
+/// Arguments for 'purge run' subcommand
+#[derive(Parser, Debug)]
+pub struct PurgeRunArgs {
+    /// Workspace name or ID (ws-xxx) to purge runs from
+    ///
+    /// Can be either:
+    /// - Workspace name (e.g., "my-workspace") - requires --org or auto-discovery
+    /// - Workspace ID (e.g., "ws-abc123") - organization auto-detected
+    #[arg(verbatim_doc_comment)]
+    pub workspace: String,
+
+    /// Organization name (auto-detected if not provided)
+    #[arg(short, long)]
+    pub org: Option<String>,
+
+    /// Preview what would be canceled without making changes
+    #[arg(long)]
+    pub dry_run: bool,
 }
 
 #[cfg(test)]
@@ -86,6 +135,7 @@ mod tests {
             PurgeResource::State(args) => {
                 assert_eq!(args.workspace_id, "ws-abc123");
             }
+            _ => panic!("Expected State variant"),
         }
     }
 
@@ -101,6 +151,91 @@ mod tests {
 
         // Missing workspace_id should fail
         let result = TestCli::try_parse_from(["test", "state"]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_purge_run_args_parsing() {
+        use clap::Parser;
+
+        #[derive(Parser)]
+        struct TestCli {
+            #[command(subcommand)]
+            resource: PurgeResource,
+        }
+
+        // Test with workspace name only
+        let cli = TestCli::parse_from(["test", "run", "my-workspace"]);
+        match cli.resource {
+            PurgeResource::Run(args) => {
+                assert_eq!(args.workspace, "my-workspace");
+                assert!(args.org.is_none());
+                assert!(!args.dry_run);
+            }
+            _ => panic!("Expected Run variant"),
+        }
+    }
+
+    #[test]
+    fn test_purge_run_with_org_and_dry_run() {
+        use clap::Parser;
+
+        #[derive(Parser)]
+        struct TestCli {
+            #[command(subcommand)]
+            resource: PurgeResource,
+        }
+
+        let cli = TestCli::parse_from([
+            "test",
+            "run",
+            "my-workspace",
+            "--org",
+            "my-org",
+            "--dry-run",
+        ]);
+        match cli.resource {
+            PurgeResource::Run(args) => {
+                assert_eq!(args.workspace, "my-workspace");
+                assert_eq!(args.org, Some("my-org".to_string()));
+                assert!(args.dry_run);
+            }
+            _ => panic!("Expected Run variant"),
+        }
+    }
+
+    #[test]
+    fn test_purge_run_alias_runs() {
+        use clap::Parser;
+
+        #[derive(Parser)]
+        struct TestCli {
+            #[command(subcommand)]
+            resource: PurgeResource,
+        }
+
+        // Test alias 'runs' works
+        let cli = TestCli::parse_from(["test", "runs", "ws-abc123"]);
+        match cli.resource {
+            PurgeResource::Run(args) => {
+                assert_eq!(args.workspace, "ws-abc123");
+            }
+            _ => panic!("Expected Run variant"),
+        }
+    }
+
+    #[test]
+    fn test_purge_run_requires_workspace() {
+        use clap::Parser;
+
+        #[derive(Parser)]
+        struct TestCli {
+            #[command(subcommand)]
+            resource: PurgeResource,
+        }
+
+        // Missing workspace should fail
+        let result = TestCli::try_parse_from(["test", "run"]);
         assert!(result.is_err());
     }
 }
