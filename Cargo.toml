@@ -1,6 +1,6 @@
 [package]
 name = "hcpctl"
-version = "0.4.3"
+version = "0.5.0"
 edition = "2021"
 description = "A CLI for HCP Terraform (formerly Terraform Cloud/Enterprise)."
 authors = ["Piotr Kodzis"]
