@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/pkodzis/hcpctl/compare/v0.4.3...v0.5.0) (2026-01-11)
+
+
+### Features
+
+* Cancel/discard pending runs blocking a workspace ([#27](https://github.com/pkodzis/hcpctl/issues/27)) ([1b26fd3](https://github.com/pkodzis/hcpctl/commit/1b26fd3bb2a0d0365a15c5dca29500dc4752cd23))
+
 ## [0.4.3](https://github.com/pkodzis/hcpctl/compare/v0.4.2...v0.4.3) (2026-01-08)
 
 
