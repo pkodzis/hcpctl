@@ -740,6 +740,61 @@ fn test_purge_state_requires_workspace_id() {
     );
 }
 
+/// Test that 'purge run' subcommand help shows expected options
+#[test]
+fn test_purge_run_help_flag() {
+    let output = Command::new(hcpctl_bin())
+        .args(["purge", "run", "--help"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    // Verify key options are documented
+    assert!(
+        stdout.contains("workspace") || stdout.contains("WORKSPACE"),
+        "Should document workspace argument"
+    );
+    assert!(stdout.contains("--org"), "Should document --org option");
+    assert!(
+        stdout.contains("--dry-run"),
+        "Should document --dry-run option"
+    );
+}
+
+/// Test that 'purge run' requires workspace argument
+#[test]
+fn test_purge_run_requires_workspace() {
+    let output = Command::new(hcpctl_bin())
+        .args(["purge", "run"])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("WORKSPACE") || stderr.contains("required"),
+        "Should indicate workspace is required"
+    );
+}
+
+/// Test that 'purge runs' alias works
+#[test]
+fn test_purge_runs_alias() {
+    let output = Command::new(hcpctl_bin())
+        .args(["purge", "runs", "--help"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("Cancel") || stdout.contains("discard") || stdout.contains("pending"),
+        "Should show runs help when using 'runs' alias"
+    );
+}
+
 /// Test that 'purge state' is documented in main help
 #[test]
 fn test_main_help_shows_purge() {

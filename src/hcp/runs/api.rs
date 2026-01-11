@@ -297,6 +297,62 @@ impl TfeClient {
         let content = response.text().await?;
         Ok(content)
     }
+
+    /// Cancel a run that is actively executing (planning or applying)
+    ///
+    /// Sends POST /runs/:run_id/actions/cancel
+    /// The run must have is-cancelable: true in its actions.
+    pub async fn cancel_run(&self, run_id: &str) -> Result<()> {
+        let url = format!(
+            "{}/{}/{}/actions/cancel",
+            self.base_url(),
+            api::RUNS,
+            run_id
+        );
+
+        debug!("Canceling run: {}", run_id);
+
+        let response = self.post(&url).send().await?;
+
+        if !response.status().is_success() {
+            let status = response.status().as_u16();
+            let body = response.text().await.unwrap_or_default();
+            return Err(TfeError::Api {
+                status,
+                message: format!("Failed to cancel run '{}': {}", run_id, body),
+            });
+        }
+
+        Ok(())
+    }
+
+    /// Discard a run that is waiting for confirmation or priority
+    ///
+    /// Sends POST /runs/:run_id/actions/discard
+    /// The run must have is-discardable: true in its actions.
+    pub async fn discard_run(&self, run_id: &str) -> Result<()> {
+        let url = format!(
+            "{}/{}/{}/actions/discard",
+            self.base_url(),
+            api::RUNS,
+            run_id
+        );
+
+        debug!("Discarding run: {}", run_id);
+
+        let response = self.post(&url).send().await?;
+
+        if !response.status().is_success() {
+            let status = response.status().as_u16();
+            let body = response.text().await.unwrap_or_default();
+            return Err(TfeError::Api {
+                status,
+                message: format!("Failed to discard run '{}': {}", run_id, body),
+            });
+        }
+
+        Ok(())
+    }
 }
 #[cfg(test)]
 mod tests {
@@ -655,5 +711,91 @@ mod tests {
         let content = result.unwrap();
         assert!(content.contains("Terraform v1.5.0"));
         assert!(content.contains("Apply complete!"));
+    }
+
+    #[tokio::test]
+    async fn test_cancel_run_success() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/runs/run-abc123/actions/cancel"))
+            .respond_with(ResponseTemplate::new(202))
+            .mount(&mock_server)
+            .await;
+
+        let client = create_test_client(&mock_server.uri());
+        let result = client.cancel_run("run-abc123").await;
+
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_cancel_run_not_cancelable() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/runs/run-abc123/actions/cancel"))
+            .respond_with(
+                ResponseTemplate::new(409)
+                    .set_body_string(r#"{"errors":[{"status":"409","title":"conflict"}]}"#),
+            )
+            .mount(&mock_server)
+            .await;
+
+        let client = create_test_client(&mock_server.uri());
+        let result = client.cancel_run("run-abc123").await;
+
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_discard_run_success() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/runs/run-xyz789/actions/discard"))
+            .respond_with(ResponseTemplate::new(202))
+            .mount(&mock_server)
+            .await;
+
+        let client = create_test_client(&mock_server.uri());
+        let result = client.discard_run("run-xyz789").await;
+
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_discard_run_not_discardable() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/runs/run-xyz789/actions/discard"))
+            .respond_with(
+                ResponseTemplate::new(409)
+                    .set_body_string(r#"{"errors":[{"status":"409","title":"conflict"}]}"#),
+            )
+            .mount(&mock_server)
+            .await;
+
+        let client = create_test_client(&mock_server.uri());
+        let result = client.discard_run("run-xyz789").await;
+
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_cancel_run_not_found() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/runs/run-notfound/actions/cancel"))
+            .respond_with(ResponseTemplate::new(404))
+            .mount(&mock_server)
+            .await;
+
+        let client = create_test_client(&mock_server.uri());
+        let result = client.cancel_run("run-notfound").await;
+
+        assert!(result.is_err());
     }
 }

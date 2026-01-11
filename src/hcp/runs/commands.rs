@@ -1,13 +1,17 @@
 //! Run command handlers
 
+use std::collections::HashSet;
 use std::io::{self, Write};
 use std::time::Duration;
 
+use chrono::{DateTime, Utc};
 use dialoguer::Confirm;
 use tokio::time::sleep;
 
 use crate::cli::{OutputFormat, RunSortField, RunSubresource};
 use crate::hcp::runs::{Run, RunEventsResponse, RunQuery};
+use crate::hcp::traits::TfeResource;
+use crate::hcp::workspaces::{extract_current_run_id, resolve_workspace};
 use crate::hcp::TfeClient;
 use crate::output::{output_apply, output_plan, output_raw, output_run_events, output_runs};
 use crate::ui::{create_spinner, finish_spinner};
@@ -593,6 +597,297 @@ pub async fn tail_log(
     Ok(())
 }
 
+/// Run the purge run command (cancel/discard pending runs)
+pub async fn run_purge_run_command(
+    client: &TfeClient,
+    cli: &crate::Cli,
+) -> std::result::Result<(), Box<dyn std::error::Error>> {
+    let Command::Purge {
+        resource: crate::PurgeResource::Run(args),
+    } = &cli.command
+    else {
+        unreachable!()
+    };
+
+    // Step 1: Resolve workspace
+    let resolved =
+        resolve_workspace(client, &args.workspace, args.org.as_deref(), cli.batch).await?;
+    let workspace = &resolved.workspace;
+    let ws_id = &workspace.id;
+    let ws_name = workspace.name();
+    let org = &resolved.org;
+
+    // Extract current run ID from workspace relationships (may not exist)
+    let current_run_id: Option<String> = extract_current_run_id(&resolved.raw).ok();
+
+    // Step 2: Fetch pending runs (all non-final runs that could be blocking)
+    let spinner = create_spinner("Fetching pending runs...", cli.batch);
+    let pending_runs = client
+        .get_runs_for_workspace(ws_id, RunQuery::non_final(), None)
+        .await?;
+    finish_spinner(spinner);
+
+    // Collect runs to process (non-final runs + current, deduplicated)
+    // Include runs that are cancelable or discardable
+    let mut runs_to_process: Vec<Run> = Vec::new();
+    let mut seen_ids: HashSet<String> = HashSet::new();
+
+    // Add non-final runs that can be canceled or discarded
+    for run in pending_runs {
+        if !seen_ids.contains(&run.id) && determine_action(&run).is_some() {
+            seen_ids.insert(run.id.clone());
+            runs_to_process.push(run);
+        }
+    }
+
+    // Add current run if it exists, not already in list, and is actionable
+    if let Some(ref curr_id) = current_run_id {
+        if !seen_ids.contains(curr_id) {
+            let spinner =
+                create_spinner(&format!("Fetching current run {}...", curr_id), cli.batch);
+            if let Ok(Some((run, _))) = client.get_run_by_id(curr_id).await {
+                finish_spinner(spinner);
+                // Only add if the run is cancelable or discardable (not final)
+                if determine_action(&run).is_some() {
+                    seen_ids.insert(run.id.clone());
+                    runs_to_process.push(run);
+                }
+            } else {
+                finish_spinner(spinner);
+            }
+        }
+    }
+
+    if runs_to_process.is_empty() {
+        println!(
+            "\n✓ No pending runs to process for workspace '{}'.",
+            ws_name
+        );
+        return Ok(());
+    }
+
+    // Display header
+    let dry_run_prefix = if args.dry_run { "[DRY-RUN] " } else { "" };
+    println!();
+    println!("{}Workspace:    {} ({})", dry_run_prefix, ws_name, ws_id);
+    println!("{}Organization: {}", dry_run_prefix, org);
+    println!("{}TFE instance: {}", dry_run_prefix, client.host());
+    println!();
+    println!("{}The following runs will be processed:", dry_run_prefix);
+    println!();
+
+    // Build and display table
+    output_pending_runs_table(
+        &runs_to_process,
+        client.host(),
+        org,
+        ws_name,
+        &current_run_id,
+    );
+
+    println!();
+
+    // Confirmation prompt
+    print!("{}Do you want to continue? (yes/no): ", dry_run_prefix);
+    io::stdout().flush()?;
+
+    let mut input = String::new();
+    io::stdin().read_line(&mut input)?;
+    let input = input.trim().to_lowercase();
+
+    if input != "yes" && input != "y" {
+        println!("\nAborted.");
+        return Ok(());
+    }
+
+    println!();
+
+    // Sort runs: pending (newest first), then current run last
+    // Newest first = reverse chronological order by created_at
+    runs_to_process.sort_by(|a, b| {
+        let a_is_current = current_run_id.as_ref() == Some(&a.id);
+        let b_is_current = current_run_id.as_ref() == Some(&b.id);
+
+        // Current run goes last
+        if a_is_current && !b_is_current {
+            return std::cmp::Ordering::Greater;
+        }
+        if b_is_current && !a_is_current {
+            return std::cmp::Ordering::Less;
+        }
+
+        // Sort by created_at descending (newest first)
+        let a_time = a.attributes.created_at.as_deref().unwrap_or("");
+        let b_time = b.attributes.created_at.as_deref().unwrap_or("");
+        b_time.cmp(a_time)
+    });
+
+    // Process runs
+    let mut success_count = 0;
+    let mut error_count = 0;
+
+    for run in &runs_to_process {
+        let action = determine_action(run);
+        let action_str = match action {
+            Some(RunAction::Cancel) => "cancel",
+            Some(RunAction::Discard) => "discard",
+            None => "skip",
+        };
+
+        if args.dry_run {
+            match action {
+                Some(RunAction::Cancel) => {
+                    println!("[DRY-RUN] Would cancel run: {}", run.id);
+                }
+                Some(RunAction::Discard) => {
+                    println!("[DRY-RUN] Would discard run: {}", run.id);
+                }
+                None => {
+                    println!(
+                        "[DRY-RUN] Would skip run: {} (not cancelable/discardable)",
+                        run.id
+                    );
+                }
+            }
+            success_count += 1;
+        } else {
+            match action {
+                Some(RunAction::Cancel) => {
+                    match client.cancel_run(&run.id).await {
+                        Ok(()) => {
+                            println!("✓ Canceled run: {}", run.id);
+                            success_count += 1;
+                        }
+                        Err(e) => {
+                            eprintln!("✗ Failed to {} run {}: {}", action_str, run.id, e);
+                            error_count += 1;
+                            // Stop on first error per spec
+                            break;
+                        }
+                    }
+                }
+                Some(RunAction::Discard) => {
+                    match client.discard_run(&run.id).await {
+                        Ok(()) => {
+                            println!("✓ Discarded run: {}", run.id);
+                            success_count += 1;
+                        }
+                        Err(e) => {
+                            eprintln!("✗ Failed to {} run {}: {}", action_str, run.id, e);
+                            error_count += 1;
+                            // Stop on first error per spec
+                            break;
+                        }
+                    }
+                }
+                None => {
+                    println!("⚠ Skipped run: {} (not cancelable/discardable)", run.id);
+                }
+            }
+        }
+    }
+
+    // Summary
+    println!();
+    if args.dry_run {
+        println!("Dry-run complete. No changes were made.");
+    } else if error_count > 0 {
+        println!(
+            "Processed {} runs. {} succeeded, {} failed.",
+            success_count + error_count,
+            success_count,
+            error_count
+        );
+    } else {
+        println!("All {} runs processed successfully.", success_count);
+    }
+
+    Ok(())
+}
+
+/// Action to take on a run
+enum RunAction {
+    Cancel,
+    Discard,
+}
+
+/// Determine the appropriate action for a run based on its actions flags
+fn determine_action(run: &Run) -> Option<RunAction> {
+    if let Some(actions) = &run.attributes.actions {
+        if actions.is_cancelable == Some(true) {
+            return Some(RunAction::Cancel);
+        }
+        if actions.is_discardable == Some(true) {
+            return Some(RunAction::Discard);
+        }
+    }
+    None
+}
+
+/// Format age from ISO timestamp
+fn format_age(created_at: Option<&str>) -> String {
+    let Some(ts) = created_at else {
+        return "unknown".to_string();
+    };
+
+    let Ok(dt) = ts.parse::<DateTime<Utc>>() else {
+        return "unknown".to_string();
+    };
+
+    let now = Utc::now();
+    let duration = now.signed_duration_since(dt);
+
+    if duration.num_days() > 0 {
+        format!("{}d {}h", duration.num_days(), duration.num_hours() % 24)
+    } else if duration.num_hours() > 0 {
+        format!("{}h {}m", duration.num_hours(), duration.num_minutes() % 60)
+    } else if duration.num_minutes() > 0 {
+        format!("{}m", duration.num_minutes())
+    } else {
+        format!("{}s", duration.num_seconds())
+    }
+}
+
+/// Output pending runs table using comfy_table
+fn output_pending_runs_table(
+    runs: &[Run],
+    host: &str,
+    org: &str,
+    ws_name: &str,
+    current_run_id: &Option<String>,
+) {
+    use comfy_table::{presets::UTF8_FULL_CONDENSED, Table};
+
+    let mut table = Table::new();
+    table.load_preset(UTF8_FULL_CONDENSED);
+    table.set_header(vec!["Run ID", "Status", "Age", "Action", "URL"]);
+
+    for run in runs {
+        let action = determine_action(run);
+        let action_str = match action {
+            Some(RunAction::Cancel) => "cancel",
+            Some(RunAction::Discard) => "discard",
+            None => "skip",
+        };
+
+        let status = if current_run_id.as_ref() == Some(&run.id) {
+            format!("{} (current)", run.attributes.status)
+        } else {
+            run.attributes.status.clone()
+        };
+
+        let age = format_age(run.attributes.created_at.as_deref());
+        let url = format!(
+            "https://{}/app/{}/workspaces/{}/runs/{}",
+            host, org, ws_name, run.id
+        );
+
+        table.add_row(vec![&run.id, &status, &age, action_str, &url]);
+    }
+
+    println!("{}", table);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -600,6 +895,122 @@ mod tests {
     #[test]
     fn test_confirm_threshold() {
         assert_eq!(CONFIRM_THRESHOLD, 100);
+    }
+
+    #[test]
+    fn test_format_age_minutes() {
+        // Recent timestamp - should show minutes
+        let now = Utc::now();
+        let five_min_ago = now - chrono::Duration::minutes(5);
+        let ts = five_min_ago.to_rfc3339();
+        let age = format_age(Some(&ts));
+        assert!(age.contains("m") || age.contains("s"));
+    }
+
+    #[test]
+    fn test_format_age_hours() {
+        let now = Utc::now();
+        let two_hours_ago = now - chrono::Duration::hours(2);
+        let ts = two_hours_ago.to_rfc3339();
+        let age = format_age(Some(&ts));
+        assert!(age.contains("h"));
+    }
+
+    #[test]
+    fn test_format_age_days() {
+        let now = Utc::now();
+        let two_days_ago = now - chrono::Duration::days(2);
+        let ts = two_days_ago.to_rfc3339();
+        let age = format_age(Some(&ts));
+        assert!(age.contains("d"));
+    }
+
+    #[test]
+    fn test_format_age_none() {
+        assert_eq!(format_age(None), "unknown");
+    }
+
+    #[test]
+    fn test_format_age_invalid() {
+        assert_eq!(format_age(Some("not-a-date")), "unknown");
+    }
+
+    #[test]
+    fn test_determine_action_cancelable() {
+        let run = Run {
+            id: "run-test".to_string(),
+            attributes: crate::hcp::runs::RunAttributes {
+                status: "planning".to_string(),
+                message: None,
+                source: None,
+                created_at: None,
+                has_changes: None,
+                is_destroy: None,
+                plan_only: None,
+                auto_apply: None,
+                trigger_reason: None,
+                actions: Some(crate::hcp::runs::RunActions {
+                    is_cancelable: Some(true),
+                    is_confirmable: None,
+                    is_discardable: Some(false),
+                    is_force_cancelable: None,
+                }),
+            },
+            relationships: None,
+        };
+        assert!(matches!(determine_action(&run), Some(RunAction::Cancel)));
+    }
+
+    #[test]
+    fn test_determine_action_discardable() {
+        let run = Run {
+            id: "run-test".to_string(),
+            attributes: crate::hcp::runs::RunAttributes {
+                status: "pending".to_string(),
+                message: None,
+                source: None,
+                created_at: None,
+                has_changes: None,
+                is_destroy: None,
+                plan_only: None,
+                auto_apply: None,
+                trigger_reason: None,
+                actions: Some(crate::hcp::runs::RunActions {
+                    is_cancelable: Some(false),
+                    is_confirmable: None,
+                    is_discardable: Some(true),
+                    is_force_cancelable: None,
+                }),
+            },
+            relationships: None,
+        };
+        assert!(matches!(determine_action(&run), Some(RunAction::Discard)));
+    }
+
+    #[test]
+    fn test_determine_action_none() {
+        let run = Run {
+            id: "run-test".to_string(),
+            attributes: crate::hcp::runs::RunAttributes {
+                status: "applied".to_string(),
+                message: None,
+                source: None,
+                created_at: None,
+                has_changes: None,
+                is_destroy: None,
+                plan_only: None,
+                auto_apply: None,
+                trigger_reason: None,
+                actions: Some(crate::hcp::runs::RunActions {
+                    is_cancelable: Some(false),
+                    is_confirmable: None,
+                    is_discardable: Some(false),
+                    is_force_cancelable: None,
+                }),
+            },
+            relationships: None,
+        };
+        assert!(determine_action(&run).is_none());
     }
 
     // Note: print_human_readable_log tests moved to log_utils module

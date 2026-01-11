@@ -26,7 +26,7 @@ pub use enums::{PrjSortField, RunSortField, RunSubresource, WsSortField, WsSubre
 pub use get::{GetResource, OcArgs, OrgArgs, OrgMemberArgs, PrjArgs, RunArgs, TeamArgs, WsArgs};
 pub use invite::InviteArgs;
 pub use logs::LogsArgs;
-pub use purge::{PurgeResource, PurgeStateArgs};
+pub use purge::{PurgeResource, PurgeRunArgs, PurgeStateArgs};
 pub use watch::{WatchResource, WatchWsArgs};
 
 const AFTER_LONG_HELP: &str = r#"HOST RESOLUTION:
