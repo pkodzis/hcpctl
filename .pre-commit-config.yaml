@@ -3,7 +3,9 @@ repos:
     rev: v4.5.0
     hooks:
       - id: trailing-whitespace
+        exclude: docs/CommandLineHelp.md
       - id: end-of-file-fixer
+        exclude: docs/CommandLineHelp.md
       - id: check-yaml
       - id: check-toml
       - id: check-merge-conflict
@@ -13,8 +15,7 @@ repos:
     hooks:
       - id: markdownlint
         args: ["--fix"]
-        exclude: CHANGELOG.md|.github/copilot-instructions.md
-
+        exclude: CHANGELOG.md|.github/copilot-instructions.md|docs/CommandLineHelp.md
 
   - repo: local
     hooks:
@@ -54,3 +55,10 @@ repos:
         types_or: [rust, toml]
         pass_filenames: false
         stages: [pre-push]
+
+      - id: update-command-reference
+        name: update command reference
+        entry: bash -c 'cargo build --quiet && target/debug/hcpctl --markdown-help > docs/CommandLineHelp.md && git add docs/CommandLineHelp.md'
+        language: system
+        types: [rust]
+        pass_filenames: false

@@ -14,6 +14,12 @@ use hcpctl::{
 
 #[tokio::main]
 async fn main() -> ExitCode {
+    // Handle markdown help early (before clap parsing requires subcommand)
+    if std::env::args().any(|arg| arg == "--markdown-help") {
+        clap_markdown::print_help_markdown::<Cli>();
+        return ExitCode::SUCCESS;
+    }
+
     if let Err(e) = run().await {
         eprintln!("\n{}\n", e);
         return ExitCode::FAILURE;

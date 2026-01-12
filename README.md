@@ -35,6 +35,8 @@ hcpctl get org                   # List organizations
 
 ## Documentation
 
+For complete command reference, see [Command Line Help](docs/CommandLineHelp.md).
+
 ```bash
 hcpctl --help           # General help
 hcpctl get --help       # Get command help
@@ -113,6 +115,7 @@ cargo --version
 # Install development tools
 cargo install cross        # Cross-compilation support
 cargo install cargo-edit   # Adds `cargo add`, `cargo upgrade` commands
+cargo add clap-markdown    # for building CLI command reference
 ```
 
 #### Windows
