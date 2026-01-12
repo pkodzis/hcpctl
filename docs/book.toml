@@ -1,0 +1,16 @@
+[book]
+title = "hcpctl"
+description = "A CLI for HCP Terraform (formerly Terraform Cloud/Enterprise)"
+authors = ["pkodzis"]
+language = "en"
+src = "src"
+
+[build]
+build-dir = "../book"
+
+[output.html]
+default-theme = "light"
+preferred-dark-theme = "navy"
+git-repository-url = "https://github.com/pkodzis/hcpctl"
+edit-url-template = "https://github.com/pkodzis/hcpctl/edit/main/docs/src/{path}"
+site-url = "https://www.hcpctl.com/"
