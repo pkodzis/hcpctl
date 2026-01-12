@@ -35,7 +35,7 @@ hcpctl get org                   # List organizations
 
 ## Documentation
 
-For complete command reference, see [Command Line Help](docs/src/CommandLineHelp.md).
+For complete command reference, see [Command Line Help](https://hcpctl.com/CommandLineHelp.html).
 
 ```bash
 hcpctl --help           # General help
@@ -155,4 +155,4 @@ cargo test
 
 ## License
 
-[GPL-3.0 license](LICENSE)
+[GPL-3.0 license](https://github.com/pkodzis/hcpctl/blob/main/LICENSE)
