@@ -45,10 +45,10 @@ TOKEN RESOLUTION:
      Token is read from the entry matching the resolved host.
 
 EXAMPLES:
-  hcpctl get org                     List all organizations
-  hcpctl get ws --org myorg          List workspaces in organization
-  hcpctl get ws myws --org myorg     Get workspace details
-  hcpctl -H app.terraform.io get ws  Use specific host"#;
+  - hcpctl get org                     List all organizations
+  - hcpctl get ws --org myorg          List workspaces in organization
+  - hcpctl get ws myws --org myorg     Get workspace details
+  - hcpctl -H app.terraform.io get ws  Use specific host"#;
 
 /// HCP/TFE CLI - Explore HashiCorp Cloud Platform and Terraform Enterprise
 #[derive(Parser, Debug)]
@@ -80,6 +80,10 @@ pub struct Cli {
     /// Omit header row in table/CSV output
     #[arg(long, global = true, default_value_t = false)]
     pub no_header: bool,
+
+    /// Generate Markdown documentation for all commands (hidden)
+    #[arg(long, hide = true)]
+    pub markdown_help: bool,
 }
 
 #[derive(Subcommand, Debug)]
