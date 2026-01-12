@@ -1,0 +1,2 @@
+# Redirect index to root
+/index.html  /  301

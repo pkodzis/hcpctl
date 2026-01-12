@@ -1,6 +1,6 @@
 [book]
-title = "hcpctl"
-description = "A CLI for HCP Terraform (formerly Terraform Cloud/Enterprise)"
+title = "hcpctl - kubectl-style CLI for HCP Terraform"
+description = "A powerful kubectl-style command-line interface for HCP Terraform (Terraform Cloud/Enterprise). Manage workspaces, projects, runs, and state with simple commands like hcpctl get ws."
 authors = ["pkodzis"]
 language = "en"
 src = "src"
@@ -10,7 +10,11 @@ build-dir = "book"
 
 [output.html]
 default-theme = "light"
-preferred-dark-theme = "navy"
+preferred-dark-theme = "light"
 git-repository-url = "https://github.com/pkodzis/hcpctl"
 edit-url-template = "https://github.com/pkodzis/hcpctl/edit/main/docs/src/{path}"
-site-url = "https://www.hcpctl.com/"
+site-url = "https://hcpctl.com/"
+additional-css = []
+additional-js = []
+copy-fonts = true
+theme = "theme"
