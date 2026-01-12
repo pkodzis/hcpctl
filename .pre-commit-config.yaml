@@ -58,7 +58,7 @@ repos:
 
       - id: update-command-reference
         name: update command reference
-        entry: bash -c 'cargo build --quiet && target/debug/hcpctl --markdown-help > docs/CommandLineHelp.md && git add docs/CommandLineHelp.md'
+        entry: bash -c 'cargo build --quiet && target/debug/hcpctl --markdown-help > docs/src/CommandLineHelp.md && cd docs && mdbook build && git add docs/src/CommandLineHelp.md book/'
         language: system
         types: [rust]
         pass_filenames: false
