@@ -2,8 +2,8 @@
   # Base directory - where dependencies are installed and build is run
   base = "docs"
 
-  # Build command - install Rust toolchain, mdbook and build the book
-  command = "rustup default stable && cargo install mdbook --version 0.4.44 && mdbook build"
+  # Build command - install Rust toolchain, mdbook, build, and copy static SEO files
+  command = "rustup default stable && cargo install mdbook --version 0.4.44 && mdbook build && cp src/robots.txt src/sitemap.xml book/"
 
   # Publish directory - relative to base
   publish = "book"
@@ -11,3 +11,36 @@
 [build.environment]
   # Use stable Rust toolchain
   RUST_VERSION = "stable"
+
+# Redirect www to non-www (canonical URL)
+[[redirects]]
+  from = "https://www.hcpctl.com/*"
+  to = "https://hcpctl.com/:splat"
+  status = 301
+  force = true
+
+# Headers for SEO and performance
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Cache-Control = "public, max-age=3600"
+
+[[headers]]
+  for = "/*.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/sitemap.xml"
+  [headers.values]
+    Content-Type = "application/xml"
+    Cache-Control = "public, max-age=86400"
+
+[[headers]]
+  for = "/robots.txt"
+  [headers.values]
+    Content-Type = "text/plain"
+    Cache-Control = "public, max-age=86400"
