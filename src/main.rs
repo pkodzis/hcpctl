@@ -5,11 +5,12 @@ use log::info;
 use std::process::ExitCode;
 
 use hcpctl::{
-    run_delete_org_member_command, run_invite_command, run_logs_command, run_oc_command,
-    run_org_command, run_org_member_command, run_prj_command, run_purge_run_command,
-    run_purge_state_command, run_runs_command, run_team_command, run_update, run_watch_ws_command,
-    run_ws_command, Cli, Command, DeleteResource, GetResource, HostResolver, PurgeResource,
-    TfeClient, TokenResolver, UpdateChecker, WatchResource,
+    run_delete_org_member_command, run_download_config_command, run_invite_command,
+    run_logs_command, run_oc_command, run_org_command, run_org_member_command, run_prj_command,
+    run_purge_run_command, run_purge_state_command, run_runs_command, run_team_command, run_update,
+    run_watch_ws_command, run_ws_command, Cli, Command, DeleteResource, DownloadResource,
+    GetResource, HostResolver, PurgeResource, TfeClient, TokenResolver, UpdateChecker,
+    WatchResource,
 };
 
 #[tokio::main]
@@ -81,6 +82,9 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         Command::Logs(args) => run_logs_command(&client, &cli, args).await,
         Command::Watch { resource } => match resource {
             WatchResource::Ws(args) => run_watch_ws_command(&client, &cli, args).await,
+        },
+        Command::Download { resource } => match resource {
+            DownloadResource::Config(_) => run_download_config_command(&client, &cli).await,
         },
         Command::Invite(args) => run_invite_command(&client, &cli, args).await,
         Command::Update => unreachable!(), // Handled above

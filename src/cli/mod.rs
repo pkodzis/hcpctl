@@ -5,9 +5,11 @@
 //! - hcpctl get prj [NAME] -o ORG    - list projects or get one
 //! - hcpctl get ws [NAME] -o ORG     - list workspaces or get one
 //! - hcpctl purge state <ws-id>      - purge all resources from workspace state
+//! - hcpctl download config <ws>     - download workspace configuration
 
 mod common;
 mod delete;
+mod download;
 mod enums;
 mod get;
 mod invite;
@@ -22,6 +24,7 @@ use crate::config::defaults;
 // Re-export all types for public API
 pub use common::OutputFormat;
 pub use delete::{DeleteOrgMemberArgs, DeleteResource};
+pub use download::{DownloadConfigArgs, DownloadResource};
 pub use enums::{PrjSortField, RunSortField, RunSubresource, WsSortField, WsSubresource};
 pub use get::{GetResource, OcArgs, OrgArgs, OrgMemberArgs, PrjArgs, RunArgs, TeamArgs, WsArgs};
 pub use invite::InviteArgs;
@@ -108,6 +111,12 @@ pub enum Command {
     Purge {
         #[command(subcommand)]
         resource: PurgeResource,
+    },
+
+    /// Download resources (configuration files, etc.)
+    Download {
+        #[command(subcommand)]
+        resource: DownloadResource,
     },
 
     /// View logs for a run (plan or apply)
