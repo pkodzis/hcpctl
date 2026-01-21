@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/pkodzis/hcpctl/compare/v0.5.0...v0.6.0) (2026-01-21)
+
+
+### Features
+
+* workspace configuration download ([#36](https://github.com/pkodzis/hcpctl/issues/36)) ([9465c14](https://github.com/pkodzis/hcpctl/commit/9465c141279843085d16fdd6c785dba8b566a3d4))
+
 ## [0.5.0](https://github.com/pkodzis/hcpctl/compare/v0.4.3...v0.5.0) (2026-01-11)
 
 
