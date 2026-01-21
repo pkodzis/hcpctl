@@ -807,3 +807,113 @@ fn test_main_help_shows_purge() {
         "Should show purge command in main help"
     );
 }
+
+// =========================================================================
+// Download command tests
+// =========================================================================
+
+/// Test that 'download' subcommand help shows expected resources
+#[test]
+fn test_download_help_flag() {
+    let output = Command::new(hcpctl_bin())
+        .args(["download", "--help"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    // Verify config resource is documented
+    assert!(stdout.contains("config"), "Should document config resource");
+}
+
+/// Test that 'download config' subcommand help shows expected options
+#[test]
+fn test_download_config_help_flag() {
+    let output = Command::new(hcpctl_bin())
+        .args(["download", "config", "--help"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    // Verify key options are documented
+    assert!(
+        stdout.contains("WORKSPACE") || stdout.contains("workspace"),
+        "Should document workspace argument"
+    );
+    assert!(stdout.contains("--org"), "Should document --org option");
+    assert!(stdout.contains("--cv-id"), "Should document --cv-id option");
+    assert!(
+        stdout.contains("--output"),
+        "Should document --output option"
+    );
+    assert!(stdout.contains("-o"), "Should have short -o for org");
+}
+
+/// Test that 'download cfg' alias works
+#[test]
+fn test_download_config_alias() {
+    let output = Command::new(hcpctl_bin())
+        .args(["download", "cfg", "--help"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("configuration") || stdout.contains("tar.gz"),
+        "Should show config help when using 'cfg' alias"
+    );
+}
+
+/// Test that 'download config' requires workspace argument
+#[test]
+fn test_download_config_requires_workspace() {
+    let output = Command::new(hcpctl_bin())
+        .args(["download", "config"])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("WORKSPACE") || stderr.contains("required"),
+        "Should indicate workspace is required"
+    );
+}
+
+/// Test that main help shows download command
+#[test]
+fn test_main_help_shows_download() {
+    let output = Command::new(hcpctl_bin()).arg("--help").output().unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("download") || stdout.contains("Download"),
+        "Should show download command in main help"
+    );
+}
+
+/// Test download config target types are documented
+#[test]
+fn test_download_config_target_types_documented() {
+    let output = Command::new(hcpctl_bin())
+        .args(["download", "config", "--help"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    assert!(
+        stdout.contains("ws-"),
+        "Should document workspace ID format"
+    );
+    assert!(
+        stdout.contains("my-workspace") || stdout.contains("name"),
+        "Should document workspace name option"
+    );
+}

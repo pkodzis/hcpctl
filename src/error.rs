@@ -17,6 +17,8 @@ pub enum TfeError {
     Json(String),
     /// Configuration error
     Config(String),
+    /// IO error (file operations)
+    Io { message: String },
 }
 
 impl fmt::Display for TfeError {
@@ -31,6 +33,7 @@ impl fmt::Display for TfeError {
             TfeError::Credentials(msg) => write!(f, "{}", msg),
             TfeError::Json(msg) => write!(f, "JSON error: {}", msg),
             TfeError::Config(msg) => write!(f, "Configuration error: {}", msg),
+            TfeError::Io { message } => write!(f, "IO error: {}", message),
         }
     }
 }
@@ -153,5 +156,14 @@ mod tests {
             message: "Server error".to_string(),
         };
         assert!(err.source().is_none());
+    }
+
+    #[test]
+    fn test_io_error_display() {
+        let err = TfeError::Io {
+            message: "Failed to write file".to_string(),
+        };
+        assert!(err.to_string().contains("IO error"));
+        assert!(err.to_string().contains("Failed to write file"));
     }
 }

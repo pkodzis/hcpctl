@@ -3,6 +3,7 @@
 //! This module provides functionality to interact with Terraform Enterprise API.
 
 mod client;
+pub mod configuration_versions;
 mod credentials;
 pub mod helpers;
 mod host;
@@ -21,6 +22,7 @@ pub mod workspaces;
 use serde::Deserialize;
 
 pub use client::TfeClient;
+pub use configuration_versions::run_download_config_command;
 pub use credentials::TokenResolver;
 pub use helpers::{collect_org_results, fetch_from_organizations, log_completion};
 pub use host::HostResolver;

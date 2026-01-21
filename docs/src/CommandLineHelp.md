@@ -18,6 +18,8 @@ This document contains the help content for the `hcpctl` command-line program.
 * [`hcpctl purge`↴](#hcpctl-purge)
 * [`hcpctl purge state`↴](#hcpctl-purge-state)
 * [`hcpctl purge run`↴](#hcpctl-purge-run)
+* [`hcpctl download`↴](#hcpctl-download)
+* [`hcpctl download config`↴](#hcpctl-download-config)
 * [`hcpctl logs`↴](#hcpctl-logs)
 * [`hcpctl watch`↴](#hcpctl-watch)
 * [`hcpctl watch ws`↴](#hcpctl-watch-ws)
@@ -32,33 +34,31 @@ Explore HCP Terraform / Terraform Enterprise resources
 
 HOST RESOLUTION:
   The host is resolved in the following order (first match wins):
-
   1. CLI argument (-H, --host)
   2. Environment variable: TFE_HOSTNAME
   3. Credentials file (~/.terraform.d/credentials.tfrc.json):
-     * If 1 host configured: use it automatically
-     * If multiple hosts: interactive selection (or error in batch mode)
+     - If 1 host configured: use it automatically
+     - If multiple hosts: interactive selection (or error in batch mode)
 
 TOKEN RESOLUTION:
   The API token is resolved in the following order (first match wins):
-
   1. CLI argument (-t, --token)
   2. Environment variables (in order): HCP_TOKEN, TFC_TOKEN, TFE_TOKEN
   3. Credentials file (~/.terraform.d/credentials.tfrc.json)
      Token is read from the entry matching the resolved host.
 
 EXAMPLES:
-
-* hcpctl get org                     List all organizations
-* hcpctl get ws --org myorg          List workspaces in organization
-* hcpctl get ws myws --org myorg     Get workspace details
-* hcpctl -H app.terraform.io get ws  Use specific host
+  - hcpctl get org                     List all organizations
+  - hcpctl get ws --org myorg          List workspaces in organization
+  - hcpctl get ws myws --org myorg     Get workspace details
+  - hcpctl -H app.terraform.io get ws  Use specific host
 
 ###### **Subcommands:**
 
 * `get` — Get resources (organizations, projects, workspaces)
 * `delete` — Delete resources
 * `purge` — Purge resources (destructive operations with mandatory confirmation)
+* `download` — Download resources (configuration files, etc.)
 * `logs` — View logs for a run (plan or apply)
 * `watch` — Watch resources for changes
 * `invite` — Invite a user to an organization
@@ -78,6 +78,8 @@ EXAMPLES:
 
   Default value: `false`
 
+
+
 ## `hcpctl get`
 
 Get resources (organizations, projects, workspaces)
@@ -93,6 +95,8 @@ Get resources (organizations, projects, workspaces)
 * `run` — Get runs (active runs by default - non_final states)
 * `team` — Get teams in an organization
 * `org-member` — Get organization members
+
+
 
 ## `hcpctl get org`
 
@@ -114,14 +118,17 @@ Get organizations
   Default value: `table`
 
   Possible values:
-  * `table`:
+  - `table`:
     ASCII table (default)
-  * `csv`:
+  - `csv`:
     Comma-separated values
-  * `json`:
+  - `json`:
     JSON array
-  * `yaml`:
+  - `yaml`:
     YAML format
+
+
+
 
 ## `hcpctl get prj`
 
@@ -144,13 +151,13 @@ Get projects
   Default value: `table`
 
   Possible values:
-  * `table`:
+  - `table`:
     ASCII table (default)
-  * `csv`:
+  - `csv`:
     Comma-separated values
-  * `json`:
+  - `json`:
     JSON array
-  * `yaml`:
+  - `yaml`:
     YAML format
 
 * `-s`, `--sort <SORT>` — Sort results by field
@@ -158,9 +165,9 @@ Get projects
   Default value: `name`
 
   Possible values:
-  * `name`:
+  - `name`:
     Sort by project name (default)
-  * `workspaces`:
+  - `workspaces`:
     Sort by workspace count
 
 * `-r`, `--reverse` — Reverse sort order (descending)
@@ -181,6 +188,8 @@ Get projects
 * `--with-ws-details` — Show workspaces as "name (id)" format (implies --with-ws)
 
   Default value: `false`
+
+
 
 ## `hcpctl get ws`
 
@@ -204,13 +213,13 @@ Get workspaces
   Default value: `table`
 
   Possible values:
-  * `table`:
+  - `table`:
     ASCII table (default)
-  * `csv`:
+  - `csv`:
     Comma-separated values
-  * `json`:
+  - `json`:
     JSON array
-  * `yaml`:
+  - `yaml`:
     YAML format
 
 * `-s`, `--sort <SORT>` — Sort results by field
@@ -218,13 +227,13 @@ Get workspaces
   Default value: `name`
 
   Possible values:
-  * `name`:
+  - `name`:
     Sort by workspace name (default)
-  * `resources`:
+  - `resources`:
     Sort by resource count
-  * `updated-at`:
+  - `updated-at`:
     Sort by last update time
-  * `tf-version`:
+  - `tf-version`:
     Sort by Terraform version
 
 * `-r`, `--reverse` — Reverse sort order (descending)
@@ -239,14 +248,17 @@ Get workspaces
 * `--subresource <SUBRESOURCE>` — Fetch a related subresource (run=current-run, state=current-state-version, config=current-configuration-version, assessment=current-assessment-result). Only works with single workspace lookup and JSON/YAML output
 
   Possible values:
-  * `run`:
+  - `run`:
     Current run (current-run)
-  * `state`:
+  - `state`:
     Current state version (current-state-version)
-  * `config`:
+  - `config`:
     Current configuration version (current-configuration-version)
-  * `assessment`:
+  - `assessment`:
     Current assessment result (current-assessment-result)
+
+
+
 
 ## `hcpctl get oc`
 
@@ -269,14 +281,17 @@ Get OAuth clients (VCS connections)
   Default value: `table`
 
   Possible values:
-  * `table`:
+  - `table`:
     ASCII table (default)
-  * `csv`:
+  - `csv`:
     Comma-separated values
-  * `json`:
+  - `json`:
     JSON array
-  * `yaml`:
+  - `yaml`:
     YAML format
+
+
+
 
 ## `hcpctl get run`
 
@@ -305,23 +320,23 @@ Completed runs (applied, errored, canceled) are not shown.
   Default value: `table`
 
   Possible values:
-  * `table`:
+  - `table`:
     ASCII table (default)
-  * `csv`:
+  - `csv`:
     Comma-separated values
-  * `json`:
+  - `json`:
     JSON array
-  * `yaml`:
+  - `yaml`:
     YAML format
 
 * `--subresource <SUBRESOURCE>` — Fetch a related subresource (events, plan, apply). Requires run ID
 
   Possible values:
-  * `events`:
+  - `events`:
     Run events (run-events)
-  * `plan`:
+  - `plan`:
     Plan details with log access
-  * `apply`:
+  - `apply`:
     Apply details with log access
 
 * `--get-log` — Download and display the full log (requires --subresource plan or apply)
@@ -338,11 +353,11 @@ Completed runs (applied, errored, canceled) are not shown.
   Default value: `created-at`
 
   Possible values:
-  * `created-at`:
+  - `created-at`:
     Sort by creation time (default: newest first)
-  * `status`:
+  - `status`:
     Sort by status
-  * `ws-id`:
+  - `ws-id`:
     Sort by workspace ID
 
 * `-r`, `--reverse` — Reverse sort order
@@ -351,6 +366,8 @@ Completed runs (applied, errored, canceled) are not shown.
 * `-y`, `--yes` — Skip confirmation prompt when results exceed 100
 
   Default value: `false`
+
+
 
 ## `hcpctl get team`
 
@@ -373,14 +390,17 @@ Get teams in an organization
   Default value: `table`
 
   Possible values:
-  * `table`:
+  - `table`:
     ASCII table (default)
-  * `csv`:
+  - `csv`:
     Comma-separated values
-  * `json`:
+  - `json`:
     JSON array
-  * `yaml`:
+  - `yaml`:
     YAML format
+
+
+
 
 ## `hcpctl get org-member`
 
@@ -404,14 +424,17 @@ Get organization members
   Default value: `table`
 
   Possible values:
-  * `table`:
+  - `table`:
     ASCII table (default)
-  * `csv`:
+  - `csv`:
     Comma-separated values
-  * `json`:
+  - `json`:
     JSON array
-  * `yaml`:
+  - `yaml`:
     YAML format
+
+
+
 
 ## `hcpctl delete`
 
@@ -422,6 +445,8 @@ Delete resources
 ###### **Subcommands:**
 
 * `org-member` — Delete organization member (remove from organization)
+
+
 
 ## `hcpctl delete org-member`
 
@@ -445,6 +470,8 @@ Delete organization member (remove from organization)
 
   Default value: `false`
 
+
+
 ## `hcpctl purge`
 
 Purge resources (destructive operations with mandatory confirmation)
@@ -459,6 +486,8 @@ The --batch flag is ignored for purge commands.
 * `state` — Purge all resources from a workspace's Terraform state
 * `run` — Cancel/discard pending runs blocking a workspace
 
+
+
 ## `hcpctl purge state`
 
 Purge all resources from a workspace's Terraform state
@@ -468,7 +497,6 @@ The actual infrastructure will NOT be destroyed, but Terraform will
 "forget" about the resources, making them orphaned.
 
 PROCEDURE:
-
   1. Fetches workspace info and validates it exists
   2. Fetches current state version metadata
   3. Displays warning and requires confirmation (type workspace ID)
@@ -479,19 +507,17 @@ PROCEDURE:
   8. UNLOCKS the workspace (always, even on error)
 
 SAFETY:
-
-* ALWAYS requires interactive confirmation (--batch is ignored)
-* Requires exact workspace ID (ws-xxx), NOT workspace name
-* Workspace is locked during the entire operation
-* If upload fails, workspace is still unlocked
-* Original state lineage is preserved for consistency
+  - ALWAYS requires interactive confirmation (--batch is ignored)
+  - Requires exact workspace ID (ws-xxx), NOT workspace name
+  - Workspace is locked during the entire operation
+  - If upload fails, workspace is still unlocked
+  - Original state lineage is preserved for consistency
 
 USE CASES:
-
-* Cleaning up a workspace before deletion
-* Resetting state after manual infrastructure changes
-* Preparing for re-import of resources
-* Removing orphaned resources from state
+  - Cleaning up a workspace before deletion
+  - Resetting state after manual infrastructure changes
+  - Preparing for re-import of resources
+  - Removing orphaned resources from state
 
 WARNING:
   This operation is IRREVERSIBLE without manual state recovery.
@@ -507,6 +533,8 @@ WARNING:
    Must be the exact workspace ID, not the workspace name.
    You can find the workspace ID using: hcpctl get ws NAME --org ORG -o json
 
+
+
 ## `hcpctl purge run`
 
 Cancel/discard pending runs blocking a workspace
@@ -515,7 +543,6 @@ Cancels or discards all pending runs that are blocking a workspace,
 including the current run holding the workspace lock if applicable.
 
 PROCEDURE:
-
   1. Resolves workspace by name or ID (auto-discovers organization)
   2. Fetches all pending runs and current run
   3. Displays summary table with run details
@@ -524,21 +551,18 @@ PROCEDURE:
   6. Uses appropriate action (cancel/discard) based on run state
 
 ACTIONS:
-
-* cancel: Interrupts actively executing run (planning/applying)
-* discard: Skips run waiting for confirmation or priority
+  - cancel: Interrupts actively executing run (planning/applying)
+  - discard: Skips run waiting for confirmation or priority
 
 USE CASES:
-
-* Clearing stacked pending runs from CI/CD
-* Unblocking workspace stuck on failed/abandoned run
-* Cleaning up runs before workspace maintenance
+  - Clearing stacked pending runs from CI/CD
+  - Unblocking workspace stuck on failed/abandoned run
+  - Cleaning up runs before workspace maintenance
 
 NOTES:
-
-* Use --dry-run to preview without making changes
-* Workspace name can be used (auto-discovers organization)
-* Workspace ID (ws-xxx) can also be used directly
+  - Use --dry-run to preview without making changes
+  - Workspace name can be used (auto-discovers organization)
+  - Workspace ID (ws-xxx) can also be used directly
 
 **Usage:** `hcpctl purge run [OPTIONS] <WORKSPACE>`
 
@@ -549,13 +573,72 @@ NOTES:
 * `<WORKSPACE>` — Workspace name or ID (ws-xxx) to purge runs from
 
    Can be either:
-  * Workspace name (e.g., "my-workspace") - requires --org or auto-discovery
-  * Workspace ID (e.g., "ws-abc123") - organization auto-detected
+   - Workspace name (e.g., "my-workspace") - requires --org or auto-discovery
+   - Workspace ID (e.g., "ws-abc123") - organization auto-detected
 
 ###### **Options:**
 
 * `-o`, `--org <ORG>` — Organization name (auto-detected if not provided)
 * `--dry-run` — Preview what would be canceled without making changes
+
+
+
+## `hcpctl download`
+
+Download resources (configuration files, etc.)
+
+**Usage:** `hcpctl download <COMMAND>`
+
+###### **Subcommands:**
+
+* `config` — Download workspace configuration files (tar.gz)
+
+
+
+## `hcpctl download config`
+
+Download workspace configuration files (tar.gz)
+
+Downloads the Terraform configuration files associated with a workspace's
+current or specified configuration version.
+
+PROCEDURE:
+  1. Resolves workspace by name or ID (auto-discovers organization)
+  2. Fetches configuration version details (current or specified)
+  3. Downloads the configuration archive (tar.gz)
+  4. Saves to specified output file or default name
+
+OUTPUT:
+  By default, saves to: configuration-{cv_id}.tar.gz
+  Use --output to specify a custom path.
+
+EXAMPLES:
+  hcpctl download config my-workspace --org my-org
+  hcpctl download config ws-abc123
+  hcpctl download config my-ws --output ./config.tar.gz
+  hcpctl download config my-ws --cv-id cv-xyz789
+
+**Usage:** `hcpctl download config [OPTIONS] <WORKSPACE>`
+
+**Command Alias:** `cfg`
+
+###### **Arguments:**
+
+* `<WORKSPACE>` — Workspace name or ID (ws-xxx) to download configuration from
+
+   Can be either:
+   - Workspace name (e.g., "my-workspace") - requires --org or auto-discovery
+   - Workspace ID (e.g., "ws-abc123") - organization auto-detected
+
+###### **Options:**
+
+* `-o`, `--org <ORG>` — Organization name (auto-detected if not provided)
+* `--cv-id <CV_ID>` — Specific configuration version ID (default: current/latest)
+
+   If not specified, downloads the most recent uploaded configuration version.
+* `--output <OUTPUT>` — Output file path (default: configuration-{cv_id}.tar.gz)
+
+
 
 ## `hcpctl logs`
 
@@ -591,6 +674,8 @@ Target can be:
 
   Default value: `false`
 
+
+
 ## `hcpctl watch`
 
 Watch resources for changes
@@ -600,6 +685,8 @@ Watch resources for changes
 ###### **Subcommands:**
 
 * `ws` — Watch a workspace for new runs and stream their logs
+
+
 
 ## `hcpctl watch ws`
 
@@ -636,6 +723,8 @@ next run. Logs are prefixed with [run-xxx] by default.
 
   Default value: `false`
 
+
+
 ## `hcpctl invite`
 
 Invite a user to an organization
@@ -652,14 +741,17 @@ Invite a user to an organization
   Default value: `table`
 
   Possible values:
-  * `table`:
+  - `table`:
     ASCII table (default)
-  * `csv`:
+  - `csv`:
     Comma-separated values
-  * `json`:
+  - `json`:
     JSON array
-  * `yaml`:
+  - `yaml`:
     YAML format
+
+
+
 
 ## `hcpctl update`
 
@@ -667,9 +759,12 @@ Update hcpctl to the latest version
 
 **Usage:** `hcpctl update`
 
+
+
 <hr/>
 
 <small><i>
     This document was generated automatically by
     <a href="https://crates.io/crates/clap-markdown"><code>clap-markdown</code></a>.
 </i></small>
+
