@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0](https://github.com/pkodzis/hcpctl/compare/v0.6.0...v0.7.0) (2026-01-26)
+
+
+### Features
+
+* warning & confirmation for lagrge scale data pulling that can result with self-DoS ([#38](https://github.com/pkodzis/hcpctl/issues/38)) ([c7db731](https://github.com/pkodzis/hcpctl/commit/c7db731972f1c2ffe6f67858babb69c3ac3c1392))
+
 ## [0.6.0](https://github.com/pkodzis/hcpctl/compare/v0.5.0...v0.6.0) (2026-01-21)
 
 
