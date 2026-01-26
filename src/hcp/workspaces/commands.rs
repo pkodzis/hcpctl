@@ -3,13 +3,18 @@
 use log::debug;
 
 use crate::cli::{OutputFormat, WsSubresource};
-use crate::hcp::helpers::{collect_org_results, fetch_from_organizations, log_completion};
+use crate::hcp::helpers::{
+    aggregate_pagination_info, collect_org_results, fetch_from_organizations, log_completion,
+};
 use crate::hcp::organizations::resolve_organizations;
 use crate::hcp::workspaces::WorkspaceQuery;
 use crate::hcp::TfeClient;
 use crate::output::{output_raw, output_results_sorted};
-use crate::ui::{create_spinner, finish_spinner, finish_spinner_with_status};
-use crate::{Cli, Command, GetResource, Workspace};
+use crate::ui::{
+    confirm_large_pagination, create_spinner, finish_spinner, finish_spinner_with_status,
+    LargePaginationInfo,
+};
+use crate::{Cli, Command, GetResource, TfeError, Workspace};
 
 /// Run the workspace list command
 pub async fn run_ws_command(
@@ -68,6 +73,53 @@ pub async fn run_ws_command(
         None
     };
 
+    let filter = args.filter.as_deref();
+    let project_id_ref = project_id.as_deref();
+
+    // Phase 1: Prefetch pagination info from all orgs to check scale
+    let prefetch_spinner = create_spinner(
+        &format!(
+            "Checking scale across {} organization(s)...",
+            organizations.len()
+        ),
+        cli.batch,
+    );
+
+    let pagination_results = fetch_from_organizations(organizations.clone(), |org| async move {
+        let query = WorkspaceQuery {
+            search: filter,
+            project_id: project_id_ref,
+        };
+        match client
+            .prefetch_workspaces_pagination_info(&org, query)
+            .await
+        {
+            Ok(info) => Ok(info),
+            Err(e) => Err((org, e)),
+        }
+    })
+    .await;
+
+    // Collect pagination info (ignoring errors - they'll be caught in main fetch)
+    let pagination_infos: Vec<_> = pagination_results
+        .into_iter()
+        .filter_map(|r| r.ok())
+        .collect();
+
+    finish_spinner(prefetch_spinner);
+
+    // Aggregate and check threshold
+    let aggregated = aggregate_pagination_info(pagination_infos);
+
+    if aggregated.total_count > 0 {
+        let info = LargePaginationInfo::from_aggregated(&aggregated, "workspaces");
+
+        if info.exceeds_threshold() && !confirm_large_pagination(&info, cli.batch) {
+            return Err(Box::new(TfeError::UserCancelled));
+        }
+    }
+
+    // Phase 2: Fetch all workspaces (user confirmed or under threshold)
     let spinner = create_spinner(
         &format!(
             "Fetching workspaces from {} organization(s)...",
@@ -75,10 +127,6 @@ pub async fn run_ws_command(
         ),
         cli.batch,
     );
-
-    // Fetch workspaces from all orgs in parallel
-    let filter = args.filter.as_deref();
-    let project_id_ref = project_id.as_deref();
 
     let results = fetch_from_organizations(organizations, |org| async move {
         let query = WorkspaceQuery {

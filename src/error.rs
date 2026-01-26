@@ -19,6 +19,8 @@ pub enum TfeError {
     Config(String),
     /// IO error (file operations)
     Io { message: String },
+    /// User cancelled the operation (e.g., declined large result set warning)
+    UserCancelled,
 }
 
 impl fmt::Display for TfeError {
@@ -34,6 +36,7 @@ impl fmt::Display for TfeError {
             TfeError::Json(msg) => write!(f, "JSON error: {}", msg),
             TfeError::Config(msg) => write!(f, "Configuration error: {}", msg),
             TfeError::Io { message } => write!(f, "IO error: {}", message),
+            TfeError::UserCancelled => write!(f, "Operation cancelled by user"),
         }
     }
 }
@@ -165,5 +168,11 @@ mod tests {
         };
         assert!(err.to_string().contains("IO error"));
         assert!(err.to_string().contains("Failed to write file"));
+    }
+
+    #[test]
+    fn test_user_cancelled_display() {
+        let err = TfeError::UserCancelled;
+        assert!(err.to_string().contains("cancelled"));
     }
 }

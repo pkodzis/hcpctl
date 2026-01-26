@@ -4,9 +4,29 @@ use log::debug;
 
 use crate::config::api;
 use crate::error::{Result, TfeError};
-use crate::hcp::TfeClient;
+use crate::hcp::{PaginationInfo, TfeClient};
 
 use super::models::{Workspace, WorkspaceQuery, WorkspacesResponse};
+
+/// Build the API path for workspaces with optional query params
+fn build_workspaces_path(org: &str, query: &WorkspaceQuery<'_>) -> String {
+    let mut path = format!("/{}/{}/{}", api::ORGANIZATIONS, org, api::WORKSPACES);
+
+    let mut query_parts = Vec::new();
+    if let Some(s) = query.search {
+        query_parts.push(format!("search[name]={}", urlencoding::encode(s)));
+    }
+    if let Some(prj) = query.project_id {
+        query_parts.push(format!("filter[project][id]={}", urlencoding::encode(prj)));
+    }
+
+    if !query_parts.is_empty() {
+        path.push('?');
+        path.push_str(&query_parts.join("&"));
+    }
+
+    path
+}
 
 impl TfeClient {
     /// Get workspaces for an organization with optional filters
@@ -19,21 +39,7 @@ impl TfeClient {
         org: &str,
         query: WorkspaceQuery<'_>,
     ) -> Result<Vec<Workspace>> {
-        // Build path with optional query params
-        let mut path = format!("/{}/{}/{}", api::ORGANIZATIONS, org, api::WORKSPACES);
-
-        let mut query_parts = Vec::new();
-        if let Some(s) = query.search {
-            query_parts.push(format!("search[name]={}", urlencoding::encode(s)));
-        }
-        if let Some(prj) = query.project_id {
-            query_parts.push(format!("filter[project][id]={}", urlencoding::encode(prj)));
-        }
-
-        if !query_parts.is_empty() {
-            path.push('?');
-            path.push_str(&query_parts.join("&"));
-        }
+        let path = build_workspaces_path(org, &query);
 
         let error_context = format!(
             "workspaces for organization '{}' (search: {:?}, project: {:?})",
@@ -41,6 +47,21 @@ impl TfeClient {
         );
 
         self.fetch_all_pages::<Workspace, WorkspacesResponse>(&path, &error_context)
+            .await
+    }
+
+    /// Prefetch pagination info for workspaces without fetching all data
+    ///
+    /// Use this to check the scale of an operation before committing to full fetch.
+    pub async fn prefetch_workspaces_pagination_info(
+        &self,
+        org: &str,
+        query: WorkspaceQuery<'_>,
+    ) -> Result<Option<PaginationInfo>> {
+        let path = build_workspaces_path(org, &query);
+        let error_context = format!("workspaces pagination info for organization '{}'", org);
+
+        self.prefetch_pagination_info::<Workspace, WorkspacesResponse>(&path, &error_context)
             .await
     }
 

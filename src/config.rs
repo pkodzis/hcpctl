@@ -20,6 +20,14 @@ pub mod api {
 
     /// Default page size for API requests
     pub const DEFAULT_PAGE_SIZE: u32 = 100;
+
+    /// Maximum concurrent requests for parallel pagination
+    /// Keep reasonable to avoid overwhelming TFE and hitting rate limits
+    pub const MAX_CONCURRENT_PAGE_REQUESTS: usize = 10;
+
+    /// Threshold for large result set warning (requires confirmation)
+    /// Fetching more than this many items triggers a DoS warning
+    pub const LARGE_RESULT_THRESHOLD: u32 = 1000;
 }
 
 /// Configuration constants for credentials
@@ -105,6 +113,16 @@ mod tests {
     #[test]
     fn test_default_page_size() {
         assert_eq!(api::DEFAULT_PAGE_SIZE, 100);
+    }
+
+    #[test]
+    fn test_max_concurrent_page_requests() {
+        assert_eq!(api::MAX_CONCURRENT_PAGE_REQUESTS, 10);
+    }
+
+    #[test]
+    fn test_large_result_threshold() {
+        assert_eq!(api::LARGE_RESULT_THRESHOLD, 1000);
     }
 
     #[test]

@@ -66,6 +66,41 @@ pub fn log_completion(had_errors: bool) {
     }
 }
 
+/// Aggregated pagination info across multiple organizations
+#[derive(Debug, Clone)]
+pub struct AggregatedPaginationInfo {
+    /// Total items across all organizations
+    pub total_count: u32,
+    /// Number of organizations with data
+    pub org_count: usize,
+    /// Estimated number of API calls needed
+    pub estimated_api_calls: u32,
+}
+
+/// Aggregate pagination info from multiple results
+///
+/// Takes pagination info from multiple organizations and returns aggregate stats.
+/// Ignores None values (orgs with no pagination info).
+pub fn aggregate_pagination_info(
+    results: Vec<Option<crate::hcp::PaginationInfo>>,
+) -> AggregatedPaginationInfo {
+    let mut total_count: u32 = 0;
+    let mut org_count: usize = 0;
+    let mut estimated_api_calls: u32 = 0;
+
+    for info in results.into_iter().flatten() {
+        total_count += info.total_count;
+        org_count += 1;
+        estimated_api_calls += info.total_pages;
+    }
+
+    AggregatedPaginationInfo {
+        total_count,
+        org_count,
+        estimated_api_calls,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -163,5 +198,67 @@ mod tests {
                 .await;
 
         assert!(results.is_empty());
+    }
+
+    #[test]
+    fn test_aggregate_pagination_info_multiple_orgs() {
+        let results = vec![
+            Some(crate::hcp::PaginationInfo {
+                total_count: 1000,
+                total_pages: 10,
+            }),
+            Some(crate::hcp::PaginationInfo {
+                total_count: 2000,
+                total_pages: 20,
+            }),
+            Some(crate::hcp::PaginationInfo {
+                total_count: 500,
+                total_pages: 5,
+            }),
+        ];
+
+        let agg = aggregate_pagination_info(results);
+        assert_eq!(agg.total_count, 3500);
+        assert_eq!(agg.org_count, 3);
+        assert_eq!(agg.estimated_api_calls, 35);
+    }
+
+    #[test]
+    fn test_aggregate_pagination_info_with_nones() {
+        let results = vec![
+            Some(crate::hcp::PaginationInfo {
+                total_count: 1000,
+                total_pages: 10,
+            }),
+            None,
+            Some(crate::hcp::PaginationInfo {
+                total_count: 500,
+                total_pages: 5,
+            }),
+            None,
+        ];
+
+        let agg = aggregate_pagination_info(results);
+        assert_eq!(agg.total_count, 1500);
+        assert_eq!(agg.org_count, 2);
+        assert_eq!(agg.estimated_api_calls, 15);
+    }
+
+    #[test]
+    fn test_aggregate_pagination_info_empty() {
+        let results: Vec<Option<crate::hcp::PaginationInfo>> = vec![];
+        let agg = aggregate_pagination_info(results);
+        assert_eq!(agg.total_count, 0);
+        assert_eq!(agg.org_count, 0);
+        assert_eq!(agg.estimated_api_calls, 0);
+    }
+
+    #[test]
+    fn test_aggregate_pagination_info_all_nones() {
+        let results = vec![None, None, None];
+        let agg = aggregate_pagination_info(results);
+        assert_eq!(agg.total_count, 0);
+        assert_eq!(agg.org_count, 0);
+        assert_eq!(agg.estimated_api_calls, 0);
     }
 }
