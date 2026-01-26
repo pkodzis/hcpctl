@@ -57,8 +57,9 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     let token_resolver = TokenResolver::new(&host);
     let token = token_resolver.resolve(cli.token.as_deref())?;
 
-    // Create TFE client
-    let client = TfeClient::new(token, host);
+    // Create TFE client with batch mode setting
+    let mut client = TfeClient::new(token, host);
+    client.set_batch_mode(cli.batch);
 
     let result = match &cli.command {
         Command::Get { resource } => match resource {

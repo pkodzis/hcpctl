@@ -21,10 +21,13 @@ pub mod workspaces;
 
 use serde::Deserialize;
 
-pub use client::TfeClient;
+pub use client::{PaginationInfo, TfeClient};
 pub use configuration_versions::run_download_config_command;
 pub use credentials::TokenResolver;
-pub use helpers::{collect_org_results, fetch_from_organizations, log_completion};
+pub use helpers::{
+    aggregate_pagination_info, collect_org_results, fetch_from_organizations, log_completion,
+    AggregatedPaginationInfo,
+};
 pub use host::HostResolver;
 pub use logs::run_logs_command;
 pub use oauth_clients::{run_oc_command, OAuthClient, OAuthClientAttributes, OAuthToken};
