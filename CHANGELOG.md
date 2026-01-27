@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.1](https://github.com/pkodzis/hcpctl/compare/v0.7.0...v0.7.1) (2026-01-27)
+
+
+### Bug Fixes
+
+* updated help ([#40](https://github.com/pkodzis/hcpctl/issues/40)) ([639366c](https://github.com/pkodzis/hcpctl/commit/639366c73483c24cd3a3aae214d663b762a64152))
+
 ## [0.7.0](https://github.com/pkodzis/hcpctl/compare/v0.6.0...v0.7.0) (2026-01-26)
 
 
