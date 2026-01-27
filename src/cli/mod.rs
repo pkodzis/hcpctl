@@ -58,7 +58,7 @@ EXAMPLES:
 #[command(name = "hcpctl")]
 #[command(version)]
 #[command(about = "Explore HCP Terraform / Terraform Enterprise resources")]
-#[command(after_long_help = AFTER_LONG_HELP)]
+#[command(after_help = AFTER_LONG_HELP)]
 #[command(propagate_version = true)]
 pub struct Cli {
     #[command(subcommand)]
