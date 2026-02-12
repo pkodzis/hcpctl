@@ -142,29 +142,31 @@ pub async fn run_purge_state_command(
             "No state download URL available. The workspace may have no state or use remote state storage.",
         )?;
 
-    // Show critical warning - ALWAYS (--batch is ignored for this command)
-    println!("{}", PURGE_WARNING);
+    // Show critical warning and require confirmation
+    // Skipped only with --my-resume-is-updated flag
+    if !args.my_resume_is_updated {
+        println!("{}", PURGE_WARNING);
 
-    // Confirmation prompt - ALWAYS required (--batch and -y are ignored)
-    print!(
-        "Type the workspace ID '{}' to confirm purge: ",
-        workspace_id
-    );
-    io::stdout().flush()?;
-
-    let mut input = String::new();
-    io::stdin().read_line(&mut input)?;
-    let input = input.trim();
-
-    if input != workspace_id {
-        println!(
-            "\nAborted. Input '{}' does not match '{}'.",
-            input, workspace_id
+        print!(
+            "Type the workspace ID '{}' to confirm purge: ",
+            workspace_id
         );
-        return Ok(());
-    }
+        io::stdout().flush()?;
 
-    println!();
+        let mut input = String::new();
+        io::stdin().read_line(&mut input)?;
+        let input = input.trim();
+
+        if input != workspace_id {
+            println!(
+                "\nAborted. Input '{}' does not match '{}'.",
+                input, workspace_id
+            );
+            return Ok(());
+        }
+
+        println!();
+    }
 
     // Step 1: Lock workspace
     let spinner = create_spinner(&format!("Locking workspace {}...", workspace_id), cli.batch);

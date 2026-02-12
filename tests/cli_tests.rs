@@ -740,6 +740,38 @@ fn test_purge_state_requires_workspace_id() {
     );
 }
 
+/// Test that 'purge state --my-resume-is-updated' flag is accepted
+#[test]
+fn test_purge_state_my_resume_is_updated_flag_accepted() {
+    // The flag should be parsed without error (will fail on missing token, not on parsing)
+    let output = Command::new(hcpctl_bin())
+        .args(["purge", "state", "ws-test123", "--my-resume-is-updated"])
+        .output()
+        .unwrap();
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    // Should NOT fail on unrecognized flag
+    assert!(
+        !stderr.contains("unexpected argument"),
+        "Flag --my-resume-is-updated should be accepted"
+    );
+}
+
+/// Test that 'purge state --my-resume-is-updated' flag is visible in help
+#[test]
+fn test_purge_state_my_resume_is_updated_flag_in_help() {
+    let output = Command::new(hcpctl_bin())
+        .args(["purge", "state", "--help"])
+        .output()
+        .unwrap();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("my-resume-is-updated"),
+        "Flag --my-resume-is-updated should be visible in help"
+    );
+}
+
 /// Test that 'purge run' subcommand help shows expected options
 #[test]
 fn test_purge_run_help_flag() {

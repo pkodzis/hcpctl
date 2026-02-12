@@ -728,4 +728,51 @@ mod tests {
         let cli = Cli::parse_from(["hcp", "log", "run-abc123"]);
         assert!(matches!(cli.command, Command::Logs(_)));
     }
+
+    #[test]
+    fn test_purge_state_parses_workspace_id() {
+        let cli = Cli::parse_from(["hcp", "purge", "state", "ws-abc123"]);
+        match cli.command {
+            Command::Purge {
+                resource: PurgeResource::State(args),
+            } => {
+                assert_eq!(args.workspace_id, "ws-abc123");
+                assert!(!args.my_resume_is_updated);
+            }
+            _ => panic!("Expected Purge State command"),
+        }
+    }
+
+    #[test]
+    fn test_purge_state_my_resume_is_updated_flag() {
+        let cli = Cli::parse_from([
+            "hcp",
+            "purge",
+            "state",
+            "ws-abc123",
+            "--my-resume-is-updated",
+        ]);
+        match cli.command {
+            Command::Purge {
+                resource: PurgeResource::State(args),
+            } => {
+                assert_eq!(args.workspace_id, "ws-abc123");
+                assert!(args.my_resume_is_updated);
+            }
+            _ => panic!("Expected Purge State command"),
+        }
+    }
+
+    #[test]
+    fn test_purge_state_my_resume_is_updated_defaults_to_false() {
+        let cli = Cli::parse_from(["hcp", "purge", "state", "ws-test"]);
+        match cli.command {
+            Command::Purge {
+                resource: PurgeResource::State(args),
+            } => {
+                assert!(!args.my_resume_is_updated);
+            }
+            _ => panic!("Expected Purge State command"),
+        }
+    }
 }
