@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0](https://github.com/pkodzis/hcpctl/compare/v0.7.1...v0.8.0) (2026-02-12)
+
+
+### Features
+
+* batch mode for purge state ([#42](https://github.com/pkodzis/hcpctl/issues/42)) ([8b94e57](https://github.com/pkodzis/hcpctl/commit/8b94e57feb899409597f69b9b4a159dda2fa83fa))
+
 ## [0.7.1](https://github.com/pkodzis/hcpctl/compare/v0.7.0...v0.7.1) (2026-01-27)
 
 
