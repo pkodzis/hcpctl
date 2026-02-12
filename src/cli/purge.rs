@@ -22,7 +22,7 @@ pub enum PurgeResource {
     ///   8. UNLOCKS the workspace (always, even on error)
     ///
     /// SAFETY:
-    ///   - ALWAYS requires interactive confirmation (--batch is ignored)
+    ///   - Requires interactive confirmation by default (--batch is ignored)
     ///   - Requires exact workspace ID (ws-xxx), NOT workspace name
     ///   - Workspace is locked during the entire operation
     ///   - If upload fails, workspace is still unlocked
@@ -80,6 +80,10 @@ pub struct PurgeStateArgs {
     /// You can find the workspace ID using: hcpctl get ws NAME --org ORG -o json
     #[arg(verbatim_doc_comment)]
     pub workspace_id: String,
+
+    /// Batch mode - no interactive prompts, no spinners
+    #[arg(long)]
+    pub my_resume_is_updated: bool,
 }
 
 /// Arguments for 'purge run' subcommand

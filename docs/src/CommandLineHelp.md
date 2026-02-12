@@ -507,7 +507,7 @@ PROCEDURE:
   8. UNLOCKS the workspace (always, even on error)
 
 SAFETY:
-  - ALWAYS requires interactive confirmation (--batch is ignored)
+  - Requires interactive confirmation by default (--batch is ignored)
   - Requires exact workspace ID (ws-xxx), NOT workspace name
   - Workspace is locked during the entire operation
   - If upload fails, workspace is still unlocked
@@ -524,7 +524,7 @@ WARNING:
   Cloud resources will continue to exist but will no longer be
   tracked by Terraform.
 
-**Usage:** `hcpctl purge state <WORKSPACE_ID>`
+**Usage:** `hcpctl purge state [OPTIONS] <WORKSPACE_ID>`
 
 ###### **Arguments:**
 
@@ -532,6 +532,10 @@ WARNING:
 
    Must be the exact workspace ID, not the workspace name.
    You can find the workspace ID using: hcpctl get ws NAME --org ORG -o json
+
+###### **Options:**
+
+* `--my-resume-is-updated` — Batch mode - no interactive prompts, no spinners
 
 
 
