@@ -687,17 +687,19 @@ pub async fn run_purge_run_command(
 
     println!();
 
-    // Confirmation prompt
-    print!("{}Do you want to continue? (yes/no): ", dry_run_prefix);
-    io::stdout().flush()?;
+    // Confirmation prompt (skipped in batch mode)
+    if !cli.batch {
+        print!("{}Do you want to continue? (yes/no): ", dry_run_prefix);
+        io::stdout().flush()?;
 
-    let mut input = String::new();
-    io::stdin().read_line(&mut input)?;
-    let input = input.trim().to_lowercase();
+        let mut input = String::new();
+        io::stdin().read_line(&mut input)?;
+        let input = input.trim().to_lowercase();
 
-    if input != "yes" && input != "y" {
-        println!("\nAborted.");
-        return Ok(());
+        if input != "yes" && input != "y" {
+            println!("\nAborted.");
+            return Ok(());
+        }
     }
 
     println!();
