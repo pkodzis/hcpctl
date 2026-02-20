@@ -84,7 +84,7 @@ fn output_json(teams: &[Team]) {
 
 fn output_yaml(teams: &[Team]) {
     let serializable: Vec<SerializableTeam> = teams.iter().map(SerializableTeam::from).collect();
-    println!("{}", serde_yaml::to_string(&serializable).unwrap());
+    println!("{}", serde_yml::to_string(&serializable).unwrap());
 }
 
 #[cfg(test)]
@@ -133,7 +133,7 @@ mod tests {
         let teams = [create_test_team("team-1", "devs", 3, "secret")];
         let serializable: Vec<SerializableTeam> =
             teams.iter().map(SerializableTeam::from).collect();
-        let yaml = serde_yaml::to_string(&serializable).unwrap();
+        let yaml = serde_yml::to_string(&serializable).unwrap();
 
         assert!(yaml.contains("id: team-1"));
         assert!(yaml.contains("name: devs"));

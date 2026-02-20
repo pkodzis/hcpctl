@@ -24,6 +24,8 @@ This document contains the help content for the `hcpctl` command-line program.
 * [`hcpctl watch`↴](#hcpctl-watch)
 * [`hcpctl watch ws`↴](#hcpctl-watch-ws)
 * [`hcpctl invite`↴](#hcpctl-invite)
+* [`hcpctl set`↴](#hcpctl-set)
+* [`hcpctl set ws`↴](#hcpctl-set-ws)
 * [`hcpctl update`↴](#hcpctl-update)
 
 ## `hcpctl`
@@ -62,6 +64,7 @@ EXAMPLES:
 * `logs` — View logs for a run (plan or apply)
 * `watch` — Watch resources for changes
 * `invite` — Invite a user to an organization
+* `set` — Set resource properties (assign workspace to project, etc.)
 * `update` — Update hcpctl to the latest version
 
 ###### **Options:**
@@ -754,6 +757,40 @@ Invite a user to an organization
   - `yaml`:
     YAML format
 
+
+
+
+## `hcpctl set`
+
+Set resource properties (assign workspace to project, etc.)
+
+**Usage:** `hcpctl set <COMMAND>`
+
+###### **Subcommands:**
+
+* `ws` — Assign workspace to a project
+
+
+
+## `hcpctl set ws`
+
+Assign workspace to a project
+
+**Usage:** `hcpctl set hcpctl set ws [OPTIONS] <WORKSPACE> --prj <PROJECT>`
+
+**Command Aliases:** `workspace`, `workspaces`
+
+###### **Arguments:**
+
+* `<WORKSPACE>` — Workspace name or ID (ws-xxx)
+
+###### **Options:**
+
+* `-p`, `--prj <PROJECT>` — Target project name or ID (prj-xxx)
+* `--org <ORG>` — Organization name (auto-discovered when using workspace ID)
+* `-y`, `--yes` — Skip confirmation prompt
+
+  Default value: `false`
 
 
 

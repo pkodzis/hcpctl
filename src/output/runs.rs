@@ -120,7 +120,7 @@ fn output_json(runs: &[Run]) {
 
 fn output_yaml(runs: &[Run]) {
     let data: Vec<SerializableRun> = runs.iter().map(SerializableRun::from).collect();
-    println!("{}", serde_yaml::to_string(&data).unwrap());
+    println!("{}", serde_yml::to_string(&data).unwrap());
 }
 
 /// Output run events in the specified format
@@ -134,7 +134,7 @@ pub fn output_run_events(
         OutputFormat::Table => output_events_table(events, no_header),
         OutputFormat::Csv => output_events_csv(events, no_header),
         OutputFormat::Json => println!("{}", serde_json::to_string_pretty(raw).unwrap()),
-        OutputFormat::Yaml => println!("{}", serde_yaml::to_string(raw).unwrap()),
+        OutputFormat::Yaml => println!("{}", serde_yml::to_string(raw).unwrap()),
     }
 }
 
@@ -191,7 +191,7 @@ pub fn output_plan(plan: &Plan, format: &OutputFormat, no_header: bool, raw: &se
         OutputFormat::Table => output_plan_table(plan, no_header),
         OutputFormat::Csv => output_plan_csv(plan, no_header),
         OutputFormat::Json => println!("{}", serde_json::to_string_pretty(raw).unwrap()),
-        OutputFormat::Yaml => println!("{}", serde_yaml::to_string(raw).unwrap()),
+        OutputFormat::Yaml => println!("{}", serde_yml::to_string(raw).unwrap()),
     }
 }
 
@@ -254,7 +254,7 @@ pub fn output_apply(
         OutputFormat::Table => output_apply_table(apply, no_header),
         OutputFormat::Csv => output_apply_csv(apply, no_header),
         OutputFormat::Json => println!("{}", serde_json::to_string_pretty(raw).unwrap()),
-        OutputFormat::Yaml => println!("{}", serde_yaml::to_string(raw).unwrap()),
+        OutputFormat::Yaml => println!("{}", serde_yml::to_string(raw).unwrap()),
     }
 }
 

@@ -248,7 +248,7 @@ fn output_json(projects: &[ProjectRow], show_ws: bool, show_details: bool) {
 
 fn output_yaml(projects: &[ProjectRow], show_ws: bool, show_details: bool) {
     let data = build_serializable_projects(projects, show_ws, show_details);
-    println!("{}", serde_yaml::to_string(&data).unwrap());
+    println!("{}", serde_yml::to_string(&data).unwrap());
 }
 
 #[cfg(test)]

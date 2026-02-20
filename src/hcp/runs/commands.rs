@@ -14,7 +14,7 @@ use crate::hcp::traits::TfeResource;
 use crate::hcp::workspaces::{extract_current_run_id, resolve_workspace};
 use crate::hcp::TfeClient;
 use crate::output::{output_apply, output_plan, output_raw, output_run_events, output_runs};
-use crate::ui::{create_spinner, finish_spinner};
+use crate::ui::{confirm_action, create_spinner, finish_spinner};
 use crate::{Cli, Command, GetResource};
 
 /// Maximum results before requiring user confirmation
@@ -688,18 +688,10 @@ pub async fn run_purge_run_command(
     println!();
 
     // Confirmation prompt (skipped in batch mode)
-    if !cli.batch {
-        print!("{}Do you want to continue? (yes/no): ", dry_run_prefix);
-        io::stdout().flush()?;
-
-        let mut input = String::new();
-        io::stdin().read_line(&mut input)?;
-        let input = input.trim().to_lowercase();
-
-        if input != "yes" && input != "y" {
-            println!("\nAborted.");
-            return Ok(());
-        }
+    let prompt = format!("{}Do you want to continue?", dry_run_prefix);
+    if !confirm_action(&prompt, cli.batch)? {
+        println!("\nAborted.");
+        return Ok(());
     }
 
     println!();

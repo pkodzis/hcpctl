@@ -21,7 +21,7 @@ pub fn output_raw(raw: &serde_json::Value, format: &OutputFormat) {
             println!("{}", serde_json::to_string_pretty(data).unwrap());
         }
         OutputFormat::Yaml => {
-            println!("{}", serde_yaml::to_string(data).unwrap());
+            println!("{}", serde_yml::to_string(data).unwrap());
         }
         _ => unreachable!("output_raw should only be called for JSON/YAML formats"),
     }

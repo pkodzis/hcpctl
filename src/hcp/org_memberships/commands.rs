@@ -6,7 +6,7 @@ use crate::cli::OutputFormat;
 use crate::hcp::helpers::fetch_from_organizations;
 use crate::hcp::TfeClient;
 use crate::output::org_memberships::output_org_memberships;
-use crate::ui::{create_spinner, finish_spinner};
+use crate::ui::{confirm_action, create_spinner, finish_spinner};
 use crate::{Cli, Command, DeleteOrgMemberArgs, GetResource, InviteArgs};
 
 /// Run the get org-member command
@@ -215,7 +215,7 @@ fn output_single_membership(
                 "created_at": m.created_at(),
                 "teams": m.team_ids()
             });
-            println!("{}", serde_yaml::to_string(&output)?);
+            println!("{}", serde_yml::to_string(&output)?);
         }
         OutputFormat::Csv | OutputFormat::Table => {
             let memberships = vec![(org.to_string(), m.clone())];
@@ -278,24 +278,18 @@ pub async fn run_delete_org_member_command(
     };
 
     // Confirm deletion - show email and org if available for better readability
-    if !args.yes && !cli.batch {
-        let confirm_msg = if let (Some(email), Some(org)) = (&resolved_email, &resolved_org) {
-            format!(
-                "Delete membership for '{}' from organization '{}'? [y/N] ",
-                email, org
-            )
-        } else {
-            format!("Delete membership {}? [y/N] ", membership_id)
-        };
-        print!("{}", confirm_msg);
-        use std::io::{self, Write};
-        io::stdout().flush()?;
-        let mut input = String::new();
-        io::stdin().read_line(&mut input)?;
-        if !input.trim().eq_ignore_ascii_case("y") {
-            println!("Cancelled");
-            return Ok(());
-        }
+    let prompt = if let (Some(email), Some(org)) = (&resolved_email, &resolved_org) {
+        format!(
+            "Delete membership for '{}' from organization '{}'?",
+            email, org
+        )
+    } else {
+        format!("Delete membership {}?", membership_id)
+    };
+
+    if !confirm_action(&prompt, args.yes || cli.batch)? {
+        println!("Cancelled");
+        return Ok(());
     }
 
     let spinner = create_spinner(

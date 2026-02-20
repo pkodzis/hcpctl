@@ -7,6 +7,7 @@ use crate::hcp::helpers::{
     aggregate_pagination_info, collect_org_results, fetch_from_organizations, log_completion,
 };
 use crate::hcp::organizations::resolve_organizations;
+use crate::hcp::projects::resolve_project;
 use crate::hcp::workspaces::WorkspaceQuery;
 use crate::hcp::TfeClient;
 use crate::output::{output_raw, output_results_sorted};
@@ -50,22 +51,8 @@ pub async fn run_ws_command(
     // Resolve project filter if specified
     let project_id = if let Some(prj_input) = &args.prj {
         if let Some(org) = &args.org {
-            // Use appropriate method based on whether it's an ID or name
-            let project = if prj_input.starts_with("prj-") {
-                client.get_project_by_id(prj_input).await?
-            } else {
-                client.get_project_by_name(org, prj_input).await?
-            };
-            match project {
-                Some((p, _raw)) => Some(p.id),
-                None => {
-                    return Err(format!(
-                        "Project '{}' not found in organization '{}'",
-                        prj_input, org
-                    )
-                    .into());
-                }
-            }
+            let resolved = resolve_project(client, prj_input, org, cli.batch).await?;
+            Some(resolved.project.id)
         } else {
             return Err("Project filter requires an organization to be specified".into());
         }

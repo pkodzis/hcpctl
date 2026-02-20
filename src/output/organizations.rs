@@ -121,7 +121,7 @@ fn output_json(orgs: &[OrganizationWithTokens]) {
 
 fn output_yaml(orgs: &[OrganizationWithTokens]) {
     let data: Vec<SerializableOrganization> = orgs.iter().map(|o| o.into()).collect();
-    println!("{}", serde_yaml::to_string(&data).unwrap());
+    println!("{}", serde_yml::to_string(&data).unwrap());
 }
 
 #[cfg(test)]

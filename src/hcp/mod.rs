@@ -39,15 +39,18 @@ pub use organizations::{
     resolve_organizations, run_org_command, Organization, OrganizationAttributes,
     OrganizationWithTokens,
 };
-pub use projects::{run_prj_command, Project, ProjectAttributes, ProjectWorkspaces};
+pub use projects::{
+    resolve_project, run_prj_command, Project, ProjectAttributes, ProjectWorkspaces,
+    ResolvedProject,
+};
 pub use runs::{run_purge_run_command, run_runs_command, Run, RunAttributes};
 pub use state::run_purge_state_command;
 pub use teams::{run_team_command, Team, TeamAttributes};
 pub use traits::{PaginatedResponse, TfeResource};
 pub use watch::run_watch_ws_command;
 pub use workspaces::{
-    extract_current_run_id, resolve_workspace, run_ws_command, ResolvedWorkspace, Workspace,
-    WorkspaceAttributes, WorkspaceTarget,
+    extract_current_run_id, resolve_workspace, run_set_ws_command, run_ws_command,
+    ResolvedWorkspace, Workspace, WorkspaceAttributes, WorkspaceTarget,
 };
 
 /// Pagination metadata from TFE API (shared across resources)
