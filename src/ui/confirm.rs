@@ -58,6 +58,31 @@ impl LargePaginationInfo {
     }
 }
 
+/// Prompt user to confirm an action with [y/N]
+///
+/// Returns `true` if user confirms, `false` if user declines.
+/// In batch/yes mode (skip_prompt=true), always returns `true` (auto-confirms).
+///
+/// # Arguments
+/// * `message` - The prompt message (will be followed by " [y/N] ")
+/// * `skip_prompt` - If true, skip the prompt and return true (for --yes/--batch)
+pub fn confirm_action(
+    message: &str,
+    skip_prompt: bool,
+) -> Result<bool, Box<dyn std::error::Error>> {
+    if skip_prompt {
+        return Ok(true);
+    }
+
+    print!("{} [y/N] ", message);
+    io::stdout().flush()?;
+
+    let mut input = String::new();
+    io::stdin().read_line(&mut input)?;
+
+    Ok(input.trim().eq_ignore_ascii_case("y"))
+}
+
 /// Prompt user to confirm a large pagination operation
 ///
 /// Returns `true` if user confirms, `false` if user declines.
@@ -211,5 +236,12 @@ mod tests {
         let info = LargePaginationInfo::new(5000, 50, "test");
         // In batch mode, should always return false
         assert!(!confirm_large_pagination(&info, true));
+    }
+
+    #[test]
+    fn test_confirm_action_skip_prompt() {
+        // When skip_prompt is true, should auto-confirm without reading stdin
+        let result = confirm_action("Delete everything?", true).unwrap();
+        assert!(result);
     }
 }

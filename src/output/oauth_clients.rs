@@ -148,7 +148,7 @@ fn output_json(clients: &[OAuthClientRow]) {
 
 fn output_yaml(clients: &[OAuthClientRow]) {
     let data = build_serializable_clients(clients);
-    println!("{}", serde_yaml::to_string(&data).unwrap());
+    println!("{}", serde_yml::to_string(&data).unwrap());
 }
 
 #[cfg(test)]

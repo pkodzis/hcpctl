@@ -15,6 +15,7 @@ mod get;
 mod invite;
 mod logs;
 mod purge;
+mod set;
 mod watch;
 
 use clap::{Parser, Subcommand};
@@ -30,6 +31,7 @@ pub use get::{GetResource, OcArgs, OrgArgs, OrgMemberArgs, PrjArgs, RunArgs, Tea
 pub use invite::InviteArgs;
 pub use logs::LogsArgs;
 pub use purge::{PurgeResource, PurgeRunArgs, PurgeStateArgs};
+pub use set::{SetResource, SetWsArgs};
 pub use watch::{WatchResource, WatchWsArgs};
 
 const AFTER_LONG_HELP: &str = r#"HOST RESOLUTION:
@@ -136,6 +138,12 @@ pub enum Command {
 
     /// Invite a user to an organization
     Invite(InviteArgs),
+
+    /// Set resource properties (assign workspace to project, etc.)
+    Set {
+        #[command(subcommand)]
+        resource: SetResource,
+    },
 
     /// Update hcpctl to the latest version
     Update,
@@ -774,5 +782,143 @@ mod tests {
             }
             _ => panic!("Expected Purge State command"),
         }
+    }
+
+    // === Set ws tests ===
+
+    #[test]
+    fn test_set_ws_with_ids() {
+        let cli = Cli::parse_from(["hcp", "set", "ws", "ws-abc123", "--prj", "prj-xyz789"]);
+        match cli.command {
+            Command::Set {
+                resource: SetResource::Ws(args),
+            } => {
+                assert_eq!(args.workspace, "ws-abc123");
+                assert_eq!(args.project, "prj-xyz789");
+                assert!(args.org.is_none());
+                assert!(!args.yes);
+            }
+            _ => panic!("Expected Set Ws command"),
+        }
+    }
+
+    #[test]
+    fn test_set_ws_with_names() {
+        let cli = Cli::parse_from([
+            "hcp",
+            "set",
+            "ws",
+            "my-workspace",
+            "--prj",
+            "my-project",
+            "--org",
+            "my-org",
+        ]);
+        match cli.command {
+            Command::Set {
+                resource: SetResource::Ws(args),
+            } => {
+                assert_eq!(args.workspace, "my-workspace");
+                assert_eq!(args.project, "my-project");
+                assert_eq!(args.org, Some("my-org".to_string()));
+                assert!(!args.yes);
+            }
+            _ => panic!("Expected Set Ws command"),
+        }
+    }
+
+    #[test]
+    fn test_set_ws_with_yes_flag() {
+        let cli = Cli::parse_from(["hcp", "set", "ws", "ws-abc123", "--prj", "prj-xyz789", "-y"]);
+        match cli.command {
+            Command::Set {
+                resource: SetResource::Ws(args),
+            } => {
+                assert!(args.yes);
+            }
+            _ => panic!("Expected Set Ws command"),
+        }
+    }
+
+    #[test]
+    fn test_set_ws_with_yes_long_flag() {
+        let cli = Cli::parse_from([
+            "hcp",
+            "set",
+            "ws",
+            "ws-abc123",
+            "--prj",
+            "prj-xyz789",
+            "--yes",
+        ]);
+        match cli.command {
+            Command::Set {
+                resource: SetResource::Ws(args),
+            } => {
+                assert!(args.yes);
+            }
+            _ => panic!("Expected Set Ws command"),
+        }
+    }
+
+    #[test]
+    fn test_set_ws_short_prj_flag() {
+        let cli = Cli::parse_from(["hcp", "set", "ws", "ws-abc123", "-p", "prj-xyz789"]);
+        match cli.command {
+            Command::Set {
+                resource: SetResource::Ws(args),
+            } => {
+                assert_eq!(args.project, "prj-xyz789");
+            }
+            _ => panic!("Expected Set Ws command"),
+        }
+    }
+
+    #[test]
+    fn test_set_ws_alias_workspace() {
+        let cli = Cli::parse_from([
+            "hcp",
+            "set",
+            "workspace",
+            "ws-abc123",
+            "--prj",
+            "prj-xyz789",
+        ]);
+        assert!(matches!(
+            cli.command,
+            Command::Set {
+                resource: SetResource::Ws(_)
+            }
+        ));
+    }
+
+    #[test]
+    fn test_set_ws_alias_workspaces() {
+        let cli = Cli::parse_from([
+            "hcp",
+            "set",
+            "workspaces",
+            "ws-abc123",
+            "--prj",
+            "prj-xyz789",
+        ]);
+        assert!(matches!(
+            cli.command,
+            Command::Set {
+                resource: SetResource::Ws(_)
+            }
+        ));
+    }
+
+    #[test]
+    fn test_set_ws_requires_workspace() {
+        let result = Cli::try_parse_from(["hcp", "set", "ws", "--prj", "prj-xyz789"]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_set_ws_requires_prj() {
+        let result = Cli::try_parse_from(["hcp", "set", "ws", "ws-abc123"]);
+        assert!(result.is_err());
     }
 }

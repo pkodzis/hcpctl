@@ -114,7 +114,6 @@ impl TfeClient {
     }
 
     /// Create a PATCH request builder with standard headers
-    #[allow(dead_code)]
     pub(crate) fn patch(&self, url: &str) -> reqwest::RequestBuilder {
         self.with_headers(self.client.patch(url))
     }

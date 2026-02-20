@@ -144,7 +144,7 @@ fn output_json(rows: &[WorkspaceRow]) {
 
 fn output_yaml(rows: &[WorkspaceRow]) {
     let data: Vec<SerializableWorkspace> = rows.iter().map(SerializableWorkspace::from).collect();
-    println!("{}", serde_yaml::to_string(&data).unwrap());
+    println!("{}", serde_yml::to_string(&data).unwrap());
 }
 
 #[cfg(test)]

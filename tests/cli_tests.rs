@@ -949,3 +949,113 @@ fn test_download_config_target_types_documented() {
         "Should document workspace name option"
     );
 }
+
+// ===== Set command tests =====
+
+/// Test set help flag
+#[test]
+fn test_set_help_flag() {
+    let output = Command::new(hcpctl_bin())
+        .args(["set", "--help"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("ws") || stdout.contains("workspace"),
+        "Should show ws subcommand in set help"
+    );
+}
+
+/// Test set ws help flag
+#[test]
+fn test_set_ws_help_flag() {
+    let output = Command::new(hcpctl_bin())
+        .args(["set", "ws", "--help"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    assert!(
+        stdout.contains("--prj") || stdout.contains("project"),
+        "Should document --prj flag"
+    );
+    assert!(stdout.contains("--org"), "Should document --org option");
+    assert!(
+        stdout.contains("--yes") || stdout.contains("-y"),
+        "Should document --yes/-y flag"
+    );
+    assert!(
+        stdout.contains("ws-"),
+        "Should document workspace ID format"
+    );
+    assert!(stdout.contains("prj-"), "Should document project ID format");
+}
+
+/// Test set ws requires workspace argument
+#[test]
+fn test_set_ws_requires_workspace() {
+    let output = Command::new(hcpctl_bin())
+        .args(["set", "ws", "--prj", "prj-123"])
+        .env("TFE_TOKEN", "fake-token")
+        .env("TFE_HOSTNAME", "fake.host.com")
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("WORKSPACE") || stderr.contains("required"),
+        "Should indicate workspace is required"
+    );
+}
+
+/// Test set ws requires --prj argument
+#[test]
+fn test_set_ws_requires_prj() {
+    let output = Command::new(hcpctl_bin())
+        .args(["set", "ws", "ws-abc123"])
+        .env("TFE_TOKEN", "fake-token")
+        .env("TFE_HOSTNAME", "fake.host.com")
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("--prj") || stderr.contains("required"),
+        "Should indicate --prj is required"
+    );
+}
+
+/// Test set ws workspace alias works
+#[test]
+fn test_set_ws_alias() {
+    let output = Command::new(hcpctl_bin())
+        .args(["set", "workspace", "--help"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("--prj"),
+        "workspace alias should show same help as ws"
+    );
+}
+
+/// Test main help shows set command
+#[test]
+fn test_main_help_shows_set() {
+    let output = Command::new(hcpctl_bin()).arg("--help").output().unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("set") || stdout.contains("Set"),
+        "Should show set command in main help"
+    );
+}
