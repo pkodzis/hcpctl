@@ -63,7 +63,7 @@ impl TfeClient {
                     status: 422,
                     message: format!(
                         "Cannot assign workspace '{}' to project '{}': {}. \
-                         Note: you must have admin permissions on both the current and destination project.",
+                         Hint: you need admin permissions on both the source and destination project",
                         workspace_id, project_id, body
                     ),
                 })
