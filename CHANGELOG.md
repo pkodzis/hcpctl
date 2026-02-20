@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.1](https://github.com/pkodzis/hcpctl/compare/v0.8.0...v0.8.1) (2026-02-17)
+
+
+### Bug Fixes
+
+* missing --batch support in 'purge run' ([#44](https://github.com/pkodzis/hcpctl/issues/44)) ([e0b258c](https://github.com/pkodzis/hcpctl/commit/e0b258c97ca809cfc25d9ac4ced188470fa4baea))
+
 ## [0.8.0](https://github.com/pkodzis/hcpctl/compare/v0.7.1...v0.8.0) (2026-02-12)
 
 
