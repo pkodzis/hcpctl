@@ -2,26 +2,7 @@
 
 use serde::Deserialize;
 
-use crate::hcp::traits::{PaginatedResponse, TfeResource};
-use crate::hcp::PaginationMeta;
-
-/// Response wrapper for projects list
-#[derive(Deserialize, Debug)]
-pub struct ProjectsResponse {
-    pub data: Vec<Project>,
-    #[serde(default)]
-    pub meta: Option<PaginationMeta>,
-}
-
-impl PaginatedResponse<Project> for ProjectsResponse {
-    fn into_data(self) -> Vec<Project> {
-        self.data
-    }
-
-    fn meta(&self) -> Option<&PaginationMeta> {
-        self.meta.as_ref()
-    }
-}
+use crate::hcp::traits::TfeResource;
 
 /// Project data from TFE API
 #[derive(Deserialize, Debug, Clone)]
@@ -212,7 +193,8 @@ mod tests {
             ]
         }"#;
 
-        let response: ProjectsResponse = serde_json::from_str(json).unwrap();
+        let response: crate::hcp::traits::ApiListResponse<Project> =
+            serde_json::from_str(json).unwrap();
         assert_eq!(response.data.len(), 2);
         assert_eq!(response.data[0].name(), "project-1");
         assert_eq!(response.data[1].name(), "project-2");

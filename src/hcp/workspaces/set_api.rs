@@ -89,14 +89,6 @@ mod tests {
     use wiremock::matchers::{body_json, method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
-    fn create_test_client(base_url: &str) -> TfeClient {
-        TfeClient::with_base_url(
-            "test-token".to_string(),
-            "mock.terraform.io".to_string(),
-            base_url.to_string(),
-        )
-    }
-
     fn workspace_response(ws_id: &str, ws_name: &str, prj_id: &str) -> serde_json::Value {
         serde_json::json!({
             "data": {
@@ -140,7 +132,7 @@ mod tests {
     #[tokio::test]
     async fn test_assign_workspace_to_project_success() {
         let mock_server = MockServer::start().await;
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         Mock::given(method("PATCH"))
             .and(path("/workspaces/ws-abc123"))
@@ -167,7 +159,7 @@ mod tests {
     #[tokio::test]
     async fn test_assign_workspace_to_project_not_found() {
         let mock_server = MockServer::start().await;
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         Mock::given(method("PATCH"))
             .and(path("/workspaces/ws-notfound"))
@@ -193,7 +185,7 @@ mod tests {
     #[tokio::test]
     async fn test_assign_workspace_to_project_forbidden() {
         let mock_server = MockServer::start().await;
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         Mock::given(method("PATCH"))
             .and(path("/workspaces/ws-abc123"))
@@ -220,7 +212,7 @@ mod tests {
     #[tokio::test]
     async fn test_assign_workspace_to_project_server_error() {
         let mock_server = MockServer::start().await;
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         Mock::given(method("PATCH"))
             .and(path("/workspaces/ws-abc123"))
@@ -245,7 +237,7 @@ mod tests {
     #[tokio::test]
     async fn test_assign_workspace_to_project_unprocessable() {
         let mock_server = MockServer::start().await;
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         Mock::given(method("PATCH"))
             .and(path("/workspaces/ws-abc123"))

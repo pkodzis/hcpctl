@@ -124,6 +124,26 @@ impl TfeClient {
         self.with_headers(self.client.delete(url))
     }
 
+    /// Parse an API response, returning error for non-success status codes
+    ///
+    /// Simplifies the common pattern of checking status and parsing JSON.
+    pub(crate) async fn parse_api_response<T>(
+        &self,
+        response: reqwest::Response,
+        error_context: &str,
+    ) -> Result<T>
+    where
+        T: serde::de::DeserializeOwned,
+    {
+        if !response.status().is_success() {
+            return Err(TfeError::Api {
+                status: response.status().as_u16(),
+                message: format!("Failed to fetch {}", error_context),
+            });
+        }
+        Ok(response.json().await?)
+    }
+
     /// Fetch all pages from a paginated API endpoint with parallel fetching
     ///
     /// This method fetches page 1 first to learn total_pages, then fetches
@@ -182,16 +202,9 @@ impl TfeClient {
 
         let response = self.get(&first_page_url).send().await?;
 
-        if !response.status().is_success() {
-            return Err(TfeError::Api {
-                status: response.status().as_u16(),
-                message: format!("Failed to fetch {}", error_context),
-            });
-        }
+        let first_resp: R = self.parse_api_response(response, error_context).await?;
 
-        let resp: R = response.json().await?;
-
-        match resp.meta() {
+        match first_resp.meta() {
             Some(m) => match &m.pagination {
                 Some(p) => Ok(Some(PaginationInfo {
                     total_count: p.total_count,
@@ -200,6 +213,48 @@ impl TfeClient {
                 None => Ok(None),
             },
             None => Ok(None),
+        }
+    }
+
+    /// Fetch a single resource by API path
+    ///
+    /// Generic helper that handles the common pattern of:
+    /// - GET a resource by path
+    /// - Parse JSON response into typed model + raw JSON
+    /// - Return None for 404
+    /// - Return error for other non-success status codes
+    ///
+    /// # Arguments
+    /// * `path` - API path (e.g., "/workspaces/ws-abc123")
+    /// * `resource_label` - Human-readable label for error messages (e.g., "workspace 'ws-abc123'")
+    pub async fn fetch_resource_by_path<T>(
+        &self,
+        path: &str,
+        resource_label: &str,
+    ) -> Result<Option<(T, serde_json::Value)>>
+    where
+        T: serde::de::DeserializeOwned,
+    {
+        let url = format!("{}{}", self.base_url(), path);
+        debug!("Fetching {} from: {}", resource_label, url);
+
+        let response = self.get(&url).send().await?;
+
+        match response.status().as_u16() {
+            200 => {
+                let raw: serde_json::Value = response.json().await?;
+                let item: T =
+                    serde_json::from_value(raw["data"].clone()).map_err(|e| TfeError::Api {
+                        status: 200,
+                        message: format!("Failed to parse {}: {}", resource_label, e),
+                    })?;
+                Ok(Some((item, raw)))
+            }
+            404 => Ok(None),
+            status => Err(TfeError::Api {
+                status,
+                message: format!("Failed to fetch {}", resource_label),
+            }),
         }
     }
 
@@ -229,14 +284,7 @@ impl TfeClient {
 
         let response = self.get(&first_page_url).send().await?;
 
-        if !response.status().is_success() {
-            return Err(TfeError::Api {
-                status: response.status().as_u16(),
-                message: format!("Failed to fetch {}", error_context),
-            });
-        }
-
-        let first_resp: R = response.json().await?;
+        let first_resp: R = self.parse_api_response(response, error_context).await?;
         let meta = first_resp.meta().cloned();
         let mut all_items = first_resp.into_data();
 
@@ -323,18 +371,27 @@ impl TfeClient {
 
         let response = self.get(&url).send().await?;
 
-        if !response.status().is_success() {
-            return Err(TfeError::Api {
-                status: response.status().as_u16(),
-                message: format!("Failed to fetch {} (page {})", error_context, page_num),
-            });
-        }
-
-        let resp: R = response.json().await?;
+        let page_context = format!("{} (page {})", error_context, page_num);
+        let resp: R = self.parse_api_response(response, &page_context).await?;
         let items = resp.into_data();
 
         debug!("Page {} returned {} items", page_num, items.len());
         Ok((page_num, items))
+    }
+}
+
+#[cfg(test)]
+impl TfeClient {
+    /// Create a test client with mock base URL
+    ///
+    /// Convenience method to replace the `create_test_client` boilerplate
+    /// that was duplicated across 15+ test modules.
+    pub fn test_client(base_url: &str) -> Self {
+        Self::with_base_url(
+            "test-token".to_string(),
+            "mock.terraform.io".to_string(),
+            base_url.to_string(),
+        )
     }
 }
 
@@ -435,14 +492,6 @@ mod pagination_tests {
         }
     }
 
-    fn create_test_client(base_url: &str) -> TfeClient {
-        TfeClient::with_base_url(
-            "test-token".to_string(),
-            "mock.terraform.io".to_string(),
-            base_url.to_string(),
-        )
-    }
-
     fn test_item_json(id: &str, name: &str) -> serde_json::Value {
         serde_json::json!({
             "id": id,
@@ -453,7 +502,7 @@ mod pagination_tests {
     #[tokio::test]
     async fn test_fetch_all_pages_single_page() {
         let mock_server = MockServer::start().await;
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         let response_body = serde_json::json!({
             "data": [
@@ -490,7 +539,7 @@ mod pagination_tests {
     #[tokio::test]
     async fn test_fetch_all_pages_multiple_pages_parallel() {
         let mock_server = MockServer::start().await;
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         // Page 1
         Mock::given(method("GET"))
@@ -572,7 +621,7 @@ mod pagination_tests {
     #[tokio::test]
     async fn test_fetch_all_pages_no_pagination_meta() {
         let mock_server = MockServer::start().await;
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         // Response without pagination meta
         let response_body = serde_json::json!({
@@ -600,7 +649,7 @@ mod pagination_tests {
     #[tokio::test]
     async fn test_fetch_all_pages_api_error_on_first_page() {
         let mock_server = MockServer::start().await;
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         Mock::given(method("GET"))
             .and(path("/test-items"))
@@ -622,7 +671,7 @@ mod pagination_tests {
     #[tokio::test]
     async fn test_fetch_all_pages_api_error_on_subsequent_page() {
         let mock_server = MockServer::start().await;
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         // Page 1 succeeds
         Mock::given(method("GET"))
@@ -666,7 +715,7 @@ mod pagination_tests {
     #[tokio::test]
     async fn test_fetch_all_pages_with_existing_query_params() {
         let mock_server = MockServer::start().await;
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         let response_body = serde_json::json!({
             "data": [test_item_json("item-1", "Filtered Item")],
@@ -704,7 +753,7 @@ mod pagination_tests {
     #[tokio::test]
     async fn test_fetch_all_pages_empty_result() {
         let mock_server = MockServer::start().await;
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         let response_body = serde_json::json!({
             "data": [],

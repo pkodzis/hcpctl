@@ -55,14 +55,6 @@ mod tests {
     use wiremock::matchers::{method, path, query_param};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
-    fn create_test_client(base_url: &str) -> TfeClient {
-        TfeClient::with_base_url(
-            "test-token".to_string(),
-            "mock.terraform.io".to_string(),
-            base_url.to_string(),
-        )
-    }
-
     fn project_response(prj_id: &str, prj_name: &str) -> serde_json::Value {
         serde_json::json!({
             "data": {
@@ -106,7 +98,7 @@ mod tests {
     #[tokio::test]
     async fn test_resolve_project_by_id() {
         let mock_server = MockServer::start().await;
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         Mock::given(method("GET"))
             .and(path("/projects/prj-abc123"))
@@ -128,7 +120,7 @@ mod tests {
     #[tokio::test]
     async fn test_resolve_project_by_name() {
         let mock_server = MockServer::start().await;
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         // First call: list projects to find by name
         Mock::given(method("GET"))
@@ -164,7 +156,7 @@ mod tests {
     #[tokio::test]
     async fn test_resolve_project_by_id_not_found() {
         let mock_server = MockServer::start().await;
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         Mock::given(method("GET"))
             .and(path("/projects/prj-notfound"))
@@ -181,7 +173,7 @@ mod tests {
     #[tokio::test]
     async fn test_resolve_project_by_name_not_found() {
         let mock_server = MockServer::start().await;
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         Mock::given(method("GET"))
             .and(path("/organizations/my-org/projects"))

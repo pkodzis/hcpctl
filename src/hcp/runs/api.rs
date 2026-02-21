@@ -44,14 +44,9 @@ impl TfeClient {
 
             let response = self.get(&url).send().await?;
 
-            if !response.status().is_success() {
-                return Err(TfeError::Api {
-                    status: response.status().as_u16(),
-                    message: format!("Failed to fetch runs for workspace '{}'", workspace_id),
-                });
-            }
-
-            let runs_response: RunsResponse = response.json().await?;
+            let runs_response: RunsResponse = self
+                .parse_api_response(response, &format!("runs for workspace '{}'", workspace_id))
+                .await?;
             let run_count = runs_response.data.len();
             all_runs.extend(runs_response.data);
 
@@ -146,14 +141,9 @@ impl TfeClient {
 
             let response = self.get(&url).send().await?;
 
-            if !response.status().is_success() {
-                return Err(TfeError::Api {
-                    status: response.status().as_u16(),
-                    message: format!("Failed to fetch runs for organization '{}'", org),
-                });
-            }
-
-            let runs_response: RunsResponse = response.json().await?;
+            let runs_response: RunsResponse = self
+                .parse_api_response(response, &format!("runs for organization '{}'", org))
+                .await?;
             let run_count = runs_response.data.len();
             all_runs.extend(runs_response.data);
 
@@ -195,26 +185,9 @@ impl TfeClient {
 
     /// Get a single run by ID
     pub async fn get_run_by_id(&self, run_id: &str) -> Result<Option<(Run, serde_json::Value)>> {
-        let url = format!("{}/{}/{}", self.base_url(), api::RUNS, run_id);
-
-        debug!("Fetching run by ID: {}", url);
-
-        let response = self.get(&url).send().await?;
-
-        if response.status().as_u16() == 404 {
-            return Ok(None);
-        }
-
-        if !response.status().is_success() {
-            return Err(TfeError::Api {
-                status: response.status().as_u16(),
-                message: format!("Failed to fetch run '{}'", run_id),
-            });
-        }
-
-        let raw: serde_json::Value = response.json().await?;
-        let run: Run = serde_json::from_value(raw["data"].clone())?;
-        Ok(Some((run, raw)))
+        let path = format!("/{}/{}", api::RUNS, run_id);
+        self.fetch_resource_by_path::<Run>(&path, &format!("run '{}'", run_id))
+            .await
     }
 
     /// Helper to append run query parameters to URL
@@ -247,14 +220,9 @@ impl TfeClient {
 
         let response = self.get(&url).send().await?;
 
-        if !response.status().is_success() {
-            return Err(TfeError::Api {
-                status: response.status().as_u16(),
-                message: format!("Failed to fetch plan for run '{}'", run_id),
-            });
-        }
-
-        let plan_response: super::models::PlanResponse = response.json().await?;
+        let plan_response: super::models::PlanResponse = self
+            .parse_api_response(response, &format!("plan for run '{}'", run_id))
+            .await?;
         Ok(plan_response.data)
     }
 
@@ -266,14 +234,9 @@ impl TfeClient {
 
         let response = self.get(&url).send().await?;
 
-        if !response.status().is_success() {
-            return Err(TfeError::Api {
-                status: response.status().as_u16(),
-                message: format!("Failed to fetch apply for run '{}'", run_id),
-            });
-        }
-
-        let apply_response: super::models::ApplyResponse = response.json().await?;
+        let apply_response: super::models::ApplyResponse = self
+            .parse_api_response(response, &format!("apply for run '{}'", run_id))
+            .await?;
         Ok(apply_response.data)
     }
 
@@ -360,14 +323,6 @@ mod tests {
     use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
-    fn create_test_client(base_url: &str) -> TfeClient {
-        TfeClient::with_base_url(
-            "test-token".to_string(),
-            "mock.terraform.io".to_string(),
-            base_url.to_string(),
-        )
-    }
-
     fn sample_runs_response() -> serde_json::Value {
         serde_json::json!({
             "data": [
@@ -414,7 +369,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_runs_for_workspace_success() {
         let mock_server = MockServer::start().await;
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         Mock::given(method("GET"))
             .and(path("/workspaces/ws-test123/runs"))
@@ -437,7 +392,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_runs_for_organization_success() {
         let mock_server = MockServer::start().await;
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         Mock::given(method("GET"))
             .and(path("/organizations/my-org/runs"))
@@ -458,7 +413,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_runs_with_workspace_names_filter() {
         let mock_server = MockServer::start().await;
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         Mock::given(method("GET"))
             .and(path("/organizations/my-org/runs"))
@@ -480,7 +435,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_run_by_id_success() {
         let mock_server = MockServer::start().await;
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         let run_response = serde_json::json!({
             "data": {
@@ -512,7 +467,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_run_by_id_not_found() {
         let mock_server = MockServer::start().await;
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         Mock::given(method("GET"))
             .and(path("/runs/run-notfound"))
@@ -529,7 +484,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_runs_api_error() {
         let mock_server = MockServer::start().await;
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         Mock::given(method("GET"))
             .and(path("/workspaces/ws-test123/runs"))
@@ -548,7 +503,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_runs_max_results() {
         let mock_server = MockServer::start().await;
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         // Response with multiple runs
         let response = serde_json::json!({
@@ -586,7 +541,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_run_plan_success() {
         let mock_server = MockServer::start().await;
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         let plan_response = serde_json::json!({
             "data": {
@@ -626,7 +581,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_run_plan_error() {
         let mock_server = MockServer::start().await;
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         Mock::given(method("GET"))
             .and(path("/runs/run-notfound/plan"))
@@ -641,7 +596,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_run_apply_success() {
         let mock_server = MockServer::start().await;
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         let apply_response = serde_json::json!({
             "data": {
@@ -678,7 +633,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_run_apply_error() {
         let mock_server = MockServer::start().await;
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         Mock::given(method("GET"))
             .and(path("/runs/run-notfound/apply"))
@@ -702,7 +657,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
         let log_url = format!("{}/v1/object/testlog", mock_server.uri());
 
         let result = client.get_log_content(&log_url).await;
@@ -723,7 +678,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
         let result = client.cancel_run("run-abc123").await;
 
         assert!(result.is_ok());
@@ -742,7 +697,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
         let result = client.cancel_run("run-abc123").await;
 
         assert!(result.is_err());
@@ -758,7 +713,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
         let result = client.discard_run("run-xyz789").await;
 
         assert!(result.is_ok());
@@ -777,7 +732,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
         let result = client.discard_run("run-xyz789").await;
 
         assert!(result.is_err());
@@ -793,7 +748,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
         let result = client.cancel_run("run-notfound").await;
 
         assert!(result.is_err());

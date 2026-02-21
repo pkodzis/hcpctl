@@ -6,6 +6,7 @@ pub mod org_memberships;
 mod organizations;
 mod projects;
 mod runs;
+mod tags;
 mod teams;
 mod workspaces;
 
@@ -14,6 +15,10 @@ pub use oauth_clients::output_oauth_clients;
 pub use organizations::output_organizations;
 pub use projects::output_projects;
 pub use runs::{output_apply, output_plan, output_run_events, output_runs};
+pub use tags::{
+    output_org_tags, output_org_tags_with_workspaces, output_tag_bindings,
+    output_workspace_all_tags,
+};
 pub use teams::output_teams;
 pub use workspaces::WorkspaceRow;
 

@@ -12,6 +12,13 @@ pub enum SetResource {
         override_usage = "hcpctl set ws [OPTIONS] <WORKSPACE> --prj <PROJECT>"
     )]
     Ws(SetWsArgs),
+
+    /// Set tag bindings on a workspace or project
+    #[command(visible_alias = "tags")]
+    Tag {
+        #[command(subcommand)]
+        resource: super::tag::SetTagResource,
+    },
 }
 
 /// Arguments for 'set ws' subcommand

@@ -139,12 +139,12 @@ fn output_csv(rows: &[WorkspaceRow], no_header: bool) {
 
 fn output_json(rows: &[WorkspaceRow]) {
     let data: Vec<SerializableWorkspace> = rows.iter().map(SerializableWorkspace::from).collect();
-    println!("{}", serde_json::to_string_pretty(&data).unwrap());
+    super::common::print_json(&data);
 }
 
 fn output_yaml(rows: &[WorkspaceRow]) {
     let data: Vec<SerializableWorkspace> = rows.iter().map(SerializableWorkspace::from).collect();
-    println!("{}", serde_yml::to_string(&data).unwrap());
+    super::common::print_yaml(&data);
 }
 
 #[cfg(test)]

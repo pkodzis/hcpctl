@@ -6,7 +6,8 @@ use crate::config::api;
 use crate::error::{Result, TfeError};
 use crate::hcp::TfeClient;
 
-use super::models::{Team, TeamResponse, TeamsResponse};
+use super::models::Team;
+use crate::hcp::traits::ApiListResponse;
 
 impl TfeClient {
     /// Get all teams for an organization (with pagination)
@@ -14,33 +15,15 @@ impl TfeClient {
         let path = format!("/{}/{}/{}", api::ORGANIZATIONS, org, api::TEAMS);
         let error_context = format!("teams for organization '{}'", org);
 
-        self.fetch_all_pages::<Team, TeamsResponse>(&path, &error_context)
+        self.fetch_all_pages::<Team, ApiListResponse<Team>>(&path, &error_context)
             .await
     }
 
     /// Get a team by ID
     pub async fn get_team(&self, team_id: &str) -> Result<Option<(Team, serde_json::Value)>> {
-        let url = format!("{}/{}/{}", self.base_url(), api::TEAMS, team_id);
-        debug!("Fetching team by ID: {}", url);
-
-        let response = self.get(&url).send().await?;
-
-        match response.status().as_u16() {
-            200 => {
-                let raw: serde_json::Value = response.json().await?;
-                let team_response: TeamResponse =
-                    serde_json::from_value(raw.clone()).map_err(|e| TfeError::Api {
-                        status: 200,
-                        message: format!("Failed to parse team: {}", e),
-                    })?;
-                Ok(Some((team_response.data, raw)))
-            }
-            404 => Ok(None),
-            status => Err(TfeError::Api {
-                status,
-                message: format!("Failed to fetch team '{}'", team_id),
-            }),
-        }
+        let path = format!("/{}/{}", api::TEAMS, team_id);
+        self.fetch_resource_by_path::<Team>(&path, &format!("team '{}'", team_id))
+            .await
     }
 
     /// Get a team by name within an organization
@@ -65,8 +48,8 @@ impl TfeClient {
         match response.status().as_u16() {
             200 => {
                 let raw: serde_json::Value = response.json().await?;
-                let teams_response: TeamsResponse =
-                    serde_json::from_value(raw.clone()).map_err(|e| TfeError::Api {
+                let teams_response: ApiListResponse<Team> = serde_json::from_value(raw.clone())
+                    .map_err(|e| TfeError::Api {
                         status: 200,
                         message: format!("Failed to parse teams: {}", e),
                     })?;
@@ -118,14 +101,6 @@ mod tests {
     use wiremock::matchers::{method, path, query_param};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
-    fn create_test_client(base_url: &str) -> TfeClient {
-        TfeClient::with_base_url(
-            "test-token".to_string(),
-            "mock.terraform.io".to_string(),
-            base_url.to_string(),
-        )
-    }
-
     #[tokio::test]
     async fn test_get_teams() {
         let mock_server = MockServer::start().await;
@@ -168,7 +143,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
         let teams = client.get_teams("my-org").await.unwrap();
 
         assert_eq!(teams.len(), 2);
@@ -189,7 +164,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
         let result = client.get_teams("unknown-org").await;
 
         assert!(result.is_err());
@@ -261,7 +236,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
         let teams = client.get_teams("my-org").await.unwrap();
 
         assert_eq!(teams.len(), 2);
@@ -291,7 +266,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
         let result = client.get_team("team-abc").await.unwrap();
 
         assert!(result.is_some());
@@ -310,7 +285,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
         let result = client.get_team("team-unknown").await.unwrap();
 
         assert!(result.is_none());
@@ -338,7 +313,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
         let result = client.get_team_by_name("my-org", "owners").await.unwrap();
 
         assert!(result.is_some());
@@ -360,7 +335,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
         let result = client.get_team_by_name("my-org", "unknown").await.unwrap();
 
         assert!(result.is_none());
@@ -369,7 +344,7 @@ mod tests {
     #[tokio::test]
     async fn test_resolve_team_id_with_id() {
         let mock_server = MockServer::start().await;
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         // When given an ID, should return it directly without API call
         let result = client.resolve_team_id("my-org", "team-abc").await.unwrap();
@@ -397,7 +372,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
         let result = client.resolve_team_id("my-org", "owners").await.unwrap();
 
         assert_eq!(result, Some("team-xyz".to_string()));

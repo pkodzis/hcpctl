@@ -163,6 +163,10 @@ impl RunQuery {
 }
 
 /// Response wrapper for runs list
+///
+/// Kept as a separate type (not `ApiListResponse<Run>`) because runs use
+/// `RunPaginationMeta` with optional `total-count`/`total-pages` fields.
+/// The org endpoint omits these, making the standard `PaginationMeta` incompatible.
 #[derive(Deserialize, Debug)]
 pub struct RunsResponse {
     pub data: Vec<Run>,

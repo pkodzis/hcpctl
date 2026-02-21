@@ -162,14 +162,6 @@ mod tests {
     use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
-    fn create_test_client(base_url: &str) -> TfeClient {
-        TfeClient::with_base_url(
-            "test-token".to_string(),
-            "mock.terraform.io".to_string(),
-            base_url.to_string(),
-        )
-    }
-
     #[tokio::test]
     async fn test_get_current_state_version_success() {
         let mock_server = MockServer::start().await;
@@ -192,7 +184,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
         let result = client.get_current_state_version("ws-123").await;
 
         assert!(result.is_ok());
@@ -211,7 +203,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
         let result = client.get_current_state_version("ws-empty").await;
 
         assert!(result.is_err());
@@ -240,7 +232,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
         let download_url = format!("{}/state-download", mock_server.uri());
         let result = client.download_state(&download_url).await;
 
@@ -268,7 +260,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         let empty_state = EmptyTerraformState {
             version: 4,
@@ -294,7 +286,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         let empty_state = EmptyTerraformState {
             version: 4,

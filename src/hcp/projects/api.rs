@@ -4,12 +4,13 @@ use log::debug;
 use std::collections::HashMap;
 
 use crate::config::api;
-use crate::error::{Result, TfeError};
+use crate::error::Result;
 use crate::hcp::traits::TfeResource;
 use crate::hcp::workspaces::WorkspaceQuery;
 use crate::hcp::TfeClient;
 
-use super::models::{Project, ProjectsResponse};
+use super::models::Project;
+use crate::hcp::traits::ApiListResponse;
 
 impl TfeClient {
     /// Get all projects for an organization (with pagination and optional server-side search)
@@ -26,7 +27,7 @@ impl TfeClient {
 
         let error_context = format!("projects for organization '{}' (search: {:?})", org, search);
 
-        self.fetch_all_pages::<Project, ProjectsResponse>(&path, &error_context)
+        self.fetch_all_pages::<Project, ApiListResponse<Project>>(&path, &error_context)
             .await
     }
 
@@ -36,29 +37,9 @@ impl TfeClient {
         &self,
         project_id: &str,
     ) -> Result<Option<(Project, serde_json::Value)>> {
-        let url = format!("{}/{}/{}", self.base_url(), api::PROJECTS, project_id);
-        debug!("Fetching project directly by ID: {}", url);
-
-        let response = self.get(&url).send().await?;
-
-        match response.status().as_u16() {
-            200 => {
-                // First get raw JSON
-                let raw: serde_json::Value = response.json().await?;
-                // Then deserialize model from the same data
-                let project: Project =
-                    serde_json::from_value(raw["data"].clone()).map_err(|e| TfeError::Api {
-                        status: 200,
-                        message: format!("Failed to parse project: {}", e),
-                    })?;
-                Ok(Some((project, raw)))
-            }
-            404 => Ok(None),
-            status => Err(TfeError::Api {
-                status,
-                message: format!("Failed to fetch project '{}'", project_id),
-            }),
-        }
+        let path = format!("/{}/{}", api::PROJECTS, project_id);
+        self.fetch_resource_by_path::<Project>(&path, &format!("project '{}'", project_id))
+            .await
     }
 
     /// Get a single project by name (requires org)
@@ -103,16 +84,9 @@ impl TfeClient {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::error::TfeError;
     use wiremock::matchers::{method, path, query_param};
     use wiremock::{Mock, MockServer, ResponseTemplate};
-
-    fn create_test_client(base_url: &str) -> TfeClient {
-        TfeClient::with_base_url(
-            "test-token".to_string(),
-            "mock.terraform.io".to_string(),
-            base_url.to_string(),
-        )
-    }
 
     fn project_json(id: &str, name: &str) -> serde_json::Value {
         serde_json::json!({
@@ -127,7 +101,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_projects_success() {
         let mock_server = MockServer::start().await;
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         let response_body = serde_json::json!({
             "data": [
@@ -154,7 +128,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_projects_with_search() {
         let mock_server = MockServer::start().await;
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         let response_body = serde_json::json!({
             "data": [project_json("prj-prod", "production")]
@@ -178,7 +152,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_projects_empty() {
         let mock_server = MockServer::start().await;
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         let response_body = serde_json::json!({ "data": [] });
 
@@ -197,7 +171,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_projects_api_error() {
         let mock_server = MockServer::start().await;
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         Mock::given(method("GET"))
             .and(path("/organizations/my-org/projects"))
@@ -217,7 +191,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_project_by_id_success() {
         let mock_server = MockServer::start().await;
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         let response_body = serde_json::json!({
             "data": project_json("prj-abc123", "my-project")
@@ -240,7 +214,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_project_by_id_not_found() {
         let mock_server = MockServer::start().await;
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         Mock::given(method("GET"))
             .and(path("/projects/prj-nonexistent"))

@@ -52,6 +52,10 @@ pub enum GetResource {
         visible_alias = "orgmembers"
     )]
     OrgMember(OrgMemberArgs),
+
+    /// Get tags (org-level, workspace, or project)
+    #[command(visible_alias = "tags")]
+    Tag(super::tag::GetTagArgs),
 }
 
 /// Arguments for 'get org' subcommand

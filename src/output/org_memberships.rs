@@ -35,7 +35,7 @@ fn output_json(
             })
         })
         .collect();
-    println!("{}", serde_json::to_string_pretty(&output)?);
+    super::common::print_json(&output);
     Ok(())
 }
 
@@ -55,7 +55,7 @@ fn output_yaml(
             })
         })
         .collect();
-    println!("{}", serde_yml::to_string(&output)?);
+    super::common::print_yaml(&output);
     Ok(())
 }
 

@@ -2,26 +2,7 @@
 
 use serde::Deserialize;
 
-use crate::hcp::traits::{PaginatedResponse, TfeResource};
-use crate::hcp::PaginationMeta;
-
-/// Response wrapper for configuration versions list
-#[derive(Deserialize, Debug)]
-pub struct ConfigurationVersionsResponse {
-    pub data: Vec<ConfigurationVersion>,
-    #[serde(default)]
-    pub meta: Option<PaginationMeta>,
-}
-
-impl PaginatedResponse<ConfigurationVersion> for ConfigurationVersionsResponse {
-    fn into_data(self) -> Vec<ConfigurationVersion> {
-        self.data
-    }
-
-    fn meta(&self) -> Option<&PaginationMeta> {
-        self.meta.as_ref()
-    }
-}
+use crate::hcp::traits::TfeResource;
 
 /// Single configuration version response
 #[derive(Deserialize, Debug)]
@@ -222,7 +203,8 @@ mod tests {
             }
         }"#;
 
-        let resp: ConfigurationVersionsResponse = serde_json::from_str(json).unwrap();
+        let resp: crate::hcp::traits::ApiListResponse<ConfigurationVersion> =
+            serde_json::from_str(json).unwrap();
         assert_eq!(resp.data.len(), 1);
         assert_eq!(resp.data[0].id, "cv-abc123");
     }

@@ -115,12 +115,12 @@ fn output_csv(runs: &[Run], no_header: bool) {
 
 fn output_json(runs: &[Run]) {
     let data: Vec<SerializableRun> = runs.iter().map(SerializableRun::from).collect();
-    println!("{}", serde_json::to_string_pretty(&data).unwrap());
+    super::common::print_json(&data);
 }
 
 fn output_yaml(runs: &[Run]) {
     let data: Vec<SerializableRun> = runs.iter().map(SerializableRun::from).collect();
-    println!("{}", serde_yml::to_string(&data).unwrap());
+    super::common::print_yaml(&data);
 }
 
 /// Output run events in the specified format

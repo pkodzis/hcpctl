@@ -243,12 +243,12 @@ fn build_serializable_projects(
 
 fn output_json(projects: &[ProjectRow], show_ws: bool, show_details: bool) {
     let data = build_serializable_projects(projects, show_ws, show_details);
-    println!("{}", serde_json::to_string_pretty(&data).unwrap());
+    super::common::print_json(&data);
 }
 
 fn output_yaml(projects: &[ProjectRow], show_ws: bool, show_details: bool) {
     let data = build_serializable_projects(projects, show_ws, show_details);
-    println!("{}", serde_yml::to_string(&data).unwrap());
+    super::common::print_yaml(&data);
 }
 
 #[cfg(test)]

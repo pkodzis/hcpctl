@@ -2,31 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::hcp::traits::{PaginatedResponse, TfeResource};
-use crate::hcp::PaginationMeta;
-
-/// Response wrapper for teams list
-#[derive(Deserialize, Debug)]
-pub struct TeamsResponse {
-    pub data: Vec<Team>,
-    pub meta: Option<PaginationMeta>,
-}
-
-impl PaginatedResponse<Team> for TeamsResponse {
-    fn into_data(self) -> Vec<Team> {
-        self.data
-    }
-
-    fn meta(&self) -> Option<&PaginationMeta> {
-        self.meta.as_ref()
-    }
-}
-
-/// Response wrapper for single team
-#[derive(Deserialize, Debug)]
-pub struct TeamResponse {
-    pub data: Team,
-}
+use crate::hcp::traits::TfeResource;
 
 /// Team data from TFE API
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -256,7 +232,8 @@ mod tests {
             ]
         }"#;
 
-        let response: TeamsResponse = serde_json::from_str(json).unwrap();
+        let response: crate::hcp::traits::ApiListResponse<Team> =
+            serde_json::from_str(json).unwrap();
         assert_eq!(response.data.len(), 2);
         assert_eq!(response.data[0].name(), "owners");
         assert_eq!(response.data[1].name(), "developers");
