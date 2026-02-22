@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.0](https://github.com/pkodzis/hcpctl/compare/v0.9.0...v0.10.0) (2026-02-22)
+
+
+### Features
+
+* tags support ([#50](https://github.com/pkodzis/hcpctl/issues/50)) ([2f015b5](https://github.com/pkodzis/hcpctl/commit/2f015b557c8ce40834a8bebdd2278e66d4ade122))
+
 ## [0.9.0](https://github.com/pkodzis/hcpctl/compare/v0.8.1...v0.9.0) (2026-02-20)
 
 
