@@ -12,6 +12,13 @@ pub enum DeleteResource {
         visible_alias = "orgmembers"
     )]
     OrgMember(DeleteOrgMemberArgs),
+
+    /// Delete tag bindings from a workspace or project
+    #[command(visible_alias = "tags")]
+    Tag {
+        #[command(subcommand)]
+        resource: super::tag::DeleteTagResource,
+    },
 }
 
 /// Arguments for 'delete org-member' subcommand

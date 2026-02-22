@@ -15,7 +15,7 @@ repos:
     hooks:
       - id: markdownlint
         args: ["--fix"]
-        exclude: CHANGELOG.md|.github/copilot-instructions.md|docs/src/*|
+        exclude: CHANGELOG\.md|AGENTS\.md|\.github/.*\.md|docs/src/.*
 
   - repo: local
     hooks:

@@ -9,9 +9,8 @@ use crate::config::api;
 use crate::error::{Result, TfeError};
 use crate::hcp::TfeClient;
 
-use super::models::{
-    ConfigurationVersion, ConfigurationVersionResponse, ConfigurationVersionsResponse,
-};
+use super::models::{ConfigurationVersion, ConfigurationVersionResponse};
+use crate::hcp::traits::ApiListResponse;
 
 impl TfeClient {
     /// Get configuration versions for a workspace
@@ -29,7 +28,7 @@ impl TfeClient {
         );
         let error_context = format!("configuration versions for workspace '{}'", workspace_id);
 
-        self.fetch_all_pages::<ConfigurationVersion, ConfigurationVersionsResponse>(
+        self.fetch_all_pages::<ConfigurationVersion, ApiListResponse<ConfigurationVersion>>(
             &path,
             &error_context,
         )
@@ -152,14 +151,6 @@ mod tests {
     use wiremock::matchers::{method, path, query_param};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
-    fn create_test_client(base_url: &str) -> TfeClient {
-        TfeClient::with_base_url(
-            "test-token".to_string(),
-            "mock.terraform.io".to_string(),
-            base_url.to_string(),
-        )
-    }
-
     #[tokio::test]
     async fn test_get_configuration_versions() {
         let mock_server = MockServer::start().await;
@@ -208,7 +199,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
         let result = client
             .get_configuration_versions("ws-abc123")
             .await
@@ -248,7 +239,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
         let result = client
             .get_configuration_versions("ws-abc123")
             .await
@@ -284,7 +275,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
         let result = client.get_configuration_version("cv-abc123").await.unwrap();
 
         assert_eq!(result.id, "cv-abc123");
@@ -302,7 +293,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
         let result = client.get_configuration_version("cv-nonexistent").await;
 
         assert!(result.is_err());
@@ -322,7 +313,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
         let temp_dir = tempfile::tempdir().unwrap();
         let output_path = temp_dir.path().join("config.tar.gz");
 
@@ -348,7 +339,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
         let temp_dir = tempfile::tempdir().unwrap();
         let output_path = temp_dir.path().join("config.tar.gz");
 
@@ -371,7 +362,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
         let temp_dir = tempfile::tempdir().unwrap();
         let output_path = temp_dir.path().join("config.tar.gz");
 
@@ -415,7 +406,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
         let result = client
             .get_latest_configuration_version("ws-abc123")
             .await
@@ -447,7 +438,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
         let result = client
             .get_latest_configuration_version("ws-abc123")
             .await

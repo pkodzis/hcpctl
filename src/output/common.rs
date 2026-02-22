@@ -27,6 +27,20 @@ pub fn output_raw(raw: &serde_json::Value, format: &OutputFormat) {
     }
 }
 
+/// Print items as pretty-printed JSON
+///
+/// Generic helper that replaces per-resource `output_json` boilerplate.
+pub fn print_json<T: serde::Serialize>(items: &[T]) {
+    println!("{}", serde_json::to_string_pretty(items).unwrap());
+}
+
+/// Print items as YAML
+///
+/// Generic helper that replaces per-resource `output_yaml` boilerplate.
+pub fn print_yaml<T: serde::Serialize>(items: &[T]) {
+    println!("{}", serde_yml::to_string(items).unwrap());
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

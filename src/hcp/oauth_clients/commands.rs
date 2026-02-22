@@ -132,57 +132,46 @@ async fn get_single_oauth_client(
     );
 
     // Search in all organizations IN PARALLEL
-    use futures::stream::{FuturesUnordered, StreamExt};
-
     let name_owned = name.to_string();
-    let mut futures: FuturesUnordered<_> = organizations
-        .iter()
-        .map(|org_name| {
-            let org = org_name.clone();
-            let oc_name = name_owned.clone();
-            async move {
-                let result = client.get_oauth_clients(&org).await;
-                (org, oc_name, result)
-            }
-        })
-        .collect();
-
-    // Process results as they complete
-    while let Some((org_name, search_name, result)) = futures.next().await {
-        if let Ok(clients) = result {
-            // Find by name match
-            let found: Vec<_> = clients
-                .into_iter()
-                .filter(|c| c.name() == search_name || c.id == search_name)
-                .collect();
-
-            if !found.is_empty() {
-                finish_spinner(spinner);
-
-                // For JSON/YAML with name search, we need to fetch the raw JSON
-                // (we only have the model from list, not raw JSON)
-                if matches!(args.output, OutputFormat::Json | OutputFormat::Yaml) {
-                    // Fetch the first match by ID to get raw JSON
-                    if let Ok((_, raw)) = client.get_oauth_client(&found[0].id).await {
-                        output_raw(&raw, &args.output);
-                        return Ok(());
+    let found = crate::hcp::helpers::search_first_in_orgs(&organizations, |org| {
+        let oc_name = name_owned.clone();
+        async move {
+            match client.get_oauth_clients(&org).await {
+                Ok(clients) => {
+                    let found: Vec<_> = clients
+                        .into_iter()
+                        .filter(|c| c.name() == oc_name || c.id == oc_name)
+                        .collect();
+                    if found.is_empty() {
+                        (org, None)
+                    } else {
+                        (org, Some(found))
                     }
                 }
+                _ => (org, None),
+            }
+        }
+    })
+    .await;
 
-                let all_clients = vec![(org_name, found)];
-                output_oauth_clients(&all_clients, cli);
+    if let Some((org_name, found)) = found {
+        finish_spinner(spinner);
+
+        // For JSON/YAML with name search, we need to fetch the raw JSON
+        // (we only have the model from list, not raw JSON)
+        if matches!(args.output, OutputFormat::Json | OutputFormat::Yaml) {
+            // Fetch the first match by ID to get raw JSON
+            if let Ok((_, raw)) = client.get_oauth_client(&found[0].id).await {
+                output_raw(&raw, &args.output);
                 return Ok(());
             }
         }
+
+        let all_clients = vec![(org_name, found)];
+        output_oauth_clients(&all_clients, cli);
+        return Ok(());
     }
 
     finish_spinner(spinner);
-
-    let searched = if organizations.len() == 1 {
-        format!("organization '{}'", organizations[0])
-    } else {
-        format!("{} organizations", organizations.len())
-    };
-
-    Err(format!("OAuth client '{}' not found in {}", name, searched).into())
+    Err(crate::hcp::helpers::not_found_in_orgs_error("OAuth client", name, &organizations).into())
 }

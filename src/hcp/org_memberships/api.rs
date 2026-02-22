@@ -6,10 +6,8 @@ use crate::config::api;
 use crate::error::{Result, TfeError};
 use crate::hcp::TfeClient;
 
-use super::models::{
-    InviteUserRequest, OrganizationMembership, OrganizationMembershipResponse,
-    OrganizationMembershipsResponse,
-};
+use super::models::{InviteUserRequest, OrganizationMembership, OrganizationMembershipResponse};
+use crate::hcp::traits::ApiListResponse;
 
 impl TfeClient {
     /// Get all organization memberships for an organization (with pagination)
@@ -17,7 +15,7 @@ impl TfeClient {
         let path = format!("/{}/{}/organization-memberships", api::ORGANIZATIONS, org);
         let error_context = format!("organization memberships for '{}'", org);
 
-        self.fetch_all_pages::<OrganizationMembership, OrganizationMembershipsResponse>(
+        self.fetch_all_pages::<OrganizationMembership, ApiListResponse<OrganizationMembership>>(
             &path,
             &error_context,
         )
@@ -44,7 +42,7 @@ impl TfeClient {
 
         match response.status().as_u16() {
             200 => {
-                let memberships: OrganizationMembershipsResponse = response.json().await?;
+                let memberships: ApiListResponse<OrganizationMembership> = response.json().await?;
                 Ok(memberships.data.into_iter().next())
             }
             404 => Ok(None),
@@ -170,14 +168,6 @@ mod tests {
     use wiremock::matchers::{method, path, query_param};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
-    fn create_test_client(base_url: &str) -> TfeClient {
-        TfeClient::with_base_url(
-            "test-token".to_string(),
-            "mock.terraform.io".to_string(),
-            base_url.to_string(),
-        )
-    }
-
     #[tokio::test]
     async fn test_get_org_memberships() {
         let mock_server = MockServer::start().await;
@@ -215,7 +205,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
         let memberships = client.get_org_memberships("my-org").await.unwrap();
 
         assert_eq!(memberships.len(), 2);
@@ -253,7 +243,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
         let membership = client
             .invite_user("my-org", "newuser@example.com", None)
             .await
@@ -299,7 +289,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
         let membership = client
             .invite_user(
                 "my-org",
@@ -333,7 +323,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
         let result = client
             .invite_user("my-org", "existing@example.com", None)
             .await;
@@ -354,7 +344,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
         let result = client.delete_org_membership("ou-todelete").await;
 
         assert!(result.is_ok());
@@ -370,7 +360,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
         let result = client.delete_org_membership("ou-unknown").await;
 
         assert!(result.is_err());
@@ -398,7 +388,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
         let result = client
             .get_org_membership_by_email("my-org", "user@example.com")
             .await
@@ -424,7 +414,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
         let result = client
             .get_org_membership_by_email("my-org", "nobody@example.com")
             .await
@@ -443,7 +433,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
         let result = client
             .get_org_membership_by_email("unknown-org", "user@example.com")
             .await
@@ -505,7 +495,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
         let memberships = client.get_org_memberships("my-org").await.unwrap();
 
         assert_eq!(memberships.len(), 2);

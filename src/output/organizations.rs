@@ -116,12 +116,12 @@ fn output_csv(orgs: &[OrganizationWithTokens], no_header: bool) {
 
 fn output_json(orgs: &[OrganizationWithTokens]) {
     let data: Vec<SerializableOrganization> = orgs.iter().map(|o| o.into()).collect();
-    println!("{}", serde_json::to_string_pretty(&data).unwrap());
+    super::common::print_json(&data);
 }
 
 fn output_yaml(orgs: &[OrganizationWithTokens]) {
     let data: Vec<SerializableOrganization> = orgs.iter().map(|o| o.into()).collect();
-    println!("{}", serde_yml::to_string(&data).unwrap());
+    super::common::print_yaml(&data);
 }
 
 #[cfg(test)]

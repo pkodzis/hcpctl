@@ -2,27 +2,6 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::hcp::traits::PaginatedResponse;
-use crate::hcp::PaginationMeta;
-
-/// Response wrapper for organization memberships list
-#[derive(Deserialize, Debug)]
-pub struct OrganizationMembershipsResponse {
-    pub data: Vec<OrganizationMembership>,
-    #[serde(default)]
-    pub meta: Option<PaginationMeta>,
-}
-
-impl PaginatedResponse<OrganizationMembership> for OrganizationMembershipsResponse {
-    fn into_data(self) -> Vec<OrganizationMembership> {
-        self.data
-    }
-
-    fn meta(&self) -> Option<&PaginationMeta> {
-        self.meta.as_ref()
-    }
-}
-
 /// Response wrapper for single organization membership
 #[derive(Deserialize, Debug)]
 pub struct OrganizationMembershipResponse {

@@ -16,6 +16,7 @@ mod invite;
 mod logs;
 mod purge;
 mod set;
+mod tag;
 mod watch;
 
 use clap::{Parser, Subcommand};
@@ -32,6 +33,10 @@ pub use invite::InviteArgs;
 pub use logs::LogsArgs;
 pub use purge::{PurgeResource, PurgeRunArgs, PurgeStateArgs};
 pub use set::{SetResource, SetWsArgs};
+pub use tag::{
+    classify_tags, parse_tags, DeleteTagPrjArgs, DeleteTagResource, DeleteTagWsArgs, GetTagArgs,
+    GetTagPrjArgs, GetTagResource, GetTagWsArgs, SetTagPrjArgs, SetTagResource, SetTagWsArgs,
+};
 pub use watch::{WatchResource, WatchWsArgs};
 
 const AFTER_LONG_HELP: &str = r#"HOST RESOLUTION:
@@ -919,6 +924,373 @@ mod tests {
     #[test]
     fn test_set_ws_requires_prj() {
         let result = Cli::try_parse_from(["hcp", "set", "ws", "ws-abc123"]);
+        assert!(result.is_err());
+    }
+
+    // === Set tag tests ===
+
+    #[test]
+    fn test_set_tag_ws() {
+        let cli = Cli::parse_from([
+            "hcp",
+            "set",
+            "tag",
+            "ws",
+            "ws-abc123",
+            "env=prod",
+            "team=backend",
+        ]);
+        match cli.command {
+            Command::Set {
+                resource:
+                    SetResource::Tag {
+                        resource: tag::SetTagResource::Ws(args),
+                    },
+            } => {
+                assert_eq!(args.workspace, "ws-abc123");
+                assert_eq!(args.tags, vec!["env=prod", "team=backend"]);
+                assert!(args.org.is_none());
+                assert!(!args.yes);
+            }
+            _ => panic!("Expected Set Tag Ws command"),
+        }
+    }
+
+    #[test]
+    fn test_set_tag_ws_with_org_and_yes() {
+        let cli = Cli::parse_from([
+            "hcp",
+            "set",
+            "tag",
+            "ws",
+            "my-workspace",
+            "env=prod",
+            "--org",
+            "my-org",
+            "-y",
+        ]);
+        match cli.command {
+            Command::Set {
+                resource:
+                    SetResource::Tag {
+                        resource: tag::SetTagResource::Ws(args),
+                    },
+            } => {
+                assert_eq!(args.workspace, "my-workspace");
+                assert_eq!(args.tags, vec!["env=prod"]);
+                assert_eq!(args.org, Some("my-org".to_string()));
+                assert!(args.yes);
+            }
+            _ => panic!("Expected Set Tag Ws command"),
+        }
+    }
+
+    #[test]
+    fn test_set_tag_prj() {
+        let cli = Cli::parse_from([
+            "hcp",
+            "set",
+            "tag",
+            "prj",
+            "my-project",
+            "env=staging",
+            "--org",
+            "my-org",
+        ]);
+        match cli.command {
+            Command::Set {
+                resource:
+                    SetResource::Tag {
+                        resource: tag::SetTagResource::Prj(args),
+                    },
+            } => {
+                assert_eq!(args.project, "my-project");
+                assert_eq!(args.tags, vec!["env=staging"]);
+                assert_eq!(args.org, Some("my-org".to_string()));
+            }
+            _ => panic!("Expected Set Tag Prj command"),
+        }
+    }
+
+    #[test]
+    fn test_set_tag_ws_requires_tags() {
+        let result = Cli::try_parse_from(["hcp", "set", "tag", "ws", "ws-abc123"]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_set_tag_alias() {
+        let cli = Cli::parse_from(["hcp", "set", "tags", "ws", "ws-abc123", "env=prod"]);
+        assert!(matches!(
+            cli.command,
+            Command::Set {
+                resource: SetResource::Tag { .. }
+            }
+        ));
+    }
+
+    #[test]
+    fn test_set_tag_ws_alias_workspace() {
+        let cli = Cli::parse_from(["hcp", "set", "tag", "workspace", "ws-abc123", "env=prod"]);
+        assert!(matches!(
+            cli.command,
+            Command::Set {
+                resource: SetResource::Tag {
+                    resource: tag::SetTagResource::Ws(_)
+                }
+            }
+        ));
+    }
+
+    // === Get tag tests ===
+
+    #[test]
+    fn test_get_tag_ws() {
+        let cli = Cli::parse_from(["hcp", "get", "tag", "ws", "ws-abc123"]);
+        match cli.command {
+            Command::Get {
+                resource: GetResource::Tag(ref tag_args),
+            } => {
+                match &tag_args.resource {
+                    Some(tag::GetTagResource::Ws(args)) => {
+                        assert_eq!(args.workspace, "ws-abc123");
+                    }
+                    _ => panic!("Expected Ws subcommand"),
+                }
+                assert!(tag_args.org.is_none());
+                assert_eq!(tag_args.output, OutputFormat::Table);
+            }
+            _ => panic!("Expected Get Tag Ws command"),
+        }
+    }
+
+    #[test]
+    fn test_get_tag_ws_with_org_and_format() {
+        let cli = Cli::parse_from([
+            "hcp",
+            "get",
+            "tag",
+            "ws",
+            "my-workspace",
+            "--org",
+            "my-org",
+            "-o",
+            "json",
+        ]);
+        match cli.command {
+            Command::Get {
+                resource: GetResource::Tag(ref tag_args),
+            } => {
+                match &tag_args.resource {
+                    Some(tag::GetTagResource::Ws(args)) => {
+                        assert_eq!(args.workspace, "my-workspace");
+                    }
+                    _ => panic!("Expected Ws subcommand"),
+                }
+                assert_eq!(tag_args.org, Some("my-org".to_string()));
+                assert_eq!(tag_args.output, OutputFormat::Json);
+            }
+            _ => panic!("Expected Get Tag Ws command"),
+        }
+    }
+
+    #[test]
+    fn test_get_tag_prj() {
+        let cli = Cli::parse_from(["hcp", "get", "tag", "prj", "prj-abc123", "--org", "my-org"]);
+        match cli.command {
+            Command::Get {
+                resource: GetResource::Tag(ref tag_args),
+            } => {
+                match &tag_args.resource {
+                    Some(tag::GetTagResource::Prj(args)) => {
+                        assert_eq!(args.project, "prj-abc123");
+                    }
+                    _ => panic!("Expected Prj subcommand"),
+                }
+                assert_eq!(tag_args.org, Some("my-org".to_string()));
+            }
+            _ => panic!("Expected Get Tag Prj command"),
+        }
+    }
+
+    #[test]
+    fn test_get_tag_org_level() {
+        let cli = Cli::parse_from(["hcp", "get", "tag", "--org", "my-org"]);
+        match cli.command {
+            Command::Get {
+                resource: GetResource::Tag(ref tag_args),
+            } => {
+                assert!(tag_args.resource.is_none());
+                assert_eq!(tag_args.org, Some("my-org".to_string()));
+                assert_eq!(tag_args.output, OutputFormat::Table);
+            }
+            _ => panic!("Expected Get Tag command"),
+        }
+    }
+
+    #[test]
+    fn test_get_tag_org_level_with_filter() {
+        let cli = Cli::parse_from([
+            "hcp", "get", "tag", "--org", "my-org", "-f", "env", "-o", "json",
+        ]);
+        match cli.command {
+            Command::Get {
+                resource: GetResource::Tag(ref tag_args),
+            } => {
+                assert!(tag_args.resource.is_none());
+                assert_eq!(tag_args.org, Some("my-org".to_string()));
+                assert_eq!(tag_args.filter, Some("env".to_string()));
+                assert_eq!(tag_args.output, OutputFormat::Json);
+            }
+            _ => panic!("Expected Get Tag command"),
+        }
+    }
+
+    #[test]
+    fn test_get_tag_by_name() {
+        let cli = Cli::parse_from(["hcp", "get", "tag", "model__env", "--org", "my-org"]);
+        match cli.command {
+            Command::Get {
+                resource: GetResource::Tag(ref tag_args),
+            } => {
+                assert!(tag_args.resource.is_none());
+                assert_eq!(tag_args.name, Some("model__env".to_string()));
+                assert_eq!(tag_args.org, Some("my-org".to_string()));
+            }
+            _ => panic!("Expected Get Tag command"),
+        }
+    }
+
+    #[test]
+    fn test_get_tag_by_name_with_format() {
+        let cli = Cli::parse_from(["hcp", "get", "tag", "env", "--org", "dev", "-o", "json"]);
+        match cli.command {
+            Command::Get {
+                resource: GetResource::Tag(ref tag_args),
+            } => {
+                assert!(tag_args.resource.is_none());
+                assert_eq!(tag_args.name, Some("env".to_string()));
+                assert_eq!(tag_args.org, Some("dev".to_string()));
+                assert_eq!(tag_args.output, OutputFormat::Json);
+            }
+            _ => panic!("Expected Get Tag command"),
+        }
+    }
+
+    #[test]
+    fn test_get_tag_alias() {
+        let cli = Cli::parse_from(["hcp", "get", "tags", "ws", "ws-abc123"]);
+        assert!(matches!(
+            cli.command,
+            Command::Get {
+                resource: GetResource::Tag(_)
+            }
+        ));
+    }
+
+    #[test]
+    fn test_get_tag_ws_requires_workspace() {
+        let result = Cli::try_parse_from(["hcp", "get", "tag", "ws"]);
+        assert!(result.is_err());
+    }
+
+    // === Delete tag tests ===
+
+    #[test]
+    fn test_delete_tag_ws() {
+        let cli = Cli::parse_from(["hcp", "delete", "tag", "ws", "ws-abc123", "env", "team"]);
+        match cli.command {
+            Command::Delete {
+                resource:
+                    DeleteResource::Tag {
+                        resource: tag::DeleteTagResource::Ws(args),
+                    },
+            } => {
+                assert_eq!(args.workspace, "ws-abc123");
+                assert_eq!(args.keys, vec!["env", "team"]);
+                assert!(args.org.is_none());
+                assert!(!args.yes);
+            }
+            _ => panic!("Expected Delete Tag Ws command"),
+        }
+    }
+
+    #[test]
+    fn test_delete_tag_ws_with_org_and_yes() {
+        let cli = Cli::parse_from([
+            "hcp",
+            "delete",
+            "tag",
+            "ws",
+            "my-workspace",
+            "env",
+            "--org",
+            "my-org",
+            "-y",
+        ]);
+        match cli.command {
+            Command::Delete {
+                resource:
+                    DeleteResource::Tag {
+                        resource: tag::DeleteTagResource::Ws(args),
+                    },
+            } => {
+                assert_eq!(args.workspace, "my-workspace");
+                assert_eq!(args.keys, vec!["env"]);
+                assert_eq!(args.org, Some("my-org".to_string()));
+                assert!(args.yes);
+            }
+            _ => panic!("Expected Delete Tag Ws command"),
+        }
+    }
+
+    #[test]
+    fn test_delete_tag_prj() {
+        let cli = Cli::parse_from([
+            "hcp",
+            "delete",
+            "tag",
+            "prj",
+            "my-project",
+            "env",
+            "--org",
+            "my-org",
+        ]);
+        match cli.command {
+            Command::Delete {
+                resource:
+                    DeleteResource::Tag {
+                        resource: tag::DeleteTagResource::Prj(args),
+                    },
+            } => {
+                assert_eq!(args.project, "my-project");
+                assert_eq!(args.keys, vec!["env"]);
+                assert_eq!(args.org, Some("my-org".to_string()));
+            }
+            _ => panic!("Expected Delete Tag Prj command"),
+        }
+    }
+
+    #[test]
+    fn test_delete_tag_alias() {
+        let cli = Cli::parse_from(["hcp", "delete", "tags", "ws", "ws-abc123", "env"]);
+        assert!(matches!(
+            cli.command,
+            Command::Delete {
+                resource: DeleteResource::Tag { .. }
+            }
+        ));
+    }
+
+    #[test]
+    fn test_delete_tag_ws_requires_keys() {
+        let result = Cli::try_parse_from(["hcp", "delete", "tag", "ws", "ws-abc123"]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_delete_tag_prj_requires_keys() {
+        let result = Cli::try_parse_from(["hcp", "delete", "tag", "prj", "prj-abc123"]);
         assert!(result.is_err());
     }
 }

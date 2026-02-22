@@ -79,12 +79,12 @@ fn output_csv(teams: &[Team], no_header: bool) {
 
 fn output_json(teams: &[Team]) {
     let serializable: Vec<SerializableTeam> = teams.iter().map(SerializableTeam::from).collect();
-    println!("{}", serde_json::to_string_pretty(&serializable).unwrap());
+    super::common::print_json(&serializable);
 }
 
 fn output_yaml(teams: &[Team]) {
     let serializable: Vec<SerializableTeam> = teams.iter().map(SerializableTeam::from).collect();
-    println!("{}", serde_yml::to_string(&serializable).unwrap());
+    super::common::print_yaml(&serializable);
 }
 
 #[cfg(test)]

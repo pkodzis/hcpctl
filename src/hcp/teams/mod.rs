@@ -5,4 +5,4 @@ mod commands;
 mod models;
 
 pub use commands::run_team_command;
-pub use models::{Team, TeamAttributes, TeamsResponse};
+pub use models::{Team, TeamAttributes};

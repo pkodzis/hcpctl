@@ -76,6 +76,7 @@ pub async fn run_ws_command(
         let query = WorkspaceQuery {
             search: filter,
             project_id: project_id_ref,
+            ..Default::default()
         };
         match client
             .prefetch_workspaces_pagination_info(&org, query)
@@ -119,6 +120,7 @@ pub async fn run_ws_command(
         let query = WorkspaceQuery {
             search: filter,
             project_id: project_id_ref,
+            ..Default::default()
         };
         let workspaces = client.get_workspaces(&org, query).await;
 
@@ -223,54 +225,41 @@ async fn get_single_workspace(
     );
 
     // Search in all organizations IN PARALLEL with early termination
-    use futures::stream::{FuturesUnordered, StreamExt};
-
     let name_owned = name.to_string();
-    let mut futures: FuturesUnordered<_> = organizations
-        .iter()
-        .map(|org_name| {
-            let org = org_name.clone();
-            let ws_name = name_owned.clone();
-            async move {
-                let result = client.get_workspace_by_name(&org, &ws_name).await;
-                (org, result)
+    let found = crate::hcp::helpers::search_first_in_orgs(&organizations, |org| {
+        let ws_name = name_owned.clone();
+        async move {
+            match client.get_workspace_by_name(&org, &ws_name).await {
+                Ok(Some(result)) => (org, Some(result)),
+                _ => (org, None),
             }
-        })
-        .collect();
+        }
+    })
+    .await;
 
-    // Process results as they complete, stop on first match
-    while let Some((org_name, result)) = futures.next().await {
-        if let Ok(Some((_workspace, raw))) = result {
-            finish_spinner(spinner);
+    if let Some((org_name, (_workspace, raw))) = found {
+        finish_spinner(spinner);
 
-            // Handle subresource if requested
-            if let Some(subresource) = &args.subresource {
-                return fetch_and_output_subresource(client, cli, &raw, subresource).await;
-            }
+        // Handle subresource if requested
+        if let Some(subresource) = &args.subresource {
+            return fetch_and_output_subresource(client, cli, &raw, subresource).await;
+        }
 
-            // For JSON/YAML, return raw API response
-            if matches!(args.output, OutputFormat::Json | OutputFormat::Yaml) {
-                output_raw(&raw, &args.output);
-                return Ok(());
-            }
-
-            let workspace: Workspace = serde_json::from_value(raw["data"].clone())
-                .map_err(|e| format!("Failed to parse workspace: {}", e))?;
-            let all_workspaces = vec![(org_name, vec![workspace])];
-            output_results_sorted(all_workspaces, cli);
+        // For JSON/YAML, return raw API response
+        if matches!(args.output, OutputFormat::Json | OutputFormat::Yaml) {
+            output_raw(&raw, &args.output);
             return Ok(());
         }
+
+        let workspace: Workspace = serde_json::from_value(raw["data"].clone())
+            .map_err(|e| format!("Failed to parse workspace: {}", e))?;
+        let all_workspaces = vec![(org_name, vec![workspace])];
+        output_results_sorted(all_workspaces, cli);
+        return Ok(());
     }
 
     finish_spinner(spinner);
-
-    let searched = if organizations.len() == 1 {
-        format!("organization '{}'", organizations[0])
-    } else {
-        format!("{} organizations", organizations.len())
-    };
-
-    Err(format!("Workspace '{}' not found in {}", name, searched).into())
+    Err(crate::hcp::helpers::not_found_in_orgs_error("Workspace", name, &organizations).into())
 }
 
 /// Fetch and output a workspace subresource

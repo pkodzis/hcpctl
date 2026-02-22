@@ -4,12 +4,6 @@ use serde::Deserialize;
 
 use crate::hcp::traits::TfeResource;
 
-/// Response wrapper for organizations list
-#[derive(Deserialize, Debug)]
-pub struct OrganizationsResponse {
-    pub data: Vec<Organization>,
-}
-
 /// Organization data from TFE API
 #[derive(Deserialize, Debug, Clone)]
 pub struct Organization {
@@ -298,7 +292,8 @@ mod tests {
             ]
         }"#;
 
-        let response: OrganizationsResponse = serde_json::from_str(json).unwrap();
+        let response: crate::hcp::traits::ApiListResponse<Organization> =
+            serde_json::from_str(json).unwrap();
         assert_eq!(response.data.len(), 2);
         assert_eq!(response.data[0].id, "org-1");
         assert_eq!(response.data[1].id, "org-2");

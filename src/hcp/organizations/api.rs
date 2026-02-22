@@ -6,7 +6,8 @@ use crate::config::api;
 use crate::error::{Result, TfeError};
 use crate::hcp::TfeClient;
 
-use super::models::{Organization, OrganizationsResponse};
+use super::models::Organization;
+use crate::hcp::traits::ApiListResponse;
 
 impl TfeClient {
     /// Get all organizations accessible to the token (names only)
@@ -22,14 +23,8 @@ impl TfeClient {
 
         let response = self.get(&url).send().await?;
 
-        if !response.status().is_success() {
-            return Err(TfeError::Api {
-                status: response.status().as_u16(),
-                message: "Failed to fetch organizations".to_string(),
-            });
-        }
-
-        let orgs_response: OrganizationsResponse = response.json().await?;
+        let orgs_response: ApiListResponse<Organization> =
+            self.parse_api_response(response, "organizations").await?;
         Ok(orgs_response.data)
     }
 
@@ -113,14 +108,6 @@ mod tests {
     use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
-    fn create_test_client(base_url: &str) -> TfeClient {
-        TfeClient::with_base_url(
-            "test-token".to_string(),
-            "mock.terraform.io".to_string(),
-            base_url.to_string(),
-        )
-    }
-
     fn org_json(id: &str, external_id: &str) -> serde_json::Value {
         serde_json::json!({
             "id": id,
@@ -137,7 +124,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_organizations_success() {
         let mock_server = MockServer::start().await;
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         let response_body = serde_json::json!({
             "data": [
@@ -164,7 +151,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_organizations_full_success() {
         let mock_server = MockServer::start().await;
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         let response_body = serde_json::json!({
             "data": [org_json("my-org", "org-ABC123")]
@@ -188,7 +175,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_organizations_api_error() {
         let mock_server = MockServer::start().await;
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         Mock::given(method("GET"))
             .and(path("/organizations"))
@@ -208,7 +195,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_organization_by_name_success() {
         let mock_server = MockServer::start().await;
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         let response_body = serde_json::json!({
             "data": org_json("my-org", "org-XYZ")
@@ -230,7 +217,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_organization_not_found() {
         let mock_server = MockServer::start().await;
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         Mock::given(method("GET"))
             .and(path("/organizations/nonexistent"))
@@ -248,7 +235,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_organization_by_external_id_fallback() {
         let mock_server = MockServer::start().await;
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         // First call to /organizations/org-ABC123 returns 404
         Mock::given(method("GET"))

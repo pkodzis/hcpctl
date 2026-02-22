@@ -266,17 +266,8 @@ mod tests {
     }
 
     // Wiremock-based API tests
-    use crate::hcp::TfeClient;
     use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
-
-    fn create_test_client(base_url: &str) -> TfeClient {
-        TfeClient::with_base_url(
-            "test-token".to_string(),
-            "test.example.com".to_string(),
-            base_url.to_string(),
-        )
-    }
 
     fn workspace_response(ws_id: &str, ws_name: &str, org: &str) -> serde_json::Value {
         serde_json::json!({
@@ -301,7 +292,7 @@ mod tests {
     #[tokio::test]
     async fn test_resolve_by_id_success() {
         let mock_server = MockServer::start().await;
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         Mock::given(method("GET"))
             .and(path("/workspaces/ws-abc123"))
@@ -323,7 +314,7 @@ mod tests {
     #[tokio::test]
     async fn test_resolve_by_id_not_found() {
         let mock_server = MockServer::start().await;
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         Mock::given(method("GET"))
             .and(path("/workspaces/ws-notfound"))
@@ -340,7 +331,7 @@ mod tests {
     #[tokio::test]
     async fn test_resolve_by_name_success() {
         let mock_server = MockServer::start().await;
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         Mock::given(method("GET"))
             .and(path("/organizations/my-org/workspaces/my-workspace"))
@@ -363,7 +354,7 @@ mod tests {
     #[tokio::test]
     async fn test_resolve_by_name_not_found() {
         let mock_server = MockServer::start().await;
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         Mock::given(method("GET"))
             .and(path("/organizations/my-org/workspaces/unknown"))
@@ -382,7 +373,7 @@ mod tests {
     #[tokio::test]
     async fn test_resolve_workspace_with_id() {
         let mock_server = MockServer::start().await;
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         Mock::given(method("GET"))
             .and(path("/workspaces/ws-abc123"))
@@ -402,7 +393,7 @@ mod tests {
     #[tokio::test]
     async fn test_resolve_workspace_with_name_and_org() {
         let mock_server = MockServer::start().await;
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         Mock::given(method("GET"))
             .and(path("/organizations/my-org/workspaces/my-workspace"))

@@ -6,7 +6,8 @@ use crate::config::api;
 use crate::error::{Result, TfeError};
 use crate::hcp::TfeClient;
 
-use super::models::{OAuthClient, OAuthClientsResponse};
+use super::models::OAuthClient;
+use crate::hcp::traits::ApiListResponse;
 
 impl TfeClient {
     /// Get all OAuth clients for an organization (with pagination)
@@ -14,7 +15,7 @@ impl TfeClient {
         let path = format!("/{}/{}/oauth-clients", api::ORGANIZATIONS, org);
         let error_context = format!("OAuth clients for organization '{}'", org);
 
-        self.fetch_all_pages::<OAuthClient, OAuthClientsResponse>(&path, &error_context)
+        self.fetch_all_pages::<OAuthClient, ApiListResponse<OAuthClient>>(&path, &error_context)
             .await
     }
 
@@ -24,28 +25,13 @@ impl TfeClient {
         &self,
         client_id: &str,
     ) -> Result<(OAuthClient, serde_json::Value)> {
-        let url = format!("{}/oauth-clients/{}", self.base_url(), client_id);
-
-        debug!("Fetching OAuth client from: {}", url);
-
-        let response = self.get(&url).send().await?;
-
-        if !response.status().is_success() {
-            return Err(TfeError::Api {
-                status: response.status().as_u16(),
-                message: format!("Failed to fetch OAuth client '{}'", client_id),
-            });
-        }
-
-        // First get raw JSON
-        let raw: serde_json::Value = response.json().await?;
-        // Then deserialize model from the same data
-        let client: OAuthClient =
-            serde_json::from_value(raw["data"].clone()).map_err(|e| TfeError::Api {
-                status: 200,
-                message: format!("Failed to parse OAuth client: {}", e),
-            })?;
-        Ok((client, raw))
+        let path = format!("/oauth-clients/{}", client_id);
+        self.fetch_resource_by_path::<OAuthClient>(&path, &format!("OAuth client '{}'", client_id))
+            .await?
+            .ok_or_else(|| TfeError::Api {
+                status: 404,
+                message: format!("OAuth client '{}' not found", client_id),
+            })
     }
 
     /// Get OAuth tokens for an organization (from the oauth-tokens link)
@@ -86,14 +72,6 @@ mod tests {
     use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
-    fn create_test_client(base_url: &str) -> TfeClient {
-        TfeClient::with_base_url(
-            "test-token".to_string(),
-            "mock.terraform.io".to_string(),
-            base_url.to_string(),
-        )
-    }
-
     fn oauth_client_json(id: &str, name: &str) -> serde_json::Value {
         serde_json::json!({
             "id": id,
@@ -109,7 +87,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_oauth_clients_success() {
         let mock_server = MockServer::start().await;
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         let response_body = serde_json::json!({
             "data": [
@@ -135,7 +113,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_oauth_clients_empty() {
         let mock_server = MockServer::start().await;
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         let response_body = serde_json::json!({ "data": [] });
 
@@ -154,7 +132,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_oauth_clients_api_error() {
         let mock_server = MockServer::start().await;
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         Mock::given(method("GET"))
             .and(path("/organizations/my-org/oauth-clients"))
@@ -174,7 +152,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_oauth_client_success() {
         let mock_server = MockServer::start().await;
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         let response_body = serde_json::json!({
             "data": oauth_client_json("oc-abc123", "My GitHub")
@@ -197,7 +175,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_oauth_tokens_for_org_success() {
         let mock_server = MockServer::start().await;
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         let response_body = serde_json::json!({
             "data": [
@@ -226,7 +204,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_oauth_tokens_not_found_returns_empty() {
         let mock_server = MockServer::start().await;
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         Mock::given(method("GET"))
             .and(path("/organizations/my-org/oauth-tokens"))

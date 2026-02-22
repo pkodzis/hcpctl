@@ -143,12 +143,12 @@ fn build_serializable_clients(clients: &[OAuthClientRow]) -> Vec<SerializableOAu
 
 fn output_json(clients: &[OAuthClientRow]) {
     let data = build_serializable_clients(clients);
-    println!("{}", serde_json::to_string_pretty(&data).unwrap());
+    super::common::print_json(&data);
 }
 
 fn output_yaml(clients: &[OAuthClientRow]) {
     let data = build_serializable_clients(clients);
-    println!("{}", serde_yml::to_string(&data).unwrap());
+    super::common::print_yaml(&data);
 }
 
 #[cfg(test)]

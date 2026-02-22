@@ -13,8 +13,14 @@ This document contains the help content for the `hcpctl` command-line program.
 * [`hcpctl get run`↴](#hcpctl-get-run)
 * [`hcpctl get team`↴](#hcpctl-get-team)
 * [`hcpctl get org-member`↴](#hcpctl-get-org-member)
+* [`hcpctl get tag`↴](#hcpctl-get-tag)
+* [`hcpctl get tag ws`↴](#hcpctl-get-tag-ws)
+* [`hcpctl get tag prj`↴](#hcpctl-get-tag-prj)
 * [`hcpctl delete`↴](#hcpctl-delete)
 * [`hcpctl delete org-member`↴](#hcpctl-delete-org-member)
+* [`hcpctl delete tag`↴](#hcpctl-delete-tag)
+* [`hcpctl delete tag ws`↴](#hcpctl-delete-tag-ws)
+* [`hcpctl delete tag prj`↴](#hcpctl-delete-tag-prj)
 * [`hcpctl purge`↴](#hcpctl-purge)
 * [`hcpctl purge state`↴](#hcpctl-purge-state)
 * [`hcpctl purge run`↴](#hcpctl-purge-run)
@@ -26,6 +32,9 @@ This document contains the help content for the `hcpctl` command-line program.
 * [`hcpctl invite`↴](#hcpctl-invite)
 * [`hcpctl set`↴](#hcpctl-set)
 * [`hcpctl set ws`↴](#hcpctl-set-ws)
+* [`hcpctl set tag`↴](#hcpctl-set-tag)
+* [`hcpctl set tag ws`↴](#hcpctl-set-tag-ws)
+* [`hcpctl set tag prj`↴](#hcpctl-set-tag-prj)
 * [`hcpctl update`↴](#hcpctl-update)
 
 ## `hcpctl`
@@ -98,6 +107,7 @@ Get resources (organizations, projects, workspaces)
 * `run` — Get runs (active runs by default - non_final states)
 * `team` — Get teams in an organization
 * `org-member` — Get organization members
+* `tag` — Get tags (org-level, workspace, or project)
 
 
 
@@ -439,6 +449,73 @@ Get organization members
 
 
 
+## `hcpctl get tag`
+
+Get tags (org-level, workspace, or project)
+
+**Usage:** `hcpctl get tag [OPTIONS] [NAME]
+       tag <COMMAND>`
+
+**Command Alias:** `tags`
+
+###### **Subcommands:**
+
+* `ws` — Get tags on a workspace
+* `prj` — Get tags on a project
+
+###### **Arguments:**
+
+* `<NAME>` — Tag name (shows/filters a specific tag at org level)
+
+###### **Options:**
+
+* `--org <ORG>` — Organization name (required for org-level listing; optional for per-resource)
+* `-o`, `--output <OUTPUT>` — Output format
+
+  Default value: `table`
+
+  Possible values:
+  - `table`:
+    ASCII table (default)
+  - `csv`:
+    Comma-separated values
+  - `json`:
+    JSON array
+  - `yaml`:
+    YAML format
+
+* `-f`, `--filter <FILTER>` — Filter tags by name (org-level only)
+
+
+
+## `hcpctl get tag ws`
+
+Get tags on a workspace
+
+**Usage:** `hcpctl get tag ws <WORKSPACE>`
+
+**Command Aliases:** `workspace`, `workspaces`
+
+###### **Arguments:**
+
+* `<WORKSPACE>` — Workspace name or ID (ws-xxx)
+
+
+
+## `hcpctl get tag prj`
+
+Get tags on a project
+
+**Usage:** `hcpctl get tag prj <PROJECT>`
+
+**Command Aliases:** `project`, `projects`
+
+###### **Arguments:**
+
+* `<PROJECT>` — Project name or ID (prj-xxx)
+
+
+
 ## `hcpctl delete`
 
 Delete resources
@@ -448,6 +525,7 @@ Delete resources
 ###### **Subcommands:**
 
 * `org-member` — Delete organization member (remove from organization)
+* `tag` — Delete tag bindings from a workspace or project
 
 
 
@@ -469,6 +547,65 @@ Delete organization member (remove from organization)
 ###### **Options:**
 
 * `--org <ORG>` — Organization name (required when argument is an email)
+* `-y`, `--yes` — Skip confirmation prompt
+
+  Default value: `false`
+
+
+
+## `hcpctl delete tag`
+
+Delete tag bindings from a workspace or project
+
+**Usage:** `hcpctl delete tag <COMMAND>`
+
+**Command Alias:** `tags`
+
+###### **Subcommands:**
+
+* `ws` — Delete tags from a workspace
+* `prj` — Delete tags from a project
+
+
+
+## `hcpctl delete tag ws`
+
+Delete tags from a workspace
+
+**Usage:** `hcpctl delete tag ws [OPTIONS] <WORKSPACE> <KEYS>...`
+
+**Command Aliases:** `workspace`, `workspaces`
+
+###### **Arguments:**
+
+* `<WORKSPACE>` — Workspace name or ID (ws-xxx)
+* `<KEYS>` — Space-separated list of tag names to remove: flat tags and/or binding keys (e.g., env team costcenter)
+
+###### **Options:**
+
+* `--org <ORG>` — Organization name (required when using workspace name)
+* `-y`, `--yes` — Skip confirmation prompt
+
+  Default value: `false`
+
+
+
+## `hcpctl delete tag prj`
+
+Delete tags from a project
+
+**Usage:** `hcpctl delete tag prj [OPTIONS] <PROJECT> <KEYS>...`
+
+**Command Aliases:** `project`, `projects`
+
+###### **Arguments:**
+
+* `<PROJECT>` — Project name or ID (prj-xxx)
+* `<KEYS>` — Space-separated list of tag binding keys to remove (e.g., env team costcenter)
+
+###### **Options:**
+
+* `--org <ORG>` — Organization name (required when using project name)
 * `-y`, `--yes` — Skip confirmation prompt
 
   Default value: `false`
@@ -769,6 +906,7 @@ Set resource properties (assign workspace to project, etc.)
 ###### **Subcommands:**
 
 * `ws` — Assign workspace to a project
+* `tag` — Set tag bindings on a workspace or project
 
 
 
@@ -788,6 +926,65 @@ Assign workspace to a project
 
 * `-p`, `--prj <PROJECT>` — Target project name or ID (prj-xxx)
 * `--org <ORG>` — Organization name (auto-discovered when using workspace ID)
+* `-y`, `--yes` — Skip confirmation prompt
+
+  Default value: `false`
+
+
+
+## `hcpctl set tag`
+
+Set tag bindings on a workspace or project
+
+**Usage:** `hcpctl set tag <COMMAND>`
+
+**Command Alias:** `tags`
+
+###### **Subcommands:**
+
+* `ws` — Set tags on a workspace
+* `prj` — Set tags on a project
+
+
+
+## `hcpctl set tag ws`
+
+Set tags on a workspace
+
+**Usage:** `hcpctl set tag ws [OPTIONS] <WORKSPACE> <TAGS>...`
+
+**Command Aliases:** `workspace`, `workspaces`
+
+###### **Arguments:**
+
+* `<WORKSPACE>` — Workspace name or ID (ws-xxx)
+* `<TAGS>` — Space-separated list of tags: flat names (e.g., env team) and/or key=value bindings (e.g., env=prod)
+
+###### **Options:**
+
+* `--org <ORG>` — Organization name (required when using workspace name)
+* `-y`, `--yes` — Skip confirmation prompt
+
+  Default value: `false`
+
+
+
+## `hcpctl set tag prj`
+
+Set tags on a project
+
+**Usage:** `hcpctl set tag prj [OPTIONS] <PROJECT> <TAGS>...`
+
+**Command Aliases:** `project`, `projects`
+
+###### **Arguments:**
+
+* `<PROJECT>` — Project name or ID (prj-xxx)
+* `<TAGS>` — Space-separated list of key=value tag bindings (projects only support key=value, not flat tags)
+
+###### **Options:**
+
+* `--org <ORG>` — Organization name (required when using project name)
 * `-y`, `--yes` — Skip confirmation prompt
 
   Default value: `false`

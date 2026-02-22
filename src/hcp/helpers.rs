@@ -3,6 +3,7 @@
 //! These utilities support fetching data across multiple organizations in parallel.
 
 use futures::future::join_all;
+use futures::stream::{FuturesUnordered, StreamExt};
 use indicatif::ProgressBar;
 use std::future::Future;
 
@@ -99,6 +100,51 @@ pub fn aggregate_pagination_info(
         org_count,
         estimated_api_calls,
     }
+}
+
+/// Search for a resource across organizations in parallel, returning the first match
+///
+/// Uses FuturesUnordered for parallel execution with early termination.
+/// The `searcher` closure receives an org name and returns `(org_name, Option<T>)`.
+/// Returns `Some((org_name, item))` on first match, or `None` if not found in any org.
+pub async fn search_first_in_orgs<T, F, Fut>(
+    organizations: &[String],
+    searcher: F,
+) -> Option<(String, T)>
+where
+    F: Fn(String) -> Fut,
+    Fut: Future<Output = (String, Option<T>)>,
+{
+    let mut futures: FuturesUnordered<_> = organizations
+        .iter()
+        .map(|org_name| searcher(org_name.clone()))
+        .collect();
+
+    while let Some((org_name, result)) = futures.next().await {
+        if let Some(item) = result {
+            return Some((org_name, item));
+        }
+    }
+
+    None
+}
+
+/// Format a "not found" error for a resource searched across organizations
+///
+/// Produces consistent error messages like:
+/// - "Workspace 'my-ws' not found in organization 'my-org'"
+/// - "Project 'my-prj' not found in 3 organizations"
+pub fn not_found_in_orgs_error(
+    resource_type: &str,
+    name: &str,
+    organizations: &[String],
+) -> String {
+    let searched = if organizations.len() == 1 {
+        format!("organization '{}'", organizations[0])
+    } else {
+        format!("{} organizations", organizations.len())
+    };
+    format!("{} '{}' not found in {}", resource_type, name, searched)
 }
 
 #[cfg(test)]
@@ -260,5 +306,69 @@ mod tests {
         assert_eq!(agg.total_count, 0);
         assert_eq!(agg.org_count, 0);
         assert_eq!(agg.estimated_api_calls, 0);
+    }
+
+    #[tokio::test]
+    async fn test_search_first_in_orgs_found() {
+        let orgs = vec!["org1".to_string(), "org2".to_string(), "org3".to_string()];
+        let result = search_first_in_orgs(&orgs, |org| async move {
+            if org == "org2" {
+                (org, Some("found-in-org2".to_string()))
+            } else {
+                (org, None)
+            }
+        })
+        .await;
+
+        assert!(result.is_some());
+        let (org, item) = result.unwrap();
+        assert_eq!(org, "org2");
+        assert_eq!(item, "found-in-org2");
+    }
+
+    #[tokio::test]
+    async fn test_search_first_in_orgs_not_found() {
+        let orgs = vec!["org1".to_string(), "org2".to_string()];
+        let result = search_first_in_orgs(&orgs, |org| async move { (org, None::<String>) }).await;
+
+        assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_search_first_in_orgs_empty_orgs() {
+        let orgs: Vec<String> = vec![];
+        let result =
+            search_first_in_orgs(&orgs, |org| async move { (org, Some("should-not-reach")) }).await;
+
+        assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_search_first_in_orgs_first_match_wins() {
+        let orgs = vec!["org1".to_string(), "org2".to_string()];
+        // Both would match, but we get the first one that completes
+        let result = search_first_in_orgs(&orgs, |org| async move {
+            (org.clone(), Some(format!("found-in-{}", org)))
+        })
+        .await;
+
+        assert!(result.is_some());
+        // Either org could win depending on scheduling
+        let (org, item) = result.unwrap();
+        assert_eq!(item, format!("found-in-{}", org));
+    }
+
+    #[test]
+    fn test_not_found_in_orgs_error_single_org() {
+        let orgs = vec!["my-org".to_string()];
+        let msg = not_found_in_orgs_error("Workspace", "my-ws", &orgs);
+        assert_eq!(msg, "Workspace 'my-ws' not found in organization 'my-org'");
+    }
+
+    #[test]
+    fn test_not_found_in_orgs_error_multiple_orgs() {
+        let orgs = vec!["org1".to_string(), "org2".to_string(), "org3".to_string()];
+        let msg = not_found_in_orgs_error("Project", "my-prj", &orgs);
+        assert_eq!(msg, "Project 'my-prj' not found in 3 organizations");
     }
 }

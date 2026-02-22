@@ -206,60 +206,47 @@ async fn get_single_project(
     );
 
     // Search in all organizations IN PARALLEL with early termination
-    use futures::stream::{FuturesUnordered, StreamExt};
-
     let name_owned = name.to_string();
-    let mut futures: FuturesUnordered<_> = organizations
-        .iter()
-        .map(|org_name| {
-            let org = org_name.clone();
-            let prj_name = name_owned.clone();
-            async move {
-                let result = client.get_project_by_name(&org, &prj_name).await;
-                (org, result)
+    let found = crate::hcp::helpers::search_first_in_orgs(&organizations, |org| {
+        let prj_name = name_owned.clone();
+        async move {
+            match client.get_project_by_name(&org, &prj_name).await {
+                Ok(Some(result)) => (org, Some(result)),
+                _ => (org, None),
             }
-        })
-        .collect();
+        }
+    })
+    .await;
 
-    // Process results as they complete, stop on first match
-    while let Some((org_name, result)) = futures.next().await {
-        if let Ok(Some((project, raw))) = result {
-            finish_spinner(spinner);
+    if let Some((org_name, (project, raw))) = found {
+        finish_spinner(spinner);
 
-            // For JSON/YAML, return raw API response
-            if matches!(args.output, OutputFormat::Json | OutputFormat::Yaml) {
-                output_raw(&raw, &args.output);
-                return Ok(());
-            }
-
-            // Get workspace info if requested
-            let ws_info = if need_ws_info {
-                let workspaces = client
-                    .get_workspaces(&org_name, WorkspaceQuery::default())
-                    .await
-                    .unwrap_or_default();
-                let ws_list: Vec<_> = workspaces
-                    .into_iter()
-                    .filter(|ws| ws.project_id() == Some(&project.id))
-                    .collect();
-                ProjectWorkspaces::from_workspaces(ws_list)
-            } else {
-                ProjectWorkspaces::new()
-            };
-
-            let all_projects = vec![(org_name, project, ws_info)];
-            output_projects(&all_projects, cli);
+        // For JSON/YAML, return raw API response
+        if matches!(args.output, OutputFormat::Json | OutputFormat::Yaml) {
+            output_raw(&raw, &args.output);
             return Ok(());
         }
+
+        // Get workspace info if requested
+        let ws_info = if need_ws_info {
+            let workspaces = client
+                .get_workspaces(&org_name, WorkspaceQuery::default())
+                .await
+                .unwrap_or_default();
+            let ws_list: Vec<_> = workspaces
+                .into_iter()
+                .filter(|ws| ws.project_id() == Some(&project.id))
+                .collect();
+            ProjectWorkspaces::from_workspaces(ws_list)
+        } else {
+            ProjectWorkspaces::new()
+        };
+
+        let all_projects = vec![(org_name, project, ws_info)];
+        output_projects(&all_projects, cli);
+        return Ok(());
     }
 
     finish_spinner(spinner);
-
-    let searched = if organizations.len() == 1 {
-        format!("organization '{}'", organizations[0])
-    } else {
-        format!("{} organizations", organizations.len())
-    };
-
-    Err(format!("Project '{}' not found in {}", name, searched).into())
+    Err(crate::hcp::helpers::not_found_in_orgs_error("Project", name, &organizations).into())
 }

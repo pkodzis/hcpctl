@@ -206,14 +206,6 @@ mod tests {
     use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
-    fn create_test_client(base_url: &str) -> TfeClient {
-        TfeClient::with_base_url(
-            "test-token".to_string(),
-            "test.example.com".to_string(),
-            base_url.to_string(),
-        )
-    }
-
     fn workspace_response_with_current_run(ws_id: &str, run_id: &str) -> serde_json::Value {
         serde_json::json!({
             "data": {
@@ -279,7 +271,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_current_run_with_run() {
         let mock_server = MockServer::start().await;
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         Mock::given(method("GET"))
             .and(path("/workspaces/ws-abc123"))
@@ -308,7 +300,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_current_run_no_run() {
         let mock_server = MockServer::start().await;
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         Mock::given(method("GET"))
             .and(path("/workspaces/ws-abc123"))
@@ -328,7 +320,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_current_run_workspace_not_found() {
         let mock_server = MockServer::start().await;
-        let client = create_test_client(&mock_server.uri());
+        let client = TfeClient::test_client(&mock_server.uri());
 
         Mock::given(method("GET"))
             .and(path("/workspaces/ws-notfound"))

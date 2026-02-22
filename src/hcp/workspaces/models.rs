@@ -2,8 +2,7 @@
 
 use serde::Deserialize;
 
-use crate::hcp::traits::{PaginatedResponse, TfeResource};
-use crate::hcp::PaginationMeta;
+use crate::hcp::traits::TfeResource;
 
 /// Query options for listing workspaces
 #[derive(Default)]
@@ -12,24 +11,8 @@ pub struct WorkspaceQuery<'a> {
     pub search: Option<&'a str>,
     /// Filter by project ID
     pub project_id: Option<&'a str>,
-}
-
-/// Response wrapper for workspaces list
-#[derive(Deserialize, Debug)]
-pub struct WorkspacesResponse {
-    pub data: Vec<Workspace>,
-    #[serde(default)]
-    pub meta: Option<PaginationMeta>,
-}
-
-impl PaginatedResponse<Workspace> for WorkspacesResponse {
-    fn into_data(self) -> Vec<Workspace> {
-        self.data
-    }
-
-    fn meta(&self) -> Option<&PaginationMeta> {
-        self.meta.as_ref()
-    }
+    /// Filter by flat string tag name(s) (comma-separated for multiple)
+    pub search_tags: Option<&'a str>,
 }
 
 /// Workspace data from TFE API
@@ -295,7 +278,7 @@ mod tests {
     fn test_workspace_query_with_search() {
         let query = WorkspaceQuery {
             search: Some("dev"),
-            project_id: None,
+            ..Default::default()
         };
         assert_eq!(query.search, Some("dev"));
         assert!(query.project_id.is_none());
@@ -304,8 +287,8 @@ mod tests {
     #[test]
     fn test_workspace_query_with_project_id() {
         let query = WorkspaceQuery {
-            search: None,
             project_id: Some("prj-123"),
+            ..Default::default()
         };
         assert!(query.search.is_none());
         assert_eq!(query.project_id, Some("prj-123"));
@@ -316,9 +299,21 @@ mod tests {
         let query = WorkspaceQuery {
             search: Some("prod"),
             project_id: Some("prj-456"),
+            ..Default::default()
         };
         assert_eq!(query.search, Some("prod"));
         assert_eq!(query.project_id, Some("prj-456"));
+    }
+
+    #[test]
+    fn test_workspace_query_with_search_tags() {
+        let query = WorkspaceQuery {
+            search_tags: Some("env"),
+            ..Default::default()
+        };
+        assert_eq!(query.search_tags, Some("env"));
+        assert!(query.search.is_none());
+        assert!(query.project_id.is_none());
     }
 
     // ===== Additional Workspace tests =====
@@ -469,7 +464,8 @@ mod tests {
             ]
         }"#;
 
-        let response: WorkspacesResponse = serde_json::from_str(json).unwrap();
+        let response: crate::hcp::traits::ApiListResponse<Workspace> =
+            serde_json::from_str(json).unwrap();
         assert_eq!(response.data.len(), 2);
         assert_eq!(response.data[0].name(), "workspace-1");
         assert_eq!(response.data[1].name(), "workspace-2");
