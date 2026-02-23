@@ -31,6 +31,8 @@ pub enum WsSortField {
     UpdatedAt,
     /// Sort by Terraform version
     TfVersion,
+    /// Sort by pending runs count (requires --has-pending-runs)
+    PendingRuns,
 }
 
 impl std::fmt::Display for WsSortField {
@@ -40,6 +42,7 @@ impl std::fmt::Display for WsSortField {
             WsSortField::Resources => write!(f, "resources"),
             WsSortField::UpdatedAt => write!(f, "updated-at"),
             WsSortField::TfVersion => write!(f, "tf-version"),
+            WsSortField::PendingRuns => write!(f, "pending-runs"),
         }
     }
 }
@@ -101,6 +104,7 @@ mod tests {
         assert_eq!(WsSortField::Resources.to_string(), "resources");
         assert_eq!(WsSortField::UpdatedAt.to_string(), "updated-at");
         assert_eq!(WsSortField::TfVersion.to_string(), "tf-version");
+        assert_eq!(WsSortField::PendingRuns.to_string(), "pending-runs");
     }
 
     #[test]

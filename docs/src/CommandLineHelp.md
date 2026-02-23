@@ -270,6 +270,8 @@ Get workspaces
     Sort by last update time
   - `tf-version`:
     Sort by Terraform version
+  - `pending-runs`:
+    Sort by pending runs count (requires --has-pending-runs)
 
 * `-r`, `--reverse` — Reverse sort order (descending)
 
@@ -278,6 +280,9 @@ Get workspaces
 
   Default value: `false`
 * `--group-by-prj` — Enable grouping by project (can be combined with org grouping)
+
+  Default value: `false`
+* `--has-pending-runs` — Only show workspaces that have runs in 'pending' status (queued behind another active run). Adds a "Pending Runs" count column
 
   Default value: `false`
 * `--subresource <SUBRESOURCE>` — Fetch a related subresource (run=current-run, state=current-state-version, config=current-configuration-version, assessment=current-assessment-result). Only works with single workspace lookup and JSON/YAML output
