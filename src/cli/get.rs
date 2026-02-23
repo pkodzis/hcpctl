@@ -206,6 +206,10 @@ pub struct WsArgs {
     #[arg(long, default_value_t = false)]
     pub group_by_prj: bool,
 
+    /// Only show workspaces that have runs in 'pending' status (queued behind another active run). Adds a "Pending Runs" count column
+    #[arg(long, default_value_t = false)]
+    pub has_pending_runs: bool,
+
     /// Fetch a related subresource (run=current-run, state=current-state-version,
     /// config=current-configuration-version, assessment=current-assessment-result).
     /// Only works with single workspace lookup and JSON/YAML output.

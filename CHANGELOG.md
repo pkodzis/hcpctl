@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.13.0](https://github.com/pkodzis/hcpctl/compare/v0.12.0...v0.13.0) (2026-02-23)
+
+
+### Features
+
+* add --has-pending-runs flag to get ws ([#58](https://github.com/pkodzis/hcpctl/issues/58)) ([fd5f7bb](https://github.com/pkodzis/hcpctl/commit/fd5f7bb767f9498ed154d04176dd0a18093165e7))
+
+## [0.12.0](https://github.com/pkodzis/hcpctl/compare/v0.11.0...v0.12.0) (2026-02-23)
+
+
+### Features
+
+* display release notes after successful update ([#56](https://github.com/pkodzis/hcpctl/issues/56)) ([c40742a](https://github.com/pkodzis/hcpctl/commit/c40742a274ed5175c97ac18e09a41f5c7a4529a7))
+
 ## [0.11.0](https://github.com/pkodzis/hcpctl/compare/v0.10.0...v0.11.0) (2026-02-23)
 
 

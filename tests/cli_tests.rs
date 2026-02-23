@@ -1183,6 +1183,82 @@ fn test_main_help_shows_config() {
     );
 }
 
+/// Test that --has-pending-runs flag is documented in ws help
+#[test]
+fn test_ws_has_pending_runs_documented() {
+    let output = Command::new(hcpctl_bin())
+        .args(["get", "ws", "--help"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    assert!(
+        stdout.contains("--has-pending-runs"),
+        "Should document --has-pending-runs option"
+    );
+    assert!(
+        stdout.contains("pending"),
+        "Help should mention pending runs"
+    );
+}
+
+/// Test that pending-runs appears as a sort option in ws help
+#[test]
+fn test_ws_sort_pending_runs_option_documented() {
+    let output = Command::new(hcpctl_bin())
+        .args(["get", "ws", "--help"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    assert!(
+        stdout.contains("pending-runs"),
+        "Should list pending-runs as a sort field option"
+    );
+}
+
+/// Test that --sort pending-runs without --has-pending-runs produces error
+#[test]
+fn test_ws_sort_pending_runs_requires_has_pending_runs() {
+    let output = Command::new(hcpctl_bin())
+        .args(["get", "ws", "--sort", "pending-runs"])
+        .env("TFE_TOKEN", "fake-token")
+        .env("TFE_HOSTNAME", "fake.host.com")
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("--has-pending-runs"),
+        "Error should mention --has-pending-runs is required, got: {}",
+        stderr
+    );
+}
+
+/// Test that --has-pending-runs with --sort pending-runs is accepted (doesn't fail on arg parsing)
+#[test]
+fn test_ws_has_pending_runs_with_sort_accepted() {
+    // This will fail due to fake host, but should NOT fail on arg validation
+    let output = Command::new(hcpctl_bin())
+        .args(["get", "ws", "--has-pending-runs", "--sort", "pending-runs"])
+        .env("TFE_TOKEN", "fake-token")
+        .env("TFE_HOSTNAME", "fake.host.com")
+        .output()
+        .unwrap();
+
+    // Should fail due to fake host, but NOT because of sort validation
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        !stderr.contains("--sort pending-runs requires --has-pending-runs"),
+        "Should not fail on sort validation when --has-pending-runs is present"
+    );
+}
+
 /// Test that --context global flag is accepted
 #[test]
 fn test_global_context_flag() {

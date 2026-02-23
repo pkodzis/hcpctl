@@ -18,6 +18,7 @@ pub struct WorkspaceRow {
     pub locked: bool,
     pub terraform_version: String,
     pub updated_at: String,
+    pub pending_runs: Option<usize>,
 }
 
 impl WorkspaceRow {
@@ -33,6 +34,7 @@ impl WorkspaceRow {
             locked: workspace.is_locked(),
             terraform_version: workspace.terraform_version().to_string(),
             updated_at: workspace.updated_at().to_string(),
+            pending_runs: None,
         }
     }
 }
@@ -49,6 +51,8 @@ struct SerializableWorkspace {
     locked: bool,
     terraform_version: String,
     updated_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pending_runs: Option<usize>,
 }
 
 impl From<&WorkspaceRow> for SerializableWorkspace {
@@ -63,6 +67,7 @@ impl From<&WorkspaceRow> for SerializableWorkspace {
             locked: row.locked,
             terraform_version: row.terraform_version.clone(),
             updated_at: row.updated_at.clone(),
+            pending_runs: row.pending_runs,
         }
     }
 }
@@ -80,8 +85,9 @@ pub fn output_workspaces(rows: &[WorkspaceRow], format: &OutputFormat, no_header
 fn output_table(rows: &[WorkspaceRow], no_header: bool) {
     let mut table = Table::new();
     table.load_preset(NOTHING);
+    let show_pending = rows.iter().any(|r| r.pending_runs.is_some());
     if !no_header {
-        table.set_header(vec![
+        let mut header = vec![
             "Org",
             "Project ID",
             "Workspace Name",
@@ -91,22 +97,30 @@ fn output_table(rows: &[WorkspaceRow], no_header: bool) {
             "Locked",
             "TF Version",
             "Updated At",
-        ]);
+        ];
+        if show_pending {
+            header.push("Pending Runs");
+        }
+        table.set_header(header);
     }
 
     for ws in rows {
         let locked = if ws.locked { "Yes" } else { "No" };
-        table.add_row(vec![
-            &ws.org,
-            &ws.project_id,
-            &ws.name,
-            &ws.id,
-            &ws.resources.to_string(),
-            &ws.execution_mode,
-            locked,
-            &ws.terraform_version,
-            &ws.updated_at,
-        ]);
+        let mut row = vec![
+            ws.org.clone(),
+            ws.project_id.clone(),
+            ws.name.clone(),
+            ws.id.clone(),
+            ws.resources.to_string(),
+            ws.execution_mode.clone(),
+            locked.to_string(),
+            ws.terraform_version.clone(),
+            ws.updated_at.clone(),
+        ];
+        if show_pending {
+            row.push(ws.pending_runs.unwrap_or(0).to_string());
+        }
+        table.add_row(row);
     }
 
     println!();
@@ -117,12 +131,17 @@ fn output_table(rows: &[WorkspaceRow], no_header: bool) {
 }
 
 fn output_csv(rows: &[WorkspaceRow], no_header: bool) {
+    let show_pending = rows.iter().any(|r| r.pending_runs.is_some());
     if !no_header {
-        println!("org,project_id,workspace_name,workspace_id,resources,execution_mode,locked,terraform_version,updated_at");
+        let mut header = "org,project_id,workspace_name,workspace_id,resources,execution_mode,locked,terraform_version,updated_at".to_string();
+        if show_pending {
+            header.push_str(",pending_runs");
+        }
+        println!("{}", header);
     }
 
     for ws in rows {
-        println!(
+        let mut line = format!(
             "{},{},{},{},{},{},{},{},{}",
             escape_csv(&ws.org),
             escape_csv(&ws.project_id),
@@ -134,6 +153,10 @@ fn output_csv(rows: &[WorkspaceRow], no_header: bool) {
             escape_csv(&ws.terraform_version),
             escape_csv(&ws.updated_at)
         );
+        if show_pending {
+            line.push_str(&format!(",{}", ws.pending_runs.unwrap_or(0)));
+        }
+        println!("{}", line);
     }
 }
 
@@ -194,6 +217,7 @@ mod tests {
             locked: true,
             terraform_version: "1.5.0".to_string(),
             updated_at: "2024-01-01T00:00:00Z".to_string(),
+            pending_runs: None,
         };
 
         let serialized_ws = SerializableWorkspace::from(&row);
@@ -201,6 +225,100 @@ mod tests {
         assert_eq!(serialized_ws.project_id, "prj-123");
         assert_eq!(serialized_ws.workspace_name, "test-ws");
         assert!(serialized_ws.locked);
+        assert!(serialized_ws.pending_runs.is_none());
+    }
+
+    #[test]
+    fn test_serializable_with_pending_runs() {
+        let row = WorkspaceRow {
+            org: "test-org".to_string(),
+            project_id: "prj-123".to_string(),
+            name: "test-ws".to_string(),
+            id: "ws-123".to_string(),
+            resources: 10,
+            execution_mode: "remote".to_string(),
+            locked: false,
+            terraform_version: "1.5.0".to_string(),
+            updated_at: "2024-01-01T00:00:00Z".to_string(),
+            pending_runs: Some(5),
+        };
+
+        let serialized_ws = SerializableWorkspace::from(&row);
+        assert_eq!(serialized_ws.pending_runs, Some(5));
+    }
+
+    #[test]
+    fn test_workspace_row_pending_runs_default_none() {
+        let ws = create_test_workspace();
+        let row = WorkspaceRow::new("my-org", &ws);
+        assert!(
+            row.pending_runs.is_none(),
+            "pending_runs should default to None"
+        );
+    }
+
+    #[test]
+    fn test_serializable_pending_runs_skipped_when_none() {
+        let row = WorkspaceRow {
+            org: "org".to_string(),
+            project_id: "prj-1".to_string(),
+            name: "ws".to_string(),
+            id: "ws-1".to_string(),
+            resources: 0,
+            execution_mode: "remote".to_string(),
+            locked: false,
+            terraform_version: "1.5.0".to_string(),
+            updated_at: "2024-01-01T00:00:00Z".to_string(),
+            pending_runs: None,
+        };
+
+        let json = serde_json::to_string(&SerializableWorkspace::from(&row)).unwrap();
+        assert!(
+            !json.contains("pending_runs"),
+            "pending_runs should be skipped in JSON when None"
+        );
+    }
+
+    #[test]
+    fn test_serializable_pending_runs_included_when_some() {
+        let row = WorkspaceRow {
+            org: "org".to_string(),
+            project_id: "prj-1".to_string(),
+            name: "ws".to_string(),
+            id: "ws-1".to_string(),
+            resources: 0,
+            execution_mode: "remote".to_string(),
+            locked: false,
+            terraform_version: "1.5.0".to_string(),
+            updated_at: "2024-01-01T00:00:00Z".to_string(),
+            pending_runs: Some(3),
+        };
+
+        let json = serde_json::to_string(&SerializableWorkspace::from(&row)).unwrap();
+        assert!(
+            json.contains("\"pending_runs\":3"),
+            "pending_runs should be included in JSON when Some, got: {}",
+            json
+        );
+    }
+
+    #[test]
+    fn test_output_workspaces_with_pending_runs_column() {
+        let rows = vec![WorkspaceRow {
+            org: "org".to_string(),
+            project_id: "prj-1".to_string(),
+            name: "ws-a".to_string(),
+            id: "ws-aaa".to_string(),
+            resources: 5,
+            execution_mode: "remote".to_string(),
+            locked: false,
+            terraform_version: "1.5.0".to_string(),
+            updated_at: "2024-01-01T00:00:00Z".to_string(),
+            pending_runs: Some(2),
+        }];
+        // Should not panic — table includes Pending Runs column
+        output_workspaces(&rows, &OutputFormat::Table, false);
+        output_workspaces(&rows, &OutputFormat::Csv, false);
     }
 
     #[test]

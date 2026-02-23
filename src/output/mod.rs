@@ -24,11 +24,17 @@ pub use workspaces::WorkspaceRow;
 
 use workspaces::output_workspaces;
 
+use std::collections::HashMap;
+
 use crate::cli::{Cli, Command, GetResource, WsSortField};
 use crate::hcp::Workspace;
 
 /// Main entry point for sorted workspace output - converts raw data to WorkspaceRow and outputs
-pub fn output_results_sorted(org_workspaces: Vec<(String, Vec<Workspace>)>, cli: &Cli) {
+pub fn output_results_sorted(
+    org_workspaces: Vec<(String, Vec<Workspace>)>,
+    cli: &Cli,
+    pending_counts: Option<&HashMap<String, usize>>,
+) {
     let Command::Get {
         resource: GetResource::Ws(args),
     } = &cli.command
@@ -42,7 +48,11 @@ pub fn output_results_sorted(org_workspaces: Vec<(String, Vec<Workspace>)>, cli:
         .flat_map(|(org, workspaces)| {
             workspaces
                 .iter()
-                .map(move |ws| WorkspaceRow::new(&org, ws))
+                .map(move |ws| {
+                    let mut row = WorkspaceRow::new(&org, ws);
+                    row.pending_runs = pending_counts.and_then(|m| m.get(&ws.id).copied());
+                    row
+                })
                 .collect::<Vec<_>>()
         })
         .collect();
@@ -73,6 +83,10 @@ pub fn output_results_sorted(org_workspaces: Vec<(String, Vec<Workspace>)>, cli:
             WsSortField::Resources => a.resources.cmp(&b.resources),
             WsSortField::UpdatedAt => a.updated_at.cmp(&b.updated_at),
             WsSortField::TfVersion => compare_versions(&a.terraform_version, &b.terraform_version),
+            WsSortField::PendingRuns => a
+                .pending_runs
+                .unwrap_or(0)
+                .cmp(&b.pending_runs.unwrap_or(0)),
         }
     });
 
