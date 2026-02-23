@@ -50,6 +50,12 @@ pub async fn run_ws_command(
     }
 
     // Otherwise list all workspaces
+
+    // Optimized path: when --has-pending-runs is active, invert the query order
+    if args.has_pending_runs {
+        return run_ws_pending_optimized(client, cli).await;
+    }
+
     let organizations = resolve_organizations(client, effective_org.as_ref()).await?;
 
     debug!(
@@ -153,75 +159,151 @@ pub async fn run_ws_command(
     finish_spinner_with_status(spinner, &all_workspaces, had_errors);
 
     if !all_workspaces.is_empty() {
-        if args.has_pending_runs {
-            // Phase 3: Fetch pending runs per org in parallel
-            let org_names: Vec<String> =
-                all_workspaces.iter().map(|(org, _)| org.clone()).collect();
+        output_results_sorted(all_workspaces, cli, None);
+    }
 
-            let pending_spinner = create_spinner(
-                &format!(
-                    "Fetching pending runs from {} organization(s)...",
-                    org_names.len()
-                ),
-                cli.batch,
-            );
+    log_completion(had_errors);
+    Ok(())
+}
 
-            let pending_results = fetch_from_organizations(org_names, |org| async move {
-                match client
-                    .get_runs_for_organization(&org, RunQuery::pending(), None)
-                    .await
-                {
-                    Ok(runs) => Ok(runs),
-                    Err(e) => Err((org, e)),
-                }
-            })
-            .await;
+/// Optimized path for --has-pending-runs: fetch pending runs first, then only those workspaces
+async fn run_ws_pending_optimized(
+    client: &TfeClient,
+    cli: &Cli,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let Command::Get {
+        resource: GetResource::Ws(args),
+    } = &cli.command
+    else {
+        unreachable!()
+    };
 
-            // Collect all pending runs into a single counts map
-            let mut counts: HashMap<String, usize> = HashMap::new();
-            for result in pending_results {
-                match result {
-                    Ok(runs) => {
-                        for (ws_id, count) in count_runs_by_workspace(&runs) {
-                            *counts.entry(ws_id).or_insert(0) += count;
-                        }
-                    }
-                    Err((org, e)) => {
-                        eprintln!(
-                            "Warning: failed to fetch pending runs for org '{}': {}",
-                            org, e
-                        );
-                    }
-                }
-            }
+    let effective_org = client.effective_org(args.org.as_ref());
+    let organizations = resolve_organizations(client, effective_org.as_ref()).await?;
 
-            finish_spinner(pending_spinner);
+    debug!(
+        "[pending-optimized] Processing {} organizations: {:?}",
+        organizations.len(),
+        organizations
+    );
 
-            // Filter out workspaces with zero pending runs
-            let filtered: Vec<(String, Vec<Workspace>)> = all_workspaces
-                .into_iter()
-                .filter_map(|(org, workspaces)| {
-                    let filtered_ws: Vec<Workspace> = workspaces
-                        .into_iter()
-                        .filter(|ws| counts.contains_key(&ws.id))
-                        .collect();
-                    if filtered_ws.is_empty() {
-                        None
-                    } else {
-                        Some((org, filtered_ws))
-                    }
-                })
-                .collect();
-
-            if filtered.is_empty() {
-                println!("No workspaces with pending runs found.");
-            } else {
-                output_results_sorted(filtered, cli, Some(&counts));
-            }
+    // Resolve project filter if specified
+    let project_id = if let Some(prj_input) = &args.prj {
+        if let Some(org) = &effective_org {
+            let resolved = resolve_project(client, prj_input, org, cli.batch).await?;
+            Some(resolved.project.id)
         } else {
-            output_results_sorted(all_workspaces, cli, None);
+            return Err("Project filter requires an organization to be specified".into());
+        }
+    } else {
+        None
+    };
+
+    // Step 1: Fetch pending runs per org
+    let pending_spinner = create_spinner(
+        &format!(
+            "Fetching pending runs from {} organization(s)...",
+            organizations.len()
+        ),
+        cli.batch,
+    );
+
+    let pending_results = fetch_from_organizations(organizations, |org| async move {
+        match client
+            .get_runs_for_organization(&org, RunQuery::pending(), None)
+            .await
+        {
+            Ok(runs) => Ok(runs),
+            Err(e) => Err((org, e)),
+        }
+    })
+    .await;
+
+    // Build counts map
+    let mut had_errors = false;
+    let mut counts: HashMap<String, usize> = HashMap::new();
+    for result in pending_results {
+        match result {
+            Ok(runs) => {
+                for (ws_id, count) in count_runs_by_workspace(&runs) {
+                    *counts.entry(ws_id).or_insert(0) += count;
+                }
+            }
+            Err((org, e)) => {
+                had_errors = true;
+                eprintln!(
+                    "Warning: failed to fetch pending runs for org '{}': {}",
+                    org, e
+                );
+            }
         }
     }
+
+    finish_spinner(pending_spinner);
+
+    // Step 2: Extract unique workspace IDs
+    let workspace_ids: Vec<String> = counts.keys().cloned().collect();
+
+    if workspace_ids.is_empty() {
+        println!("No workspaces with pending runs found.");
+        log_completion(had_errors);
+        return Ok(());
+    }
+
+    debug!(
+        "[pending-optimized] Found {} workspace(s) with pending runs, fetching details...",
+        workspace_ids.len()
+    );
+
+    // Step 3: Fetch those workspaces by ID concurrently
+    let ws_spinner = create_spinner(
+        &format!(
+            "Fetching {} workspace(s) with pending runs...",
+            workspace_ids.len()
+        ),
+        cli.batch,
+    );
+
+    let ws_with_orgs = client.fetch_workspaces_by_ids(&workspace_ids).await;
+
+    finish_spinner(ws_spinner);
+
+    // Step 4: Apply local filters
+    // Filtering is done locally because workspaces were fetched by ID (not via the list
+    // endpoint), so server-side `search[name]` is unavailable. This uses substring matching
+    // via TfeResource::matches_filter, which differs from the API's fuzzy search[name].
+    let filter = args.filter.as_deref();
+    let filtered: Vec<(Workspace, String)> = ws_with_orgs
+        .into_iter()
+        .filter(|(ws, _org)| {
+            if let Some(f) = filter {
+                if !ws.matches_filter(f) {
+                    return false;
+                }
+            }
+            if let Some(ref pid) = project_id {
+                if ws.project_id() != Some(pid.as_str()) {
+                    return false;
+                }
+            }
+            true
+        })
+        .collect();
+
+    if filtered.is_empty() {
+        println!("No workspaces with pending runs found.");
+        log_completion(had_errors);
+        return Ok(());
+    }
+
+    // Step 5: Group by org name
+    let mut grouped: HashMap<String, Vec<Workspace>> = HashMap::new();
+    for (ws, org_name) in filtered {
+        grouped.entry(org_name).or_default().push(ws);
+    }
+    let grouped: Vec<(String, Vec<Workspace>)> = grouped.into_iter().collect();
+
+    output_results_sorted(grouped, cli, Some(&counts));
 
     log_completion(had_errors);
     Ok(())

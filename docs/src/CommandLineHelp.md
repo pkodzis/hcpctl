@@ -51,7 +51,9 @@ Explore HCP Terraform / Terraform Enterprise resources
 **Usage:** `hcpctl [OPTIONS] <COMMAND>`
 
 HOST RESOLUTION:
-  The host is resolved in the following order (first match wins):
+
+The host is resolved in the following order (first match wins):
+
   1. CLI argument (-H, --host)
   2. Environment variable: TFE_HOSTNAME
   3. Active context (from --context, HCPCTL_CONTEXT env, or current-context)
@@ -60,7 +62,9 @@ HOST RESOLUTION:
      - If multiple hosts: interactive selection (or error in batch mode)
 
 TOKEN RESOLUTION:
-  The API token is resolved in the following order (first match wins):
+
+The API token is resolved in the following order (first match wins):
+
   1. CLI argument (-t, --token)
   2. Environment variables (in order): HCP_TOKEN, TFC_TOKEN, TFE_TOKEN
   3. Active context
@@ -68,21 +72,25 @@ TOKEN RESOLUTION:
      Token is read from the entry matching the resolved host.
 
 CONTEXT:
+
   Contexts store connection defaults (host, token, org) for quick switching:
-    hcpctl config set-context prod --host app.terraform.io --org my-org
-    hcpctl config use-context prod
+
+    - hcpctl config set-context prod --host app.terraform.io --org my-org
+    - hcpctl config use-context prod
 
   Resolution (first match wins):
-    Host:  -H flag → TFE_HOSTNAME env → context → credentials file
-    Token: -t flag → HCP_TOKEN/TFC_TOKEN/TFE_TOKEN env → context → credentials file
-    Org:   --org flag → context
+
+    - Host:  -H flag → TFE_HOSTNAME env → context → credentials file
+    - Token: -t flag → HCP_TOKEN/TFC_TOKEN/TFE_TOKEN env → context → credentials file
+    - Org:   --org flag → context
 
 EXAMPLES:
-  - hcpctl get org                     List all organizations
-  - hcpctl get ws --org myorg          List workspaces in organization
-  - hcpctl get ws myws --org myorg     Get workspace details
-  - hcpctl -H app.terraform.io get ws  Use specific host
-  - hcpctl -c prod get ws              Use 'prod' context
+
+  - hcpctl get org                     # List all organizations
+  - hcpctl get ws --org myorg          # List workspaces in organization
+  - hcpctl get ws myws --org myorg     # Get workspace details
+  - hcpctl -H app.terraform.io get ws  # Use specific host
+  - hcpctl -c prod get ws              # Use 'prod' context
 
 ###### **Subcommands:**
 
@@ -664,6 +672,7 @@ The actual infrastructure will NOT be destroyed, but Terraform will
 "forget" about the resources, making them orphaned.
 
 PROCEDURE:
+
   1. Fetches workspace info and validates it exists
   2. Fetches current state version metadata
   3. Displays warning and requires confirmation (type workspace ID)
@@ -674,6 +683,7 @@ PROCEDURE:
   8. UNLOCKS the workspace (always, even on error)
 
 SAFETY:
+
   - Requires interactive confirmation by default (--batch is ignored)
   - Requires exact workspace ID (ws-xxx), NOT workspace name
   - Workspace is locked during the entire operation
@@ -681,15 +691,17 @@ SAFETY:
   - Original state lineage is preserved for consistency
 
 USE CASES:
+
   - Cleaning up a workspace before deletion
   - Resetting state after manual infrastructure changes
   - Preparing for re-import of resources
   - Removing orphaned resources from state
 
 WARNING:
-  This operation is IRREVERSIBLE without manual state recovery.
-  Cloud resources will continue to exist but will no longer be
-  tracked by Terraform.
+
+  - This operation is IRREVERSIBLE without manual state recovery.
+  - Cloud resources will continue to exist but will no longer be
+    tracked by Terraform.
 
 **Usage:** `hcpctl purge state [OPTIONS] <WORKSPACE_ID>`
 
@@ -714,6 +726,7 @@ Cancels or discards all pending runs that are blocking a workspace,
 including the current run holding the workspace lock if applicable.
 
 PROCEDURE:
+
   1. Resolves workspace by name or ID (auto-discovers organization)
   2. Fetches all pending runs and current run
   3. Displays summary table with run details
@@ -722,15 +735,18 @@ PROCEDURE:
   6. Uses appropriate action (cancel/discard) based on run state
 
 ACTIONS:
+
   - cancel: Interrupts actively executing run (planning/applying)
   - discard: Skips run waiting for confirmation or priority
 
 USE CASES:
+
   - Clearing stacked pending runs from CI/CD
   - Unblocking workspace stuck on failed/abandoned run
   - Cleaning up runs before workspace maintenance
 
 NOTES:
+
   - Use --dry-run to preview without making changes
   - Workspace name can be used (auto-discovers organization)
   - Workspace ID (ws-xxx) can also be used directly
@@ -774,20 +790,23 @@ Downloads the Terraform configuration files associated with a workspace's
 current or specified configuration version.
 
 PROCEDURE:
+
   1. Resolves workspace by name or ID (auto-discovers organization)
   2. Fetches configuration version details (current or specified)
   3. Downloads the configuration archive (tar.gz)
   4. Saves to specified output file or default name
 
 OUTPUT:
-  By default, saves to: configuration-{cv_id}.tar.gz
-  Use --output to specify a custom path.
+
+  - By default, saves to: configuration-{cv_id}.tar.gz
+  - Use --output to specify a custom path.
 
 EXAMPLES:
-  hcpctl download config my-workspace --org my-org
-  hcpctl download config ws-abc123
-  hcpctl download config my-ws --output ./config.tar.gz
-  hcpctl download config my-ws --cv-id cv-xyz789
+
+  - hcpctl download config my-workspace --org my-org
+  - hcpctl download config ws-abc123
+  - hcpctl download config my-ws --output ./config.tar.gz
+  - hcpctl download config my-ws --cv-id cv-xyz789
 
 **Usage:** `hcpctl download config [OPTIONS] <WORKSPACE>`
 
@@ -828,9 +847,9 @@ Target can be:
 
 * `<TARGET>` — Run ID (run-xxx), workspace ID (ws-xxx), or workspace name
 
-     run-xxx  directly fetches logs for that run
-     ws-xxx   fetches logs for workspace's current run
-     name     workspace name, fetches current run (requires --org)
+     - run-xxx  directly fetches logs for that run
+     - ws-xxx   fetches logs for workspace's current run
+     - name     workspace name, fetches current run (requires --org)
 
 ###### **Options:**
 
@@ -1042,9 +1061,9 @@ Set a context entry in the config file
 **Usage:** `hcpctl config set-context [OPTIONS] <NAME>`
 
 EXAMPLES:
-  hcpctl config set-context prod --host app.terraform.io --org my-org
-  hcpctl config set-context dev --host tfe.corp.com --token <TOKEN>
-  hcpctl config set-context prod --org new-org   # update existing context
+  - hcpctl config set-context prod --host app.terraform.io --org my-org
+  - hcpctl config set-context dev --host tfe.corp.com --token <TOKEN>
+  - hcpctl config set-context prod --org new-org   # update existing context
 
 ###### **Arguments:**
 

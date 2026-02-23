@@ -12,6 +12,7 @@ pub enum PurgeResource {
     /// "forget" about the resources, making them orphaned.
     ///
     /// PROCEDURE:
+    ///
     ///   1. Fetches workspace info and validates it exists
     ///   2. Fetches current state version metadata
     ///   3. Displays warning and requires confirmation (type workspace ID)
@@ -22,6 +23,7 @@ pub enum PurgeResource {
     ///   8. UNLOCKS the workspace (always, even on error)
     ///
     /// SAFETY:
+    ///
     ///   - Requires interactive confirmation by default (--batch is ignored)
     ///   - Requires exact workspace ID (ws-xxx), NOT workspace name
     ///   - Workspace is locked during the entire operation
@@ -29,15 +31,17 @@ pub enum PurgeResource {
     ///   - Original state lineage is preserved for consistency
     ///
     /// USE CASES:
+    ///
     ///   - Cleaning up a workspace before deletion
     ///   - Resetting state after manual infrastructure changes
     ///   - Preparing for re-import of resources
     ///   - Removing orphaned resources from state
     ///
     /// WARNING:
-    ///   This operation is IRREVERSIBLE without manual state recovery.
-    ///   Cloud resources will continue to exist but will no longer be
-    ///   tracked by Terraform.
+    ///
+    ///   - This operation is IRREVERSIBLE without manual state recovery.
+    ///   - Cloud resources will continue to exist but will no longer be
+    ///     tracked by Terraform.
     #[command(verbatim_doc_comment)]
     State(PurgeStateArgs),
 
@@ -47,6 +51,7 @@ pub enum PurgeResource {
     /// including the current run holding the workspace lock if applicable.
     ///
     /// PROCEDURE:
+    ///
     ///   1. Resolves workspace by name or ID (auto-discovers organization)
     ///   2. Fetches all pending runs and current run
     ///   3. Displays summary table with run details
@@ -55,15 +60,18 @@ pub enum PurgeResource {
     ///   6. Uses appropriate action (cancel/discard) based on run state
     ///
     /// ACTIONS:
+    ///
     ///   - cancel: Interrupts actively executing run (planning/applying)
     ///   - discard: Skips run waiting for confirmation or priority
     ///
     /// USE CASES:
+    ///
     ///   - Clearing stacked pending runs from CI/CD
     ///   - Unblocking workspace stuck on failed/abandoned run
     ///   - Cleaning up runs before workspace maintenance
     ///
     /// NOTES:
+    ///
     ///   - Use --dry-run to preview without making changes
     ///   - Workspace name can be used (auto-discovers organization)
     ///   - Workspace ID (ws-xxx) can also be used directly
