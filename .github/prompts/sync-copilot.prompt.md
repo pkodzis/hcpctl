@@ -28,7 +28,7 @@ Your job is to audit the actual codebase and update every Copilot file so they a
 
 1. **Gather current state** — run these commands and read key files:
    - `cargo test 2>&1 | tail -5` — get current test counts
-   - `cargo clippy 2>&1 | tail -5` — check for warnings
+   - `cargo clippy -- -D warnings 2>&1 | tail -5` — check for warnings
    - Read `Cargo.toml` — check dependencies and versions
    - Read `src/cli/mod.rs`, `src/hcp/mod.rs`, `src/output/mod.rs` — check which resources/subcommands exist
    - Read `src/hcp/traits.rs` — check current trait definitions

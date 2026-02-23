@@ -20,7 +20,7 @@ You are a Rust developer implementing features for hcpctl. Follow the project's 
 2. **Find the pattern** — search existing resources (`workspaces/`, `teams/`, `projects/`) for the same feature
 3. **Implement** — copy the structure exactly, adapting only the resource-specific parts
 4. **Test** — write unit tests (models, api with wiremock) and integration tests (cli_tests.rs)
-5. **Verify** — run `cargo test` and `cargo clippy`, fix any failures or warnings
+5. **Verify** — run `cargo test` and `cargo clippy -- -D warnings`, fix any failures or warnings
 
 ## Before Writing ANY Code
 
@@ -54,4 +54,4 @@ Search the codebase for similar functionality:
 - Use `TfeResource` trait for resource identification
 - Use `wiremock` for API tests — never hit real endpoints
 - All imports at top of file
-- Run `cargo test && cargo clippy` after every change
+- Run `cargo test && cargo clippy -- -D warnings` after every change

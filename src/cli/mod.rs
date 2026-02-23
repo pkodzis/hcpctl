@@ -8,6 +8,7 @@
 //! - hcpctl download config <ws>     - download workspace configuration
 
 mod common;
+mod context;
 mod delete;
 mod download;
 mod enums;
@@ -25,6 +26,7 @@ use crate::config::defaults;
 
 // Re-export all types for public API
 pub use common::OutputFormat;
+pub use context::{ConfigAction, DeleteContextArgs, SetContextArgs, UseContextArgs};
 pub use delete::{DeleteOrgMemberArgs, DeleteResource};
 pub use download::{DownloadConfigArgs, DownloadResource};
 pub use enums::{PrjSortField, RunSortField, RunSubresource, WsSortField, WsSubresource};
@@ -43,7 +45,8 @@ const AFTER_LONG_HELP: &str = r#"HOST RESOLUTION:
   The host is resolved in the following order (first match wins):
   1. CLI argument (-H, --host)
   2. Environment variable: TFE_HOSTNAME
-  3. Credentials file (~/.terraform.d/credentials.tfrc.json):
+  3. Active context (from --context, HCPCTL_CONTEXT env, or current-context)
+  4. Credentials file (~/.terraform.d/credentials.tfrc.json):
      - If 1 host configured: use it automatically
      - If multiple hosts: interactive selection (or error in batch mode)
 
@@ -51,14 +54,26 @@ TOKEN RESOLUTION:
   The API token is resolved in the following order (first match wins):
   1. CLI argument (-t, --token)
   2. Environment variables (in order): HCP_TOKEN, TFC_TOKEN, TFE_TOKEN
-  3. Credentials file (~/.terraform.d/credentials.tfrc.json)
+  3. Active context
+  4. Credentials file (~/.terraform.d/credentials.tfrc.json)
      Token is read from the entry matching the resolved host.
+
+CONTEXT:
+  Contexts store connection defaults (host, token, org) for quick switching:
+    hcpctl config set-context prod --host app.terraform.io --org my-org
+    hcpctl config use-context prod
+
+  Resolution (first match wins):
+    Host:  -H flag → TFE_HOSTNAME env → context → credentials file
+    Token: -t flag → HCP_TOKEN/TFC_TOKEN/TFE_TOKEN env → context → credentials file
+    Org:   --org flag → context
 
 EXAMPLES:
   - hcpctl get org                     List all organizations
   - hcpctl get ws --org myorg          List workspaces in organization
   - hcpctl get ws myws --org myorg     Get workspace details
-  - hcpctl -H app.terraform.io get ws  Use specific host"#;
+  - hcpctl -H app.terraform.io get ws  Use specific host
+  - hcpctl -c prod get ws              Use 'prod' context"#;
 
 /// HCP/TFE CLI - Explore HashiCorp Cloud Platform and Terraform Enterprise
 #[derive(Parser, Debug)]
@@ -70,6 +85,10 @@ EXAMPLES:
 pub struct Cli {
     #[command(subcommand)]
     pub command: Command,
+
+    /// Use a specific named context (overrides current-context)
+    #[arg(short = 'c', long, global = true)]
+    pub context: Option<String>,
 
     /// TFE/HCP host URL (falls back to TFE_HOSTNAME env var or credentials file)
     #[arg(short = 'H', long, global = true)]
@@ -148,6 +167,12 @@ pub enum Command {
     Set {
         #[command(subcommand)]
         resource: SetResource,
+    },
+
+    /// Manage connection contexts for multiple TFE/HCP instances
+    Config {
+        #[command(subcommand)]
+        action: ConfigAction,
     },
 
     /// Update hcpctl to the latest version
@@ -1291,6 +1316,147 @@ mod tests {
     #[test]
     fn test_delete_tag_prj_requires_keys() {
         let result = Cli::try_parse_from(["hcp", "delete", "tag", "prj", "prj-abc123"]);
+        assert!(result.is_err());
+    }
+
+    // === Config tests (kubectl-style) ===
+
+    #[test]
+    fn test_config_get_contexts() {
+        let cli = Cli::parse_from(["hcp", "config", "get-contexts"]);
+        assert!(matches!(
+            cli.command,
+            Command::Config {
+                action: ConfigAction::GetContexts
+            }
+        ));
+    }
+
+    #[test]
+    fn test_config_set_context_with_host() {
+        let cli = Cli::parse_from([
+            "hcp",
+            "config",
+            "set-context",
+            "prod",
+            "--host",
+            "app.terraform.io",
+        ]);
+        match cli.command {
+            Command::Config {
+                action: ConfigAction::SetContext(args),
+            } => {
+                assert_eq!(args.name, "prod");
+                assert_eq!(args.host, Some("app.terraform.io".to_string()));
+                assert!(args.token.is_none());
+                assert!(args.org.is_none());
+            }
+            _ => panic!("Expected Config SetContext command"),
+        }
+    }
+
+    #[test]
+    fn test_config_set_context_all_flags() {
+        let cli = Cli::parse_from([
+            "hcp",
+            "config",
+            "set-context",
+            "dev",
+            "--host",
+            "tfe.dev.com",
+            "--token",
+            "my-token",
+            "--org",
+            "my-org",
+        ]);
+        match cli.command {
+            Command::Config {
+                action: ConfigAction::SetContext(args),
+            } => {
+                assert_eq!(args.name, "dev");
+                assert_eq!(args.host, Some("tfe.dev.com".to_string()));
+                assert_eq!(args.token, Some("my-token".to_string()));
+                assert_eq!(args.org, Some("my-org".to_string()));
+            }
+            _ => panic!("Expected Config SetContext command"),
+        }
+    }
+
+    #[test]
+    fn test_config_use_context() {
+        let cli = Cli::parse_from(["hcp", "config", "use-context", "prod"]);
+        match cli.command {
+            Command::Config {
+                action: ConfigAction::UseContext(args),
+            } => {
+                assert_eq!(args.name, "prod");
+            }
+            _ => panic!("Expected Config UseContext command"),
+        }
+    }
+
+    #[test]
+    fn test_config_delete_context() {
+        let cli = Cli::parse_from(["hcp", "config", "delete-context", "old"]);
+        match cli.command {
+            Command::Config {
+                action: ConfigAction::DeleteContext(args),
+            } => {
+                assert_eq!(args.name, "old");
+            }
+            _ => panic!("Expected Config DeleteContext command"),
+        }
+    }
+
+    #[test]
+    fn test_config_current_context() {
+        let cli = Cli::parse_from(["hcp", "config", "current-context"]);
+        assert!(matches!(
+            cli.command,
+            Command::Config {
+                action: ConfigAction::CurrentContext
+            }
+        ));
+    }
+
+    #[test]
+    fn test_config_view() {
+        let cli = Cli::parse_from(["hcp", "config", "view"]);
+        assert!(matches!(
+            cli.command,
+            Command::Config {
+                action: ConfigAction::View
+            }
+        ));
+    }
+
+    #[test]
+    fn test_global_context_flag() {
+        let cli = Cli::parse_from(["hcp", "--context", "prod", "get", "org"]);
+        assert_eq!(cli.context, Some("prod".to_string()));
+    }
+
+    #[test]
+    fn test_global_context_short_flag() {
+        let cli = Cli::parse_from(["hcp", "-c", "prod", "get", "org"]);
+        assert_eq!(cli.context, Some("prod".to_string()));
+    }
+
+    #[test]
+    fn test_config_set_context_requires_name() {
+        let result = Cli::try_parse_from(["hcp", "config", "set-context"]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_config_use_context_requires_name() {
+        let result = Cli::try_parse_from(["hcp", "config", "use-context"]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_config_delete_context_requires_name() {
+        let result = Cli::try_parse_from(["hcp", "config", "delete-context"]);
         assert!(result.is_err());
     }
 }

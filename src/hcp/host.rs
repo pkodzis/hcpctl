@@ -22,15 +22,21 @@ impl HostResolver {
     /// Resolve host from multiple sources with fallback:
     /// 1. CLI argument (if provided)
     /// 2. Environment variable (TFE_HOSTNAME)
-    /// 3. Credentials file:
+    /// 3. Active context host
+    /// 4. Credentials file:
     ///    - If 1 host: use it
     ///    - If multiple hosts: interactive selection (or error in batch mode)
     ///    - If no hosts: error
     ///
     /// # Arguments
     /// * `cli_host` - Host from CLI argument (--host)
+    /// * `context_host` - Host from active context
     /// * `batch_mode` - If true, error on multiple hosts instead of interactive selection
-    pub fn resolve(cli_host: Option<&str>, batch_mode: bool) -> Result<String> {
+    pub fn resolve(
+        cli_host: Option<&str>,
+        context_host: Option<&str>,
+        batch_mode: bool,
+    ) -> Result<String> {
         // 1. CLI argument takes precedence
         if let Some(host) = cli_host {
             debug!("Using host from CLI argument: {}", host);
@@ -47,9 +53,15 @@ impl HostResolver {
             return Ok(host);
         }
 
-        // 3. Credentials file
+        // 3. Context host
+        if let Some(host) = context_host {
+            debug!("Using host from active context: {}", host);
+            return Ok(host.to_string());
+        }
+
+        // 4. Credentials file
         debug!(
-            "No host in CLI or {}, trying credentials file",
+            "No host in CLI, {} or context, trying credentials file",
             host_config::ENV_VAR
         );
         Self::resolve_from_credentials_file(batch_mode)
@@ -183,14 +195,14 @@ mod tests {
 
     #[test]
     fn test_cli_host_takes_precedence() {
-        let result = HostResolver::resolve(Some("my-custom-host.com"), false);
+        let result = HostResolver::resolve(Some("my-custom-host.com"), None, false);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "my-custom-host.com");
     }
 
     #[test]
     fn test_cli_host_takes_precedence_batch() {
-        let result = HostResolver::resolve(Some("my-custom-host.com"), true);
+        let result = HostResolver::resolve(Some("my-custom-host.com"), None, true);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "my-custom-host.com");
     }

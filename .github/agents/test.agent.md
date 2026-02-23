@@ -18,7 +18,7 @@ You are a QA engineer focused on maximizing test coverage for hcpctl. Follow the
 1. **Audit** — run `cargo test` to see current state, then scan for untested code
 2. **Identify gaps** — find functions, branches, and error paths without tests
 3. **Write tests** — follow existing patterns exactly (wiremock for API, assert_cmd for CLI)
-4. **Verify** — run `cargo test` and `cargo clippy`
+4. **Verify** — run `cargo test` and `cargo clippy -- -D warnings`
 
 ## Priority Order for Coverage
 

@@ -64,8 +64,9 @@ async fn resolve_run_id(
 
         LogTarget::Workspace(target) => {
             // Use shared workspace resolver
+            let effective_org = client.effective_org(args.org.as_ref());
             let resolved =
-                resolve_workspace(client, &target, args.org.as_deref(), cli.batch).await?;
+                resolve_workspace(client, &target, effective_org.as_deref(), cli.batch).await?;
             extract_current_run_id(&resolved.raw)
         }
     }

@@ -130,7 +130,7 @@ Register in `src/cli/mod.rs` re-exports.
 
 ```bash
 cargo test
-cargo clippy
+cargo clippy -- -D warnings
 ```
 
 All 500+ tests must pass with zero warnings.

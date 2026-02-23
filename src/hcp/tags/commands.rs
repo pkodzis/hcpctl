@@ -38,8 +38,10 @@ pub async fn run_set_tag_command(
             let classified = classify_tags(&args.tags)?;
 
             // Resolve workspace
+            let effective_org = client.effective_org(args.org.as_ref());
             let resolved =
-                resolve_workspace(client, &args.workspace, args.org.as_deref(), cli.batch).await?;
+                resolve_workspace(client, &args.workspace, effective_org.as_deref(), cli.batch)
+                    .await?;
 
             let ws_name = resolved.workspace.name().to_string();
             let ws_id = resolved.workspace.id.clone();
@@ -125,8 +127,8 @@ pub async fn run_set_tag_command(
             let tags = parse_tags(&args.tags)?;
 
             // Resolve org - need it for project name resolution
-            let org = args
-                .org
+            let effective_org = client.effective_org(args.org.as_ref());
+            let org = effective_org
                 .as_deref()
                 .ok_or("Organization (--org) is required for project tag operations")?;
 
@@ -189,13 +191,15 @@ pub async fn run_get_tag_command(
         unreachable!()
     };
 
+    let effective_org = client.effective_org(tag_args.org.as_ref());
+
     match &tag_args.resource {
         Some(GetTagResource::Ws(args)) => {
             debug!("Getting tags for workspace '{}'", args.workspace);
 
             // Resolve workspace
             let resolved =
-                resolve_workspace(client, &args.workspace, tag_args.org.as_deref(), cli.batch)
+                resolve_workspace(client, &args.workspace, effective_org.as_deref(), cli.batch)
                     .await?;
 
             let ws_name = resolved.workspace.name().to_string();
@@ -229,8 +233,7 @@ pub async fn run_get_tag_command(
         Some(GetTagResource::Prj(args)) => {
             debug!("Getting tags for project '{}'", args.project);
 
-            let org = tag_args
-                .org
+            let org = effective_org
                 .as_deref()
                 .ok_or("Organization (--org) is required for project tag operations")?;
 
@@ -261,8 +264,7 @@ pub async fn run_get_tag_command(
         }
         None => {
             // Org-level tag listing
-            let org = tag_args
-                .org
+            let org = effective_org
                 .as_deref()
                 .ok_or("Organization (--org) is required to list organization tags")?;
 
@@ -330,8 +332,10 @@ pub async fn run_delete_tag_command(
             );
 
             // Resolve workspace
+            let effective_org = client.effective_org(args.org.as_ref());
             let resolved =
-                resolve_workspace(client, &args.workspace, args.org.as_deref(), cli.batch).await?;
+                resolve_workspace(client, &args.workspace, effective_org.as_deref(), cli.batch)
+                    .await?;
 
             let ws_name = resolved.workspace.name().to_string();
             let ws_id = resolved.workspace.id.clone();
@@ -402,8 +406,8 @@ pub async fn run_delete_tag_command(
                 args.keys, args.project
             );
 
-            let org = args
-                .org
+            let effective_org = client.effective_org(args.org.as_ref());
+            let org = effective_org
                 .as_deref()
                 .ok_or("Organization (--org) is required for project tag operations")?;
 

@@ -34,13 +34,15 @@ pub async fn run_ws_command(
         return Err("--subresource requires a workspace name or ID".into());
     }
 
+    let effective_org = client.effective_org(args.org.as_ref());
+
     // If NAME is specified, get single workspace
     if let Some(name) = &args.name {
-        return get_single_workspace(client, cli, name, args.org.as_ref()).await;
+        return get_single_workspace(client, cli, name, effective_org.as_ref()).await;
     }
 
     // Otherwise list all workspaces
-    let organizations = resolve_organizations(client, args.org.as_ref()).await?;
+    let organizations = resolve_organizations(client, effective_org.as_ref()).await?;
 
     debug!(
         "Processing {} organizations: {:?}",
@@ -50,7 +52,7 @@ pub async fn run_ws_command(
 
     // Resolve project filter if specified
     let project_id = if let Some(prj_input) = &args.prj {
-        if let Some(org) = &args.org {
+        if let Some(org) = &effective_org {
             let resolved = resolve_project(client, prj_input, org, cli.batch).await?;
             Some(resolved.project.id)
         } else {

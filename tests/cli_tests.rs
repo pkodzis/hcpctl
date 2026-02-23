@@ -151,6 +151,8 @@ fn test_missing_token_shows_help() {
         .env_remove("HCP_TOKEN")
         .env_remove("TFC_TOKEN")
         .env_remove("TFE_TOKEN")
+        // Use a non-existent context so context token resolution yields nothing
+        .env("HCPCTL_CONTEXT", "__nonexistent_test_context__")
         .output()
         .unwrap();
 
@@ -1057,5 +1059,142 @@ fn test_main_help_shows_set() {
     assert!(
         stdout.contains("set") || stdout.contains("Set"),
         "Should show set command in main help"
+    );
+}
+
+// ──────────────────────────────────────────────────
+// Config management tests (kubectl-style)
+// ──────────────────────────────────────────────────
+
+/// Test that config --help shows kubectl-style subcommands
+#[test]
+fn test_config_help() {
+    let output = Command::new(hcpctl_bin())
+        .args(["config", "--help"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("set-context"),
+        "Should document set-context subcommand"
+    );
+    assert!(
+        stdout.contains("use-context"),
+        "Should document use-context subcommand"
+    );
+    assert!(
+        stdout.contains("get-contexts"),
+        "Should document get-contexts subcommand"
+    );
+    assert!(
+        stdout.contains("current-context"),
+        "Should document current-context subcommand"
+    );
+    assert!(
+        stdout.contains("delete-context"),
+        "Should document delete-context subcommand"
+    );
+    assert!(stdout.contains("view"), "Should document view subcommand");
+}
+
+/// Test that config set-context requires name argument
+#[test]
+fn test_config_set_context_requires_name() {
+    let output = Command::new(hcpctl_bin())
+        .args(["config", "set-context"])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("required") || stderr.contains("<NAME>"),
+        "Should require name argument"
+    );
+}
+
+/// Test that config use-context requires name argument
+#[test]
+fn test_config_use_context_requires_name() {
+    let output = Command::new(hcpctl_bin())
+        .args(["config", "use-context"])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("required") || stderr.contains("<NAME>"),
+        "Should require name argument"
+    );
+}
+
+/// Test that config delete-context requires name argument
+#[test]
+fn test_config_delete_context_requires_name() {
+    let output = Command::new(hcpctl_bin())
+        .args(["config", "delete-context"])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("required") || stderr.contains("<NAME>"),
+        "Should require name argument"
+    );
+}
+
+/// Test that config get-contexts succeeds (empty list or table)
+#[test]
+fn test_config_get_contexts() {
+    let output = Command::new(hcpctl_bin())
+        .args(["config", "get-contexts"])
+        .output()
+        .unwrap();
+
+    // Should succeed (may show empty table or "No contexts configured")
+    assert!(output.status.success());
+}
+
+/// Test that config view succeeds (shows JSON)
+#[test]
+fn test_config_view() {
+    let output = Command::new(hcpctl_bin())
+        .args(["config", "view"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+}
+
+/// Test that main help shows config command
+#[test]
+fn test_main_help_shows_config() {
+    let output = Command::new(hcpctl_bin()).arg("--help").output().unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("config"),
+        "Should show config command in main help"
+    );
+}
+
+/// Test that --context global flag is accepted
+#[test]
+fn test_global_context_flag() {
+    let output = Command::new(hcpctl_bin())
+        .args(["--help"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("--context") || stdout.contains("-c"),
+        "Should show --context global flag"
     );
 }

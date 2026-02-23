@@ -36,8 +36,9 @@ impl TokenResolver {
     /// Resolve token from multiple sources with fallback:
     /// 1. CLI argument (if provided)
     /// 2. Environment variables (HCP_TOKEN, TFC_TOKEN, TFE_TOKEN - in order)
-    /// 3. Credentials file (~/.terraform.d/credentials.tfrc.json)
-    pub fn resolve(&self, cli_token: Option<&str>) -> Result<String> {
+    /// 3. Active context token
+    /// 4. Credentials file (~/.terraform.d/credentials.tfrc.json)
+    pub fn resolve(&self, cli_token: Option<&str>, context_token: Option<&str>) -> Result<String> {
         // 1. CLI argument takes precedence
         if let Some(token) = cli_token {
             debug!("Using token from CLI argument");
@@ -52,9 +53,15 @@ impl TokenResolver {
             }
         }
 
-        // 3. Credentials file
+        // 3. Context token
+        if let Some(token) = context_token {
+            debug!("Using token from active context");
+            return Ok(token.to_string());
+        }
+
+        // 4. Credentials file
         debug!(
-            "No token found in environment variables {:?}, trying credentials file",
+            "No token found in environment variables {:?} or context, trying credentials file",
             credentials::TOKEN_ENV_VARS
         );
         self.read_from_credentials_file()
@@ -147,7 +154,7 @@ mod tests {
     #[test]
     fn test_resolver_cli_token_takes_precedence() {
         let resolver = TokenResolver::new("test.example.com");
-        let result = resolver.resolve(Some("cli-token-123"));
+        let result = resolver.resolve(Some("cli-token-123"), None);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "cli-token-123");
     }

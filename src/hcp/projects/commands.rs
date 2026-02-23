@@ -30,13 +30,15 @@ pub async fn run_prj_command(
     let need_ws_info =
         args.with_ws || args.with_ws_names || args.with_ws_ids || args.with_ws_details;
 
+    let effective_org = client.effective_org(args.org.as_ref());
+
     // If NAME is specified, get single project
     if let Some(name) = &args.name {
-        return get_single_project(client, cli, name, args.org.as_ref(), need_ws_info).await;
+        return get_single_project(client, cli, name, effective_org.as_ref(), need_ws_info).await;
     }
 
     // Otherwise list all projects
-    let organizations = resolve_organizations(client, args.org.as_ref()).await?;
+    let organizations = resolve_organizations(client, effective_org.as_ref()).await?;
 
     let spinner = create_spinner(
         &format!(
@@ -102,7 +104,7 @@ pub async fn run_prj_command(
     finish_spinner_with_status(spinner, &all_projects, had_errors);
 
     // Sort projects
-    let group_by_org = args.org.is_none() && !args.no_group_org;
+    let group_by_org = effective_org.is_none() && !args.no_group_org;
     all_projects.sort_by(|a, b| {
         if group_by_org {
             let org_cmp = a.0.cmp(&b.0);

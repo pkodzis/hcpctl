@@ -25,7 +25,9 @@ pub async fn run_watch_ws_command(
     args: &WatchWsArgs,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Resolve workspace using shared resolver
-    let resolved = resolve_workspace(client, &args.target, args.org.as_deref(), cli.batch).await?;
+    let effective_org = client.effective_org(args.org.as_ref());
+    let resolved =
+        resolve_workspace(client, &args.target, effective_org.as_deref(), cli.batch).await?;
 
     println!(
         "Watching workspace '{}' in organization '{}' ({})",

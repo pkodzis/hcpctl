@@ -28,6 +28,8 @@ pub struct TfeClient {
     base_url_override: Option<String>,
     /// Batch mode - disables interactive prompts
     batch_mode: bool,
+    /// Default organization from active context
+    context_org: Option<String>,
 }
 
 impl TfeClient {
@@ -51,6 +53,7 @@ impl TfeClient {
             host,
             base_url_override: None,
             batch_mode: false,
+            context_org: None,
         }
     }
 
@@ -65,6 +68,7 @@ impl TfeClient {
             host,
             base_url_override: Some(base_url),
             batch_mode: false,
+            context_org: None,
         }
     }
 
@@ -76,6 +80,16 @@ impl TfeClient {
     /// Check if batch mode is enabled
     pub fn is_batch_mode(&self) -> bool {
         self.batch_mode
+    }
+
+    /// Set the default organization from active context
+    pub fn set_context_org(&mut self, org: Option<String>) {
+        self.context_org = org;
+    }
+
+    /// Resolve org: explicit CLI value wins, then context default
+    pub fn effective_org(&self, explicit: Option<&String>) -> Option<String> {
+        explicit.cloned().or_else(|| self.context_org.clone())
     }
 
     /// Build the base URL for API requests

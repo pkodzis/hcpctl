@@ -21,12 +21,14 @@ pub async fn run_org_member_command(
         unreachable!()
     };
 
+    let effective_org = client.effective_org(args.org.as_ref());
+
     // If ID is specified, get single membership or filter by email
     if let Some(id_or_email) = &args.id {
-        return get_single_org_member(client, cli, id_or_email, args.org.as_ref()).await;
+        return get_single_org_member(client, cli, id_or_email, effective_org.as_ref()).await;
     }
 
-    let memberships = if let Some(org) = &args.org {
+    let memberships = if let Some(org) = &effective_org {
         // Single org
         let spinner = create_spinner(&format!("Fetching members from '{}'...", org), cli.batch);
         let result = client.get_org_memberships(org).await?;
@@ -243,12 +245,12 @@ pub async fn run_delete_org_member_command(
     let mut resolved_org: Option<String> = None;
 
     let id_or_email = &args.id;
+    let effective_org = client.effective_org(args.org.as_ref());
 
     // Resolve membership ID from argument (can be ou-xxx ID or email)
     let membership_id = if id_or_email.contains('@') {
         // It's an email, need --org
-        let org = args
-            .org
+        let org = effective_org
             .as_ref()
             .ok_or("Email provided requires --org. Use: delete org-member EMAIL --org ORG")?;
         resolved_email = Some(id_or_email.clone());

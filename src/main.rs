@@ -5,13 +5,13 @@ use log::info;
 use std::process::ExitCode;
 
 use hcpctl::{
-    run_delete_org_member_command, run_delete_tag_command, run_download_config_command,
-    run_get_tag_command, run_invite_command, run_logs_command, run_oc_command, run_org_command,
-    run_org_member_command, run_prj_command, run_purge_run_command, run_purge_state_command,
-    run_runs_command, run_set_tag_command, run_set_ws_command, run_team_command, run_update,
-    run_watch_ws_command, run_ws_command, Cli, Command, DeleteResource, DownloadResource,
-    GetResource, HostResolver, PurgeResource, SetResource, TfeClient, TokenResolver, UpdateChecker,
-    WatchResource,
+    resolve_active_context, run_context_command, run_delete_org_member_command,
+    run_delete_tag_command, run_download_config_command, run_get_tag_command, run_invite_command,
+    run_logs_command, run_oc_command, run_org_command, run_org_member_command, run_prj_command,
+    run_purge_run_command, run_purge_state_command, run_runs_command, run_set_tag_command,
+    run_set_ws_command, run_team_command, run_update, run_watch_ws_command, run_ws_command, Cli,
+    Command, DeleteResource, DownloadResource, GetResource, HostResolver, PurgeResource,
+    SetResource, TfeClient, TokenResolver, UpdateChecker, WatchResource,
 };
 
 #[tokio::main]
@@ -43,6 +43,11 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         return run_update().await;
     }
 
+    // Handle config command early (doesn't require TFE credentials)
+    if let Command::Config { action } = &cli.command {
+        return run_context_command(action);
+    }
+
     // Start background update check (non-blocking, only in interactive mode)
     let update_handle = if !cli.batch {
         UpdateChecker::new().check_async()
@@ -50,17 +55,24 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         None
     };
 
-    // Resolve host with fallback logic (CLI -> env var -> credentials file)
+    // Resolve active context
+    let active_context = resolve_active_context(cli.context.as_deref());
+
+    // Resolve host with fallback logic (CLI -> env var -> context -> credentials file)
     // In batch mode, error on multiple hosts instead of interactive selection
-    let host = HostResolver::resolve(cli.host.as_deref(), cli.batch)?;
+    let context_host = active_context.as_ref().map(|c| c.host.as_str());
+    let host = HostResolver::resolve(cli.host.as_deref(), context_host, cli.batch)?;
 
     // Resolve token with fallback logic
+    let context_token = active_context.as_ref().and_then(|c| c.token.as_deref());
     let token_resolver = TokenResolver::new(&host);
-    let token = token_resolver.resolve(cli.token.as_deref())?;
+    let token = token_resolver.resolve(cli.token.as_deref(), context_token)?;
 
-    // Create TFE client with batch mode setting
+    // Create TFE client with batch mode setting and context org
+    let context_org = active_context.as_ref().and_then(|c| c.org.clone());
     let mut client = TfeClient::new(token, host);
     client.set_batch_mode(cli.batch);
+    client.set_context_org(context_org);
 
     let result = match &cli.command {
         Command::Get { resource } => match resource {
@@ -95,7 +107,8 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
             SetResource::Ws(_) => run_set_ws_command(&client, &cli).await,
             SetResource::Tag { .. } => run_set_tag_command(&client, &cli).await,
         },
-        Command::Update => unreachable!(), // Handled above
+        Command::Update => unreachable!(),        // Handled above
+        Command::Config { .. } => unreachable!(), // Handled above
     };
 
     // Show update notification if available (non-blocking check completed)

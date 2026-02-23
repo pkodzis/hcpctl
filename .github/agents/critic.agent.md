@@ -34,8 +34,8 @@ For every plan review, evaluate:
 5. **Step ordering**: Are dependencies between steps correct? Can anything be parallelized?
 6. **Acceptance criteria**: Is each step verifiable? Can you tell when it is done?
 7. **Test coverage**: Does the test plan cover unit (models), API mock (wiremock), output, and CLI layers?
-8. **Overengineering**: Is the plan adding unnecessary complexity? Could it be simpler?
-9. **kubectl style**: Does the CLI interface follow kubectl conventions (aliases, -o format, --subresource)?
+8. **Overengineering**: Is the plan adding unnecessary complexity? Could it be simpler? If the plan proposes backward compatibility, migration paths, or deprecation cycles — verify the code is actually released and has users. Do NOT accept migration plans for code that hasn't been committed or shipped yet.
+9. **kubectl 1:1 compliance** *(highest priority)*: When a feature has a direct kubectl equivalent, the CLI surface MUST match kubectl 1:1 (command names, subcommand names, flag names). Run `kubectl <equivalent> --help` mentally and compare. If the plan deviates from kubectl — it MUST provide strong justification for why. "hcpctl has its own grammar" is NOT sufficient justification when kubectl has an exact counterpart. This rule outweighs all other checklist items.
 
 ## Response Format
 
