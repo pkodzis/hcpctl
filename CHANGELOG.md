@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.11.0](https://github.com/pkodzis/hcpctl/compare/v0.10.0...v0.11.0) (2026-02-23)
+
+
+### Features
+
+* config context ([#53](https://github.com/pkodzis/hcpctl/issues/53)) ([52f2e97](https://github.com/pkodzis/hcpctl/commit/52f2e97bcb7a7fe6fb804e42f1bbe1a16f97fe54))
+* config context ([#54](https://github.com/pkodzis/hcpctl/issues/54)) ([58a60c7](https://github.com/pkodzis/hcpctl/commit/58a60c739af3c1da78d16dbacaf5720b95ae5dca))
+
 ## [0.10.0](https://github.com/pkodzis/hcpctl/compare/v0.9.0...v0.10.0) (2026-02-22)
 
 
