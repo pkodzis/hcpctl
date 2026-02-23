@@ -119,15 +119,16 @@ impl Default for UpdateChecker {
 async fn check_version(current_version: &str, cache_path: &PathBuf) -> Option<String> {
     debug!("Checking for updates...");
 
-    // Fetch latest version from GitHub
-    let latest = match fetch_latest_version().await {
-        Ok(v) => v,
+    // Fetch latest release from GitHub
+    let release = match fetch_latest_release().await {
+        Ok(r) => r,
         Err(e) => {
             debug!("Failed to check for updates: {}", e);
             return None;
         }
     };
 
+    let latest = release.version();
     debug!("Current: {}, Latest: {}", current_version, latest);
 
     // Update cache
@@ -136,7 +137,7 @@ async fn check_version(current_version: &str, cache_path: &PathBuf) -> Option<St
             .duration_since(SystemTime::UNIX_EPOCH)
             .map(|d| d.as_secs())
             .unwrap_or(0),
-        latest_version: latest.clone(),
+        latest_version: latest.to_string(),
     };
 
     if let Some(parent) = cache_path.parent() {
@@ -147,15 +148,15 @@ async fn check_version(current_version: &str, cache_path: &PathBuf) -> Option<St
     }
 
     // Check if update available
-    if is_newer(&latest, current_version) {
-        Some(format_update_message(current_version, &latest))
+    if is_newer(latest, current_version) {
+        Some(format_update_message(current_version, latest))
     } else {
         None
     }
 }
 
-/// Fetch latest version from GitHub Releases API
-async fn fetch_latest_version() -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+/// Fetch latest release from GitHub Releases API
+async fn fetch_latest_release() -> Result<GitHubRelease, Box<dyn std::error::Error + Send + Sync>> {
     let url = format!(
         "https://api.github.com/repos/{}/releases/latest",
         config::GITHUB_REPO
@@ -171,14 +172,21 @@ async fn fetch_latest_version() -> Result<String, Box<dyn std::error::Error + Se
         .await?;
 
     let release: GitHubRelease = response.json().await?;
-    let version = release.tag_name.trim_start_matches('v').to_string();
 
-    Ok(version)
+    Ok(release)
 }
 
 #[derive(Debug, Deserialize)]
 struct GitHubRelease {
     tag_name: String,
+    #[serde(default)]
+    body: Option<String>,
+}
+
+impl GitHubRelease {
+    fn version(&self) -> &str {
+        self.tag_name.trim_start_matches('v')
+    }
 }
 
 /// Compare versions (simple semver comparison)
@@ -217,21 +225,33 @@ fn format_update_message(current: &str, latest: &str) -> String {
     format!("\n{}", table)
 }
 
+/// Format release notes for display after update.
+/// Returns None if body is empty or missing.
+fn format_changelog(body: Option<&str>) -> Option<String> {
+    let body = body?.trim();
+    if body.is_empty() {
+        return None;
+    }
+
+    Some(format!("Release notes:\n{}", body))
+}
+
 /// Run the update command - checks for updates and installs if available
 pub async fn run_update() -> Result<(), Box<dyn std::error::Error>> {
     let current_version = env!("CARGO_PKG_VERSION");
 
     println!("Checking for updates...");
 
-    // Fetch latest version
-    let latest = match fetch_latest_version().await {
-        Ok(v) => v,
+    // Fetch latest release
+    let release = match fetch_latest_release().await {
+        Ok(r) => r,
         Err(e) => {
             return Err(format!("Failed to check for updates: {}", e).into());
         }
     };
+    let latest = release.version();
 
-    if !is_newer(&latest, current_version) {
+    if !is_newer(latest, current_version) {
         println!("✓ hcpctl is up to date (v{})", current_version);
         return Ok(());
     }
@@ -276,6 +296,12 @@ pub async fn run_update() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     println!("✓ Successfully updated to v{}", latest);
+
+    // Show release notes if available
+    if let Some(notes) = format_changelog(release.body.as_deref()) {
+        println!("\n{}", notes);
+    }
+
     Ok(())
 }
 
@@ -341,5 +367,58 @@ mod tests {
         assert!(msg.contains("0.3.1"));
         assert!(msg.contains("0.4.0"));
         assert!(msg.contains("hcpctl"));
+    }
+
+    #[test]
+    fn test_format_changelog_with_content() {
+        let result = format_changelog(Some("## Bug Fixes\n- Fixed crash on startup"));
+        assert!(result.is_some());
+        let text = result.unwrap();
+        assert!(text.contains("Release notes:"));
+        assert!(text.contains("Bug Fixes"));
+        assert!(text.contains("Fixed crash on startup"));
+    }
+
+    #[test]
+    fn test_format_changelog_none() {
+        assert!(format_changelog(None).is_none());
+    }
+
+    #[test]
+    fn test_format_changelog_empty_string() {
+        assert!(format_changelog(Some("")).is_none());
+    }
+
+    #[test]
+    fn test_format_changelog_whitespace_only() {
+        assert!(format_changelog(Some("   \n\n  ")).is_none());
+    }
+
+    #[test]
+    fn test_github_release_deserialization() {
+        let json_value = serde_json::json!({
+            "tag_name": "v0.12.0",
+            "body": "## Changes\n- New feature"
+        });
+        let release: GitHubRelease = serde_json::from_value(json_value).unwrap();
+        assert_eq!(release.tag_name, "v0.12.0");
+        assert_eq!(release.body.as_deref(), Some("## Changes\n- New feature"));
+        assert_eq!(release.version(), "0.12.0");
+    }
+
+    #[test]
+    fn test_github_release_deserialization_body_null() {
+        let json = r#"{"tag_name": "v0.12.0", "body": null}"#;
+        let release: GitHubRelease = serde_json::from_str(json).unwrap();
+        assert_eq!(release.tag_name, "v0.12.0");
+        assert!(release.body.is_none());
+    }
+
+    #[test]
+    fn test_github_release_deserialization_body_absent() {
+        let json = r#"{"tag_name": "v0.12.0"}"#;
+        let release: GitHubRelease = serde_json::from_str(json).unwrap();
+        assert_eq!(release.tag_name, "v0.12.0");
+        assert!(release.body.is_none());
     }
 }
