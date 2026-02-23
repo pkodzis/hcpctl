@@ -20,18 +20,41 @@ hcpctl get ws -f "network" --org my-org
 
 ### Sorting
 
-You can sort the output using the `-s` or `--sort` flag. For workspaces, you can sort by `name`, `created-at`, or `updated-at`. Use `-r` to reverse the sort order.
+You can sort the output using the `-s` or `--sort` flag. For workspaces, available sort fields are:
+
+- `name`
+- `resources`
+- `updated-at`
+- `tf-version`
+- `pending-runs` (requires `--has-pending-runs`)
+
+Use `-r` to reverse the sort order.
 
 ```bash
 hcpctl get ws --sort updated-at -r --org my-org
+```
+
+To focus only on workspaces blocked by queued runs:
+
+```bash
+hcpctl get ws --org my-org --has-pending-runs --sort pending-runs -r
 ```
 
 ## Workspace Subresources
 
 You can fetch specific subresources of a workspace using the `--subresource` flag. This is useful for getting the current state version, current run, or configuration version.
 
+Supported values are:
+
+- `run`
+- `state`
+- `config`
+- `assessment`
+
+`--subresource` works only with a single workspace (`hcpctl get ws <NAME_OR_ID>`) and JSON/YAML output.
+
 ```bash
-hcpctl get ws my-workspace --org my-org --subresource current-state-version
+hcpctl get ws my-workspace --org my-org --subresource state -o yaml
 ```
 
 ## Downloading Configuration
@@ -53,7 +76,13 @@ The `set` command allows you to modify workspace properties.
 To move a workspace to a different project:
 
 ```bash
-hcpctl set ws my-workspace --project "Core Infrastructure" --org my-org
+hcpctl set ws my-workspace --prj "Core Infrastructure" --org my-org
+```
+
+You can also update Terraform version in the same command:
+
+```bash
+hcpctl set ws my-workspace --terraform-version 1.12.2 --org my-org
 ```
 
 ## Managing Tags
@@ -68,16 +97,27 @@ hcpctl get tag ws my-workspace --org my-org
 
 ### Adding Tags
 
-You can add multiple tags at once:
+You can add multiple tags at once. Tags are positional arguments (space-separated), not a `--tags` flag.
+
+Workspaces support mixed tag types:
+
+- flat tags: `env`
+- key-value bindings: `team=platform`
 
 ```bash
-hcpctl set tag ws my-workspace --tags env:prod,team:platform --org my-org
+hcpctl set tag ws my-workspace env team=platform --org my-org
 ```
 
 ### Removing Tags
 
 ```bash
-hcpctl delete tag ws my-workspace --tags env:prod --org my-org
+hcpctl delete tag ws my-workspace env team --org my-org
+```
+
+For projects, only `key=value` tags are supported:
+
+```bash
+hcpctl set tag prj my-project env=prod owner=platform --org my-org
 ```
 
 ## Purging State (Danger Zone)
@@ -91,3 +131,9 @@ hcpctl purge state ws-1234567890abcdef
 ```
 
 *Note: To bypass the interactive confirmation prompt, you must use the `--my-resume-is-updated` flag instead of the standard `--batch` flag.*
+
+## Related guides
+
+- [Runs and Logs](runs-and-logs.md)
+- [Authentication and Contexts](authentication.md)
+- [Contexts and Multi-Environment Workflows](contexts-workflows.md)

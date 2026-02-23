@@ -7,6 +7,7 @@ User
  ├── @feature         (end-to-end coordinator, orchestrates all phases)
  │    ├── subagent → design     (requirements + plan, read-only)
  │    ├── subagent → critic     (plan review, iterates with design, different model)
+ │    ├── subagent → api-perf   (API query efficiency review, iterates with design)
  │    ├── subagent → implement  (Rust/clap implementation)
  │    ├── subagent → test       (coverage gaps, write missing tests)
  │    └── subagent → review     (post-implementation verification, different model)
@@ -14,6 +15,7 @@ User
  ├── @implement       (feature implementation, standalone or subagent)
  ├── @test            (test coverage, standalone or subagent)
  ├── @review          (code review, standalone or subagent)
+ ├── @guide           (docs/src/guides maintainer, analysis-first, dynamic coverage)
  └── @code_review     (comprehensive code review orchestrator)
       ├── subagent → code_review_duplicates  (find duplicate patterns)
       ├── subagent → code_review_dead_code   (unused exports, dead code)
@@ -29,10 +31,12 @@ User
 |-------|------|-------|-------|-------|----------|----------------|----------------|
 | **feature** | End-to-end coordination, delegates to workers | Claude Opus 4.6 | agent, search, editFiles, runInTerminal, problems, fetch, read | ✔ | ✔ | ✔ | ❌ (`disable-model-invocation: true`) |
 | **design** | Analysis, planning, handoff to feature | Claude Opus 4.6 | search, fetch, problems, read | ❌ | ❌ | ✔ | ✔ |
-| **critic** | Plan critique, challenges design | GPT-5.3-Codex | search, fetch, problems, read | ❌ | ❌ | ❌ (`user-invokable: false`) | ✔ |
+| **critic** | Plan critique, challenges design | Gemini 3.1 Pro | search, fetch, problems, read | ❌ | ❌ | ❌ (`user-invokable: false`) | ✔ |
+| **api-perf** | API query efficiency review | Claude Opus 4.6 | search, fetch, problems, read | ❌ | ❌ | ❌ (`user-invokable: false`) | ✔ |
 | **implement** | Rust/clap implementation | Claude Opus 4.6 | search, editFiles, runInTerminal, problems, fetch, read | ✔ | ✔ | ✔ | ✔ |
 | **test** | Test coverage + gap filling | Claude Opus 4.6 | search, editFiles, runInTerminal, problems, read | ✔ | ✔ | ✔ | ✔ |
 | **review** | Post-implementation code review | GPT-5.3-Codex | search, fetch, problems, read | ❌ | ❌ | ✔ | ✔ |
+| **guide** | Maintain and evolve `docs/src/guides` from live code analysis | GPT-5.3-Codex | search, editFiles, runInTerminal, problems, fetch, read | ✔ | ✔ | ✔ | ✔ |
 
 ### Code Review Agents
 
@@ -44,12 +48,13 @@ User
 | **code_review_errors** | Error handling consistency | GPT-5.3-Codex | search, problems, read | ❌ | ❌ | ❌ (`user-invokable: false`) | ✔ |
 | **code_review_security** | Security vulnerabilities | GPT-5.3-Codex | search, problems, read | ❌ | ❌ | ❌ (`user-invokable: false`) | ✔ |
 
-**Model diversity**: Design and implementation use Claude Opus 4.6 for deep reasoning. Critic, review, and code review analyzers use GPT-5.3-Codex for independent perspective — different models catch different issues.
+**Model diversity**: Design, implementation, and api-perf use Claude Opus 4.6 for deep reasoning. Critic uses Gemini 3.1 Pro for independent perspective during plan review. Review and code review analyzers use GPT-5.3-Codex for post-implementation verification — different models catch different issues.
 
 **Key access controls**:
 - Feature has `disable-model-invocation: true` — only user-invokable, never spawned as a subagent
 - Critic has `user-invokable: false` — only feature spawns it, never appears in the dropdown
-- Feature declares `agents: [design, critic, implement, test, review]` — explicit subagent allowlist
+- Feature declares `agents: [design, critic, api-perf, implement, test, review]` — explicit subagent allowlist
+- api-perf has `user-invokable: false` — only feature spawns it after design↔critic converge
 - Design has a `handoff` to feature — after user reviews the plan, one click to start execution
 - code_review has `disable-model-invocation: true` — only user-invokable, never a subagent
 - All 4 code_review_* analyzers have `user-invokable: false` — only code_review orchestrator spawns them
@@ -62,6 +67,8 @@ User
 2. Feature creates `.feature-runs/<timestamp>-<slug>/` forensic trail directory
 3. Feature runs the full pipeline autonomously, saving every subagent output:
    - **Design↔Critic loop** (max 7 iterations until APPROVE or consensus)
+   - **API Performance Review** — api-perf validates API call efficiency (max 3 iterations with design)
+   - **Human Gate** — plan presented to user for approval before implementation
    - **Implement** the approved plan
    - **Test** — fill coverage gaps
    - **Review** — final quality check
@@ -94,16 +101,20 @@ The `@feature` coordinator runs a peer-review loop between design and critic:
 
 ```text
 feature (coordinator)
- ├── 1. Spawn design  → produces plan
- ├── 2. Spawn critic  → reviews plan (verdict: APPROVE or REVISE)
+ ├── 1. Spawn design    → produces plan
+ ├── 2. Spawn critic    → reviews plan (verdict: APPROVE or REVISE)
  ├── 3. If REVISE: send critic's issues back to design
  ├── 4. Repeat steps 2-3 (max 7 iterations)
- └── 5. Proceed with latest plan (document disagreements if no consensus)
+ ├── 5. Spawn api-perf  → reviews API query efficiency (verdict: APPROVE or REJECT)
+ ├── 6. If REJECT: send api-perf feedback to design, then re-review (max 3 iterations)
+ ├── 7. Human gate      → present plan to user, wait for approval
+ └── 8. Proceed to implementation
 ```
 
 - **Convergence**: Critic issues APPROVE when all issues are resolved or only LOW severity remain
 - **No consensus**: If 7 iterations reached without APPROVE, feature coordinator proceeds with latest plan and documents unresolved disagreements
-- **No human gate**: Plan is never presented for approval — feature coordinator proceeds autonomously
+- **API perf**: After design↔critic converge, api-perf reviews for fetch-all-filter-locally anti-patterns, server-side filtering opportunities, query order optimization
+- **Human gate**: Plan is presented to user for approval before implementation begins
 
 ## Retry Policy
 
@@ -117,6 +128,7 @@ The feature coordinator NEVER assumes a failed subagent's role:
 
 - Agent files: `.github/agents/<name>.agent.md`
 - All agents inherit `copilot-instructions.md` (tech stack, top rules, key conventions)
+- Guide agent maintains `docs/src/guides/*.md` dynamically (no hardcoded topic list)
 - Worker agents (implement, test, review) have default flags — user-invokable and subagent-ready
 - Feature has `disable-model-invocation: true` — only user-invokable, never a subagent
 - Critic has `user-invokable: false` — only feature spawns it, never user-facing
@@ -138,6 +150,7 @@ Every `@feature` run creates a full audit trail in `.feature-runs/<timestamp>-<s
   03-design-v2.md            # revised design (if REVISE)
   04-critic-v2.md            # second review (if needed)
   ...
+  NN-api-perf-v1.md          # API performance review
   NN-plan-approved.md        # final plan (+ disagreements if no consensus)
   NN-implement.md            # implementation log
   NN-test.md                 # test audit

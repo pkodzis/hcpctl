@@ -5,12 +5,8 @@ use clap::{Parser, Subcommand};
 /// Resource types for the 'set' command
 #[derive(Subcommand, Debug)]
 pub enum SetResource {
-    /// Assign workspace to a project
-    #[command(
-        visible_alias = "workspace",
-        visible_alias = "workspaces",
-        override_usage = "hcpctl set ws [OPTIONS] <WORKSPACE> --prj <PROJECT>"
-    )]
+    /// Modify workspace settings (project assignment, terraform version, etc.)
+    #[command(visible_alias = "workspace", visible_alias = "workspaces")]
     Ws(SetWsArgs),
 
     /// Set tag bindings on a workspace or project
@@ -23,13 +19,18 @@ pub enum SetResource {
 
 /// Arguments for 'set ws' subcommand
 #[derive(Parser, Debug)]
+#[command(group = clap::ArgGroup::new("settings").required(true).multiple(true).args(["project", "terraform_version"]))]
 pub struct SetWsArgs {
     /// Workspace name or ID (ws-xxx)
     pub workspace: String,
 
     /// Target project name or ID (prj-xxx)
     #[arg(long = "prj", short = 'p')]
-    pub project: String,
+    pub project: Option<String>,
+
+    /// Terraform version to set (e.g. 1.5.0)
+    #[arg(long = "terraform-version", visible_alias = "tf-version")]
+    pub terraform_version: Option<String>,
 
     /// Organization name (auto-discovered when using workspace ID)
     #[arg(long = "org")]

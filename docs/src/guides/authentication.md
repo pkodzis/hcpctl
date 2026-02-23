@@ -60,8 +60,37 @@ Delete a context:
 hcpctl config delete-context prod
 ```
 
+Show full raw config:
+```bash
+hcpctl config view
+```
+
+Select context for a single command:
+```bash
+hcpctl --context prod get ws
+```
+
+You can also set context via environment variable:
+
+```bash
+export HCPCTL_CONTEXT=prod
+```
+
+Active context name resolution order is:
+
+1. `--context`
+2. `HCPCTL_CONTEXT`
+3. `current-context` in hcpctl config file
+
 ## Terraform Credentials File
 
 If you already use the standard `terraform` CLI, you likely have a credentials file at `~/.terraform.d/credentials.tfrc.json` (or `%APPDATA%\terraform.d\credentials.tfrc.json` on Windows).
 
 `hcpctl` automatically reads this file. If you only have one host configured in it, `hcpctl` will use it automatically. If you have multiple hosts, `hcpctl` will prompt you to select one interactively.
+
+In `--batch` mode, interactive host selection is disabled. If multiple hosts exist and none was explicitly provided (`--host`, `TFE_HOSTNAME`, context), command fails with an error.
+
+## Related guides
+
+- [Getting Started with hcpctl](getting-started.md)
+- [Contexts and Multi-Environment Workflows](contexts-workflows.md)
