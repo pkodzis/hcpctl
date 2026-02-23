@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.0](https://github.com/pkodzis/hcpctl/compare/v0.11.0...v0.12.0) (2026-02-23)
+
+
+### Features
+
+* display release notes after successful update ([#56](https://github.com/pkodzis/hcpctl/issues/56)) ([c40742a](https://github.com/pkodzis/hcpctl/commit/c40742a274ed5175c97ac18e09a41f5c7a4529a7))
+
 ## [0.11.0](https://github.com/pkodzis/hcpctl/compare/v0.10.0...v0.11.0) (2026-02-23)
 
 
