@@ -33,7 +33,7 @@ pub enum ConfigAction {
 #[derive(Parser, Debug)]
 #[command(after_help = "EXAMPLES:\n  \
         hcpctl config set-context prod --host app.terraform.io --org my-org\n  \
-        hcpctl config set-context dev --host tfe-dev.corp.com --token <TOKEN>\n  \
+        hcpctl config set-context dev --host tfe.corp.com --token <TOKEN>\n  \
         hcpctl config set-context prod --org new-org   # update existing context")]
 pub struct SetContextArgs {
     /// Context name

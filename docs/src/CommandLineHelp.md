@@ -1038,7 +1038,7 @@ Set a context entry in the config file
 
 EXAMPLES:
   hcpctl config set-context prod --host app.terraform.io --org my-org
-  hcpctl config set-context dev --host tfe-dev.corp.com --token <TOKEN>
+  hcpctl config set-context dev --host tfe.corp.com --token <TOKEN>
   hcpctl config set-context prod --org new-org   # update existing context
 
 ###### **Arguments:**
