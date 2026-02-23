@@ -832,7 +832,8 @@ mod tests {
                 resource: SetResource::Ws(args),
             } => {
                 assert_eq!(args.workspace, "ws-abc123");
-                assert_eq!(args.project, "prj-xyz789");
+                assert_eq!(args.project, Some("prj-xyz789".to_string()));
+                assert!(args.terraform_version.is_none());
                 assert!(args.org.is_none());
                 assert!(!args.yes);
             }
@@ -857,7 +858,7 @@ mod tests {
                 resource: SetResource::Ws(args),
             } => {
                 assert_eq!(args.workspace, "my-workspace");
-                assert_eq!(args.project, "my-project");
+                assert_eq!(args.project, Some("my-project".to_string()));
                 assert_eq!(args.org, Some("my-org".to_string()));
                 assert!(!args.yes);
             }
@@ -906,7 +907,7 @@ mod tests {
             Command::Set {
                 resource: SetResource::Ws(args),
             } => {
-                assert_eq!(args.project, "prj-xyz789");
+                assert_eq!(args.project, Some("prj-xyz789".to_string()));
             }
             _ => panic!("Expected Set Ws command"),
         }
@@ -955,9 +956,100 @@ mod tests {
     }
 
     #[test]
-    fn test_set_ws_requires_prj() {
+    fn test_set_ws_requires_at_least_one_setting() {
         let result = Cli::try_parse_from(["hcp", "set", "ws", "ws-abc123"]);
         assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("settings") || err.contains("required"),
+            "Should indicate at least one setting is required: {}",
+            err
+        );
+    }
+
+    #[test]
+    fn test_set_ws_terraform_version_only() {
+        let cli = Cli::parse_from([
+            "hcp",
+            "set",
+            "ws",
+            "ws-abc123",
+            "--terraform-version",
+            "1.7.0",
+        ]);
+        match cli.command {
+            Command::Set {
+                resource: SetResource::Ws(args),
+            } => {
+                assert_eq!(args.workspace, "ws-abc123");
+                assert!(args.project.is_none());
+                assert_eq!(args.terraform_version, Some("1.7.0".to_string()));
+            }
+            _ => panic!("Expected Set Ws command"),
+        }
+    }
+
+    #[test]
+    fn test_set_ws_tf_version_alias() {
+        let cli = Cli::parse_from(["hcp", "set", "ws", "ws-abc123", "--tf-version", "1.8.0"]);
+        match cli.command {
+            Command::Set {
+                resource: SetResource::Ws(args),
+            } => {
+                assert_eq!(args.terraform_version, Some("1.8.0".to_string()));
+            }
+            _ => panic!("Expected Set Ws command"),
+        }
+    }
+
+    #[test]
+    fn test_set_ws_both_flags() {
+        let cli = Cli::parse_from([
+            "hcp",
+            "set",
+            "ws",
+            "ws-abc123",
+            "--prj",
+            "prj-xyz789",
+            "--terraform-version",
+            "1.9.0",
+        ]);
+        match cli.command {
+            Command::Set {
+                resource: SetResource::Ws(args),
+            } => {
+                assert_eq!(args.workspace, "ws-abc123");
+                assert_eq!(args.project, Some("prj-xyz789".to_string()));
+                assert_eq!(args.terraform_version, Some("1.9.0".to_string()));
+            }
+            _ => panic!("Expected Set Ws command"),
+        }
+    }
+
+    #[test]
+    fn test_set_ws_terraform_version_with_org() {
+        let cli = Cli::parse_from([
+            "hcp",
+            "set",
+            "ws",
+            "my-workspace",
+            "--terraform-version",
+            "1.6.0",
+            "--org",
+            "my-org",
+        ]);
+        match cli.command {
+            Command::Set {
+                resource: SetResource::Ws(args),
+            } => {
+                assert_eq!(args.workspace, "my-workspace");
+                assert!(args.project.is_none());
+                assert_eq!(args.terraform_version, Some("1.6.0".to_string()));
+                assert_eq!(args.org, Some("my-org".to_string()));
+                assert!(!args.yes);
+            }
+            _ => panic!("Expected Set Ws command"),
+        }
     }
 
     // === Set tag tests ===

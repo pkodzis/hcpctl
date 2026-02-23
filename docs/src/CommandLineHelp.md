@@ -951,16 +951,16 @@ Set resource properties (assign workspace to project, etc.)
 
 ###### **Subcommands:**
 
-* `ws` — Assign workspace to a project
+* `ws` — Modify workspace settings (project assignment, terraform version, etc.)
 * `tag` — Set tag bindings on a workspace or project
 
 
 
 ## `hcpctl set ws`
 
-Assign workspace to a project
+Modify workspace settings (project assignment, terraform version, etc.)
 
-**Usage:** `hcpctl set hcpctl set ws [OPTIONS] <WORKSPACE> --prj <PROJECT>`
+**Usage:** `hcpctl set ws [OPTIONS] <--prj <PROJECT>|--terraform-version <TERRAFORM_VERSION>> <WORKSPACE>`
 
 **Command Aliases:** `workspace`, `workspaces`
 
@@ -971,6 +971,7 @@ Assign workspace to a project
 ###### **Options:**
 
 * `-p`, `--prj <PROJECT>` — Target project name or ID (prj-xxx)
+* `--terraform-version <TERRAFORM_VERSION>` [alias: `tf-version`] — Terraform version to set (e.g. 1.5.0)
 * `--org <ORG>` — Organization name (auto-discovered when using workspace ID)
 * `-y`, `--yes` — Skip confirmation prompt
 

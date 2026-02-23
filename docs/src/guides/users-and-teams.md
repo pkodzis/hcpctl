@@ -41,24 +41,30 @@ hcpctl get team -f "platform" --org my-org
 You can invite a new user to your organization and optionally assign them to specific teams immediately.
 
 ```bash
-hcpctl invite new.user@example.com --org my-org
+hcpctl invite --email new.user@example.com --org my-org
 ```
 
 To invite a user and add them to the "Developers" and "Platform" teams:
 
 ```bash
-hcpctl invite new.user@example.com --teams "Developers,Platform" --org my-org
+hcpctl invite --email new.user@example.com --teams "Developers,Platform" --org my-org
 ```
+
+`--teams` accepts comma-separated team references (name or ID).
 
 ## Removing Users
 
-To remove a user from the organization, you can use their email address or their user ID (`ou-...`):
+To remove a user from the organization, you can use their email address or their membership ID (`ou-...`):
 
 ```bash
 hcpctl delete org-member old.user@example.com --org my-org
 ```
 
-*Note: This action requires confirmation unless you pass the `--batch` flag.*
+Skip confirmation with `-y`/`--yes` (or global `--batch` mode):
+
+```bash
+hcpctl delete org-member old.user@example.com --org my-org --yes
+```
 
 ## Viewing VCS Connections (OAuth Clients)
 
@@ -69,3 +75,8 @@ hcpctl get oc --org my-org
 ```
 
 This will display the names, IDs (`oc-...`), and the service provider (e.g., `github`, `gitlab_hosted`) for each connection.
+
+## Related guides
+
+- [Authentication and Contexts](authentication.md)
+- [Managing Workspaces and Projects](workspaces.md)

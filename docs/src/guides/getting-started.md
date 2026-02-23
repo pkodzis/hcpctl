@@ -34,6 +34,8 @@ Alternatively, you can set the `HCP_TOKEN` environment variable directly:
 export HCP_TOKEN="your-terraform-cloud-token"
 ```
 
+You can also use `TFC_TOKEN` or `TFE_TOKEN`.
+
 *Tip: You can generate a token manually in the HCP Terraform UI under User Settings -> Tokens.*
 
 ## Basic Usage
@@ -70,5 +72,6 @@ hcpctl get ws my-workspace --org my-organization -o yaml
 ## Next Steps
 
 - Learn more about [Authentication and Contexts](authentication.md) to manage multiple environments.
+- Use [Contexts and Multi-Environment Workflows](contexts-workflows.md) for production/dev setup patterns.
 - Explore [Workspace Management](workspaces.md) to see how to organize your infrastructure.
 - See [Runs and Logs](runs-and-logs.md) to learn how to monitor Terraform executions.

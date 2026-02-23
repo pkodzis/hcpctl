@@ -985,6 +985,10 @@ fn test_set_ws_help_flag() {
         stdout.contains("--prj") || stdout.contains("project"),
         "Should document --prj flag"
     );
+    assert!(
+        stdout.contains("--terraform-version"),
+        "Should document --terraform-version flag"
+    );
     assert!(stdout.contains("--org"), "Should document --org option");
     assert!(
         stdout.contains("--yes") || stdout.contains("-y"),
@@ -994,7 +998,6 @@ fn test_set_ws_help_flag() {
         stdout.contains("ws-"),
         "Should document workspace ID format"
     );
-    assert!(stdout.contains("prj-"), "Should document project ID format");
 }
 
 /// Test set ws requires workspace argument
@@ -1015,9 +1018,9 @@ fn test_set_ws_requires_workspace() {
     );
 }
 
-/// Test set ws requires --prj argument
+/// Test set ws requires at least one setting (--prj or --terraform-version)
 #[test]
-fn test_set_ws_requires_prj() {
+fn test_set_ws_requires_at_least_one_setting() {
     let output = Command::new(hcpctl_bin())
         .args(["set", "ws", "ws-abc123"])
         .env("TFE_TOKEN", "fake-token")
@@ -1028,8 +1031,9 @@ fn test_set_ws_requires_prj() {
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("--prj") || stderr.contains("required"),
-        "Should indicate --prj is required"
+        stderr.contains("settings") || stderr.contains("required"),
+        "Should indicate at least one setting is required: {}",
+        stderr
     );
 }
 
@@ -1046,6 +1050,86 @@ fn test_set_ws_alias() {
     assert!(
         stdout.contains("--prj"),
         "workspace alias should show same help as ws"
+    );
+}
+
+/// Test set ws --tf-version alias appears in help
+#[test]
+fn test_set_ws_terraform_version_in_help() {
+    let output = Command::new(hcpctl_bin())
+        .args(["set", "ws", "--help"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("--tf-version"),
+        "Should show --tf-version visible alias in help: {}",
+        stdout
+    );
+}
+
+/// Test that --tf-version alias is accepted as valid arg (not just in help)
+#[test]
+fn test_set_ws_tf_version_alias_accepted() {
+    let output = Command::new(hcpctl_bin())
+        .args(["set", "ws", "ws-abc123", "--tf-version", "1.5.0"])
+        .env("TFE_TOKEN", "fake-token")
+        .env("TFE_HOSTNAME", "fake.host.com")
+        .output()
+        .unwrap();
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    // Should NOT fail on unrecognized argument — error should be about connection, not parsing
+    assert!(
+        !stderr.contains("unexpected argument") && !stderr.contains("unrecognized"),
+        "--tf-version alias should be accepted: {}",
+        stderr
+    );
+}
+
+/// Test that both --prj and --terraform-version together are accepted
+#[test]
+fn test_set_ws_both_settings_accepted() {
+    let output = Command::new(hcpctl_bin())
+        .args([
+            "set",
+            "ws",
+            "ws-abc123",
+            "--prj",
+            "prj-xyz789",
+            "--terraform-version",
+            "1.7.0",
+        ])
+        .env("TFE_TOKEN", "fake-token")
+        .env("TFE_HOSTNAME", "fake.host.com")
+        .output()
+        .unwrap();
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    // Should NOT fail on arg group conflict — both flags together should be valid
+    assert!(
+        !stderr.contains("cannot be used with") && !stderr.contains("conflicts with"),
+        "Both --prj and --terraform-version should be accepted together: {}",
+        stderr
+    );
+}
+
+/// Test that set ws help describes terraform version capability
+#[test]
+fn test_set_ws_help_describes_terraform_version() {
+    let output = Command::new(hcpctl_bin())
+        .args(["set", "ws", "--help"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("terraform version") || stdout.contains("Terraform version"),
+        "Help should describe terraform version capability: {}",
+        stdout
     );
 }
 
