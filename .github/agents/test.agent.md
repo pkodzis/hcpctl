@@ -1,10 +1,10 @@
 ---
 description: 'Analyze test coverage, find gaps, and write missing tests for hcpctl'
-user-invokable: false
+model: Claude Opus 4.6 (copilot)
 tools:
   - search
   - editFiles
-  - terminal
+  - runInTerminal
   - problems
   - read
 ---

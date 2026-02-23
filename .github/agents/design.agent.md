@@ -1,11 +1,16 @@
 ---
 description: 'Analyze requirements and design implementation plans for hcpctl — read-only, no edits'
-user-invokable: false
+model: Claude Opus 4.6 (copilot)
 tools:
   - search
   - fetch
   - problems
   - read
+handoffs:
+  - label: Execute Plan
+    agent: feature
+    prompt: Execute the plan outlined above. Follow each step, delegate to appropriate specialist agents, and report progress.
+    send: false
 ---
 
 # hcpctl Design Agent

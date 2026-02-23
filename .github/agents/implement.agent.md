@@ -1,10 +1,10 @@
 ---
 description: 'Implement features and fix bugs in hcpctl'
-user-invokable: false
+model: Claude Opus 4.6 (copilot)
 tools:
   - search
   - editFiles
-  - terminal
+  - runInTerminal
   - problems
   - fetch
   - read

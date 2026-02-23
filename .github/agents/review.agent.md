@@ -1,6 +1,6 @@
 ---
 description: 'Code review and analysis for hcpctl — read-only, no edits'
-user-invokable: false
+model: GPT-5.3-Codex (copilot)
 tools:
   - search
   - fetch
