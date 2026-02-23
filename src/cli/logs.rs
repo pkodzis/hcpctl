@@ -7,9 +7,9 @@ use clap::Parser;
 pub struct LogsArgs {
     /// Run ID (run-xxx), workspace ID (ws-xxx), or workspace name
     ///
-    ///   run-xxx  directly fetches logs for that run
-    ///   ws-xxx   fetches logs for workspace's current run
-    ///   name     workspace name, fetches current run (requires --org)
+    ///   - run-xxx  directly fetches logs for that run
+    ///   - ws-xxx   fetches logs for workspace's current run
+    ///   - name     workspace name, fetches current run (requires --org)
     #[arg(verbatim_doc_comment)]
     pub target: String,
 

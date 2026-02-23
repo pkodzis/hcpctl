@@ -12,20 +12,23 @@ pub enum DownloadResource {
     /// current or specified configuration version.
     ///
     /// PROCEDURE:
+    ///
     ///   1. Resolves workspace by name or ID (auto-discovers organization)
     ///   2. Fetches configuration version details (current or specified)
     ///   3. Downloads the configuration archive (tar.gz)
     ///   4. Saves to specified output file or default name
     ///
     /// OUTPUT:
-    ///   By default, saves to: configuration-{cv_id}.tar.gz
-    ///   Use --output to specify a custom path.
+    ///
+    ///   - By default, saves to: configuration-{cv_id}.tar.gz
+    ///   - Use --output to specify a custom path.
     ///
     /// EXAMPLES:
-    ///   hcpctl download config my-workspace --org my-org
-    ///   hcpctl download config ws-abc123
-    ///   hcpctl download config my-ws --output ./config.tar.gz
-    ///   hcpctl download config my-ws --cv-id cv-xyz789
+    ///
+    ///   - hcpctl download config my-workspace --org my-org
+    ///   - hcpctl download config ws-abc123
+    ///   - hcpctl download config my-ws --output ./config.tar.gz
+    ///   - hcpctl download config my-ws --cv-id cv-xyz789
     #[command(verbatim_doc_comment, visible_alias = "cfg")]
     Config(DownloadConfigArgs),
 }
