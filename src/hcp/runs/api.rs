@@ -320,7 +320,7 @@ impl TfeClient {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wiremock::matchers::{method, path};
+    use wiremock::matchers::{method, path, query_param};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
     fn sample_runs_response() -> serde_json::Value {
@@ -752,5 +752,130 @@ mod tests {
         let result = client.cancel_run("run-notfound").await;
 
         assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_get_runs_with_pending_query_sends_status_filter() {
+        let mock_server = MockServer::start().await;
+        let client = TfeClient::test_client(&mock_server.uri());
+
+        Mock::given(method("GET"))
+            .and(path("/organizations/my-org/runs"))
+            .and(query_param("filter[status]", "pending"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "data": [
+                    {
+                        "id": "run-pend1",
+                        "type": "runs",
+                        "attributes": {"status": "pending"},
+                        "relationships": {
+                            "workspace": {"data": {"id": "ws-aaa", "type": "workspaces"}}
+                        }
+                    },
+                    {
+                        "id": "run-pend2",
+                        "type": "runs",
+                        "attributes": {"status": "pending"},
+                        "relationships": {
+                            "workspace": {"data": {"id": "ws-aaa", "type": "workspaces"}}
+                        }
+                    }
+                ],
+                "meta": {
+                    "pagination": {
+                        "current-page": 1,
+                        "page-size": 20,
+                        "next-page": null,
+                        "prev-page": null
+                    }
+                }
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let query = RunQuery::pending();
+        let result = client
+            .get_runs_for_organization("my-org", query, None)
+            .await;
+
+        assert!(result.is_ok());
+        let runs = result.unwrap();
+        assert_eq!(runs.len(), 2);
+        assert_eq!(runs[0].status(), "pending");
+        assert_eq!(runs[0].workspace_id(), Some("ws-aaa"));
+    }
+
+    #[tokio::test]
+    async fn test_get_runs_with_pending_query_for_workspace() {
+        let mock_server = MockServer::start().await;
+        let client = TfeClient::test_client(&mock_server.uri());
+
+        Mock::given(method("GET"))
+            .and(path("/workspaces/ws-test456/runs"))
+            .and(query_param("filter[status]", "pending"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "data": [
+                    {
+                        "id": "run-pend3",
+                        "type": "runs",
+                        "attributes": {"status": "pending"},
+                        "relationships": {
+                            "workspace": {"data": {"id": "ws-test456", "type": "workspaces"}}
+                        }
+                    }
+                ],
+                "meta": {
+                    "pagination": {
+                        "current-page": 1,
+                        "page-size": 20,
+                        "next-page": null,
+                        "prev-page": null
+                    }
+                }
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let query = RunQuery::pending();
+        let result = client
+            .get_runs_for_workspace("ws-test456", query, None)
+            .await;
+
+        assert!(result.is_ok());
+        let runs = result.unwrap();
+        assert_eq!(runs.len(), 1);
+        assert_eq!(runs[0].id, "run-pend3");
+    }
+
+    #[tokio::test]
+    async fn test_get_runs_pending_empty_response() {
+        let mock_server = MockServer::start().await;
+        let client = TfeClient::test_client(&mock_server.uri());
+
+        Mock::given(method("GET"))
+            .and(path("/organizations/my-org/runs"))
+            .and(query_param("filter[status]", "pending"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "data": [],
+                "meta": {
+                    "pagination": {
+                        "current-page": 1,
+                        "page-size": 20,
+                        "next-page": null,
+                        "prev-page": null
+                    }
+                }
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let query = RunQuery::pending();
+        let result = client
+            .get_runs_for_organization("my-org", query, None)
+            .await;
+
+        assert!(result.is_ok());
+        let runs = result.unwrap();
+        assert!(runs.is_empty());
     }
 }

@@ -1,13 +1,16 @@
 //! Workspace command handlers
 
+use std::collections::HashMap;
+
 use log::debug;
 
-use crate::cli::{OutputFormat, WsSubresource};
+use crate::cli::{OutputFormat, WsSortField, WsSubresource};
 use crate::hcp::helpers::{
     aggregate_pagination_info, collect_org_results, fetch_from_organizations, log_completion,
 };
 use crate::hcp::organizations::resolve_organizations;
 use crate::hcp::projects::resolve_project;
+use crate::hcp::runs::{count_runs_by_workspace, RunQuery};
 use crate::hcp::workspaces::WorkspaceQuery;
 use crate::hcp::TfeClient;
 use crate::output::{output_raw, output_results_sorted};
@@ -32,6 +35,11 @@ pub async fn run_ws_command(
     // Validate: --subresource requires a workspace name
     if args.subresource.is_some() && args.name.is_none() {
         return Err("--subresource requires a workspace name or ID".into());
+    }
+
+    // Validate: --sort pending-runs requires --has-pending-runs
+    if args.sort == WsSortField::PendingRuns && !args.has_pending_runs {
+        return Err("--sort pending-runs requires --has-pending-runs".into());
     }
 
     let effective_org = client.effective_org(args.org.as_ref());
@@ -145,7 +153,74 @@ pub async fn run_ws_command(
     finish_spinner_with_status(spinner, &all_workspaces, had_errors);
 
     if !all_workspaces.is_empty() {
-        output_results_sorted(all_workspaces, cli);
+        if args.has_pending_runs {
+            // Phase 3: Fetch pending runs per org in parallel
+            let org_names: Vec<String> =
+                all_workspaces.iter().map(|(org, _)| org.clone()).collect();
+
+            let pending_spinner = create_spinner(
+                &format!(
+                    "Fetching pending runs from {} organization(s)...",
+                    org_names.len()
+                ),
+                cli.batch,
+            );
+
+            let pending_results = fetch_from_organizations(org_names, |org| async move {
+                match client
+                    .get_runs_for_organization(&org, RunQuery::pending(), None)
+                    .await
+                {
+                    Ok(runs) => Ok(runs),
+                    Err(e) => Err((org, e)),
+                }
+            })
+            .await;
+
+            // Collect all pending runs into a single counts map
+            let mut counts: HashMap<String, usize> = HashMap::new();
+            for result in pending_results {
+                match result {
+                    Ok(runs) => {
+                        for (ws_id, count) in count_runs_by_workspace(&runs) {
+                            *counts.entry(ws_id).or_insert(0) += count;
+                        }
+                    }
+                    Err((org, e)) => {
+                        eprintln!(
+                            "Warning: failed to fetch pending runs for org '{}': {}",
+                            org, e
+                        );
+                    }
+                }
+            }
+
+            finish_spinner(pending_spinner);
+
+            // Filter out workspaces with zero pending runs
+            let filtered: Vec<(String, Vec<Workspace>)> = all_workspaces
+                .into_iter()
+                .filter_map(|(org, workspaces)| {
+                    let filtered_ws: Vec<Workspace> = workspaces
+                        .into_iter()
+                        .filter(|ws| counts.contains_key(&ws.id))
+                        .collect();
+                    if filtered_ws.is_empty() {
+                        None
+                    } else {
+                        Some((org, filtered_ws))
+                    }
+                })
+                .collect();
+
+            if filtered.is_empty() {
+                println!("No workspaces with pending runs found.");
+            } else {
+                output_results_sorted(filtered, cli, Some(&counts));
+            }
+        } else {
+            output_results_sorted(all_workspaces, cli, None);
+        }
     }
 
     log_completion(had_errors);
@@ -199,8 +274,20 @@ async fn get_single_workspace(
                     .organization_name()
                     .unwrap_or("unknown")
                     .to_string();
+
+                let pending_counts = fetch_pending_counts_for_workspace(
+                    client,
+                    &workspace.id,
+                    name,
+                    args.has_pending_runs,
+                )
+                .await?;
+                if args.has_pending_runs && pending_counts.is_none() {
+                    return Ok(());
+                }
+
                 let all_workspaces = vec![(org_name, vec![workspace])];
-                output_results_sorted(all_workspaces, cli);
+                output_results_sorted(all_workspaces, cli, pending_counts.as_ref());
                 return Ok(());
             }
             Ok(None) => {
@@ -255,13 +342,44 @@ async fn get_single_workspace(
 
         let workspace: Workspace = serde_json::from_value(raw["data"].clone())
             .map_err(|e| format!("Failed to parse workspace: {}", e))?;
+
+        let pending_counts =
+            fetch_pending_counts_for_workspace(client, &workspace.id, name, args.has_pending_runs)
+                .await?;
+        if args.has_pending_runs && pending_counts.is_none() {
+            return Ok(());
+        }
+
         let all_workspaces = vec![(org_name, vec![workspace])];
-        output_results_sorted(all_workspaces, cli);
+        output_results_sorted(all_workspaces, cli, pending_counts.as_ref());
         return Ok(());
     }
 
     finish_spinner(spinner);
     Err(crate::hcp::helpers::not_found_in_orgs_error("Workspace", name, &organizations).into())
+}
+
+/// Fetch pending run counts for a single workspace.
+/// Returns `Some(counts)` if pending runs exist, `None` (with a printed message) if none found,
+/// or `None` if `has_pending_runs` is false.
+async fn fetch_pending_counts_for_workspace(
+    client: &TfeClient,
+    ws_id: &str,
+    ws_name: &str,
+    has_pending_runs: bool,
+) -> Result<Option<HashMap<String, usize>>, Box<dyn std::error::Error>> {
+    if !has_pending_runs {
+        return Ok(None);
+    }
+    let runs = client
+        .get_runs_for_workspace(ws_id, RunQuery::pending(), None)
+        .await?;
+    let counts = count_runs_by_workspace(&runs);
+    if !counts.contains_key(ws_id) {
+        println!("\nNo pending runs found for workspace '{}'", ws_name);
+        return Ok(None);
+    }
+    Ok(Some(counts))
 }
 
 /// Fetch and output a workspace subresource

@@ -153,6 +153,14 @@ impl RunQuery {
         }
     }
 
+    /// Create a query filtering only pending runs
+    pub fn pending() -> Self {
+        Self {
+            statuses: Some(vec![RunStatus::Pending]),
+            ..Default::default()
+        }
+    }
+
     /// Create a query with specific statuses
     pub fn with_statuses(statuses: Vec<RunStatus>) -> Self {
         Self {
@@ -160,6 +168,19 @@ impl RunQuery {
             ..Default::default()
         }
     }
+}
+
+/// Count runs grouped by workspace ID
+///
+/// Runs without a workspace relationship are silently skipped.
+pub fn count_runs_by_workspace(runs: &[Run]) -> std::collections::HashMap<String, usize> {
+    let mut counts = std::collections::HashMap::new();
+    for run in runs {
+        if let Some(ws_id) = run.workspace_id() {
+            *counts.entry(ws_id.to_string()).or_insert(0) += 1;
+        }
+    }
+    counts
 }
 
 /// Response wrapper for runs list
@@ -589,10 +610,67 @@ mod tests {
     }
 
     #[test]
+    fn test_run_query_pending() {
+        let query = RunQuery::pending();
+        assert!(query.status_group.is_none());
+        let statuses = query.statuses.as_ref().unwrap();
+        assert_eq!(statuses.len(), 1);
+        assert_eq!(statuses[0], RunStatus::Pending);
+    }
+
+    #[test]
     fn test_run_query_with_statuses() {
         let query = RunQuery::with_statuses(vec![RunStatus::Planning, RunStatus::Applying]);
         assert!(query.status_group.is_none());
         assert_eq!(query.statuses.as_ref().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn test_count_runs_by_workspace() {
+        let runs = vec![
+            serde_json::from_value::<Run>(serde_json::json!({
+                "id": "run-1",
+                "type": "runs",
+                "attributes": {"status": "pending"},
+                "relationships": {"workspace": {"data": {"id": "ws-aaa", "type": "workspaces"}}}
+            }))
+            .unwrap(),
+            serde_json::from_value::<Run>(serde_json::json!({
+                "id": "run-2",
+                "type": "runs",
+                "attributes": {"status": "pending"},
+                "relationships": {"workspace": {"data": {"id": "ws-aaa", "type": "workspaces"}}}
+            }))
+            .unwrap(),
+            serde_json::from_value::<Run>(serde_json::json!({
+                "id": "run-3",
+                "type": "runs",
+                "attributes": {"status": "pending"},
+                "relationships": {"workspace": {"data": {"id": "ws-bbb", "type": "workspaces"}}}
+            }))
+            .unwrap(),
+        ];
+        let counts = count_runs_by_workspace(&runs);
+        assert_eq!(counts.get("ws-aaa"), Some(&2));
+        assert_eq!(counts.get("ws-bbb"), Some(&1));
+    }
+
+    #[test]
+    fn test_count_runs_by_workspace_empty() {
+        let counts = count_runs_by_workspace(&[]);
+        assert!(counts.is_empty());
+    }
+
+    #[test]
+    fn test_count_runs_by_workspace_skips_no_relationship() {
+        let runs = vec![serde_json::from_value::<Run>(serde_json::json!({
+            "id": "run-1",
+            "type": "runs",
+            "attributes": {"status": "pending"}
+        }))
+        .unwrap()];
+        let counts = count_runs_by_workspace(&runs);
+        assert!(counts.is_empty());
     }
 
     #[test]
