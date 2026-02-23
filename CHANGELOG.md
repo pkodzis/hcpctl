@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.0](https://github.com/pkodzis/hcpctl/compare/v0.13.1...v0.14.0) (2026-02-23)
+
+
+### Features
+
+* add --terraform-version flag to set ws command ([#63](https://github.com/pkodzis/hcpctl/issues/63)) ([a396352](https://github.com/pkodzis/hcpctl/commit/a396352f2bd8dcdf9b62d1d463fbc041f056819a))
+
 ## [0.13.1](https://github.com/pkodzis/hcpctl/compare/v0.13.0...v0.13.1) (2026-02-23)
 
 
