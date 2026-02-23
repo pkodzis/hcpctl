@@ -1,6 +1,6 @@
 ---
 description: 'Plan review and critique — challenges Design proposals to improve quality before execution'
-model: GPT-5.3-Codex (copilot)
+model: Gemini 3.1 Pro (Preview) (copilot)
 user-invokable: false
 tools:
   - search
