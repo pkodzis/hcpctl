@@ -26,9 +26,11 @@ pub async fn run_set_ws_command(
         args.workspace, args.project
     );
 
+    let effective_org = client.effective_org(args.org.as_ref());
+
     // 1. Resolve workspace
     let resolved_ws =
-        resolve_workspace(client, &args.workspace, args.org.as_deref(), cli.batch).await?;
+        resolve_workspace(client, &args.workspace, effective_org.as_deref(), cli.batch).await?;
 
     let ws_id = &resolved_ws.workspace.id;
     let ws_name = resolved_ws.workspace.name().to_string();

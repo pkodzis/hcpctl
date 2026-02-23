@@ -31,6 +31,7 @@
 
 pub mod cli;
 pub mod config;
+pub mod context;
 pub mod error;
 pub mod hcp;
 pub mod output;
@@ -38,12 +39,16 @@ pub mod ui;
 pub mod update;
 
 pub use cli::{
-    Cli, Command, DeleteOrgMemberArgs, DeleteResource, DeleteTagPrjArgs, DeleteTagResource,
-    DeleteTagWsArgs, DownloadConfigArgs, DownloadResource, GetResource, GetTagArgs, GetTagPrjArgs,
-    GetTagResource, GetTagWsArgs, InviteArgs, LogsArgs, OcArgs, OrgArgs, OrgMemberArgs,
-    OutputFormat, PrjArgs, PrjSortField, PurgeResource, PurgeRunArgs, PurgeStateArgs, RunArgs,
-    RunSortField, RunSubresource, SetResource, SetTagPrjArgs, SetTagResource, SetTagWsArgs,
-    SetWsArgs, TeamArgs, WatchResource, WatchWsArgs, WsArgs, WsSortField, WsSubresource,
+    Cli, Command, ConfigAction, DeleteContextArgs, DeleteOrgMemberArgs, DeleteResource,
+    DeleteTagPrjArgs, DeleteTagResource, DeleteTagWsArgs, DownloadConfigArgs, DownloadResource,
+    GetResource, GetTagArgs, GetTagPrjArgs, GetTagResource, GetTagWsArgs, InviteArgs, LogsArgs,
+    OcArgs, OrgArgs, OrgMemberArgs, OutputFormat, PrjArgs, PrjSortField, PurgeResource,
+    PurgeRunArgs, PurgeStateArgs, RunArgs, RunSortField, RunSubresource, SetContextArgs,
+    SetResource, SetTagPrjArgs, SetTagResource, SetTagWsArgs, SetWsArgs, TeamArgs, UseContextArgs,
+    WatchResource, WatchWsArgs, WsArgs, WsSortField, WsSubresource,
+};
+pub use context::{
+    resolve_active_context, run_context_command, Context, ContextConfig, ContextStore,
 };
 pub use error::{Result, TfeError};
 pub use hcp::{

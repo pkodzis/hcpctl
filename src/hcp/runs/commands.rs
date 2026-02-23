@@ -44,8 +44,10 @@ pub async fn run_runs_command(
         .into());
     }
 
+    let effective_org = client.effective_org(args.org.as_ref());
+
     // Validate that org or ws is provided
-    if args.org.is_none() && args.ws.is_none() {
+    if effective_org.is_none() && args.ws.is_none() {
         return Err("Either --org or --ws is required to list runs".into());
     }
 
@@ -65,7 +67,7 @@ pub async fn run_runs_command(
     // Fetch runs based on whether we have org or ws
     let runs = if let Some(ws_id) = &args.ws {
         fetch_workspace_runs(client, cli, ws_id, query, args.yes).await?
-    } else if let Some(org) = &args.org {
+    } else if let Some(org) = &effective_org {
         fetch_org_runs(client, cli, org, query, args.yes).await?
     } else {
         unreachable!()
@@ -610,8 +612,9 @@ pub async fn run_purge_run_command(
     };
 
     // Step 1: Resolve workspace
+    let effective_org = client.effective_org(args.org.as_ref());
     let resolved =
-        resolve_workspace(client, &args.workspace, args.org.as_deref(), cli.batch).await?;
+        resolve_workspace(client, &args.workspace, effective_org.as_deref(), cli.batch).await?;
     let workspace = &resolved.workspace;
     let ws_id = &workspace.id;
     let ws_name = workspace.name();

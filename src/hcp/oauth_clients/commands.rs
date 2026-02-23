@@ -26,11 +26,14 @@ pub async fn run_oc_command(
 
     // If NAME is specified, get single OAuth client
     if let Some(name) = &args.name {
-        return get_single_oauth_client(client, cli, name, args.org.as_ref()).await;
+        let effective_org = client.effective_org(args.org.as_ref());
+        return get_single_oauth_client(client, cli, name, effective_org.as_ref()).await;
     }
 
+    let effective_org = client.effective_org(args.org.as_ref());
+
     // Otherwise list all OAuth clients
-    let organizations = resolve_organizations(client, args.org.as_ref()).await?;
+    let organizations = resolve_organizations(client, effective_org.as_ref()).await?;
 
     debug!(
         "Processing {} organizations: {:?}",

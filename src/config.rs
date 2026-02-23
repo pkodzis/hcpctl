@@ -54,6 +54,16 @@ pub mod defaults {
     pub const LOG_LEVEL: &str = "warn";
 }
 
+/// Configuration for context management
+pub mod context {
+    /// Environment variable for context name
+    pub const ENV_VAR: &str = "HCPCTL_CONTEXT";
+    /// Directory name for hcpctl config
+    pub const DIR_NAME: &str = ".hcpctl";
+    /// Config file name
+    pub const FILE_NAME: &str = "config.json";
+}
+
 /// Configuration for update checker
 pub mod update {
     use std::time::Duration;

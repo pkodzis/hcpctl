@@ -62,7 +62,7 @@ tests/
 2. kubectl style - hcpctl get ws like kubectl get pods, -o yaml/json/table/csv, --subresource, aliases.
 3. No code duplication - one function with optional params, use query structs, extract helpers, use traits.
 4. Code review mindset - verify: idiomatic Rust/clap? duplicates? right file? efficient API usage? consistent? extensible?
-5. Tests always - every feature has tests, run cargo test and cargo clippy after changes.
+5. Tests always - every feature has tests, run cargo test and cargo clippy -- -D warnings after changes.
 6. Module locality - functions for a resource belong in that resource's module. E.g. resolve_project goes in hcp/projects/, not in the calling command module like set/.
 
 ## Key Conventions

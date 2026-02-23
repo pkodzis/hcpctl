@@ -23,7 +23,7 @@ applyTo: 'src/**/*.rs,tests/**/*.rs'
 - **Always create and update tests** when implementing
   new features or fixing bugs
 - Run `cargo test` after every change
-- Run `cargo clippy` to ensure no warnings
+- Run `cargo clippy -- -D warnings` to ensure no warnings
 - Test edge cases: empty inputs, invalid data, error conditions (404, 500)
 
 ## Wiremock Test Pattern (MANDATORY for api.rs)

@@ -23,8 +23,9 @@ pub async fn run_download_config_command(
     };
 
     // Resolve workspace
+    let effective_org = client.effective_org(args.org.as_ref());
     let resolved =
-        resolve_workspace(client, &args.workspace, args.org.as_deref(), cli.batch).await?;
+        resolve_workspace(client, &args.workspace, effective_org.as_deref(), cli.batch).await?;
     let workspace_id = &resolved.workspace.id;
 
     debug!(

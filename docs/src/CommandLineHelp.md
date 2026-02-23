@@ -35,6 +35,13 @@ This document contains the help content for the `hcpctl` command-line program.
 * [`hcpctl set tag`↴](#hcpctl-set-tag)
 * [`hcpctl set tag ws`↴](#hcpctl-set-tag-ws)
 * [`hcpctl set tag prj`↴](#hcpctl-set-tag-prj)
+* [`hcpctl config`↴](#hcpctl-config)
+* [`hcpctl config set-context`↴](#hcpctl-config-set-context)
+* [`hcpctl config use-context`↴](#hcpctl-config-use-context)
+* [`hcpctl config get-contexts`↴](#hcpctl-config-get-contexts)
+* [`hcpctl config current-context`↴](#hcpctl-config-current-context)
+* [`hcpctl config delete-context`↴](#hcpctl-config-delete-context)
+* [`hcpctl config view`↴](#hcpctl-config-view)
 * [`hcpctl update`↴](#hcpctl-update)
 
 ## `hcpctl`
@@ -47,7 +54,8 @@ HOST RESOLUTION:
   The host is resolved in the following order (first match wins):
   1. CLI argument (-H, --host)
   2. Environment variable: TFE_HOSTNAME
-  3. Credentials file (~/.terraform.d/credentials.tfrc.json):
+  3. Active context (from --context, HCPCTL_CONTEXT env, or current-context)
+  4. Credentials file (~/.terraform.d/credentials.tfrc.json):
      - If 1 host configured: use it automatically
      - If multiple hosts: interactive selection (or error in batch mode)
 
@@ -55,14 +63,26 @@ TOKEN RESOLUTION:
   The API token is resolved in the following order (first match wins):
   1. CLI argument (-t, --token)
   2. Environment variables (in order): HCP_TOKEN, TFC_TOKEN, TFE_TOKEN
-  3. Credentials file (~/.terraform.d/credentials.tfrc.json)
+  3. Active context
+  4. Credentials file (~/.terraform.d/credentials.tfrc.json)
      Token is read from the entry matching the resolved host.
+
+CONTEXT:
+  Contexts store connection defaults (host, token, org) for quick switching:
+    hcpctl config set-context prod --host app.terraform.io --org my-org
+    hcpctl config use-context prod
+
+  Resolution (first match wins):
+    Host:  -H flag → TFE_HOSTNAME env → context → credentials file
+    Token: -t flag → HCP_TOKEN/TFC_TOKEN/TFE_TOKEN env → context → credentials file
+    Org:   --org flag → context
 
 EXAMPLES:
   - hcpctl get org                     List all organizations
   - hcpctl get ws --org myorg          List workspaces in organization
   - hcpctl get ws myws --org myorg     Get workspace details
   - hcpctl -H app.terraform.io get ws  Use specific host
+  - hcpctl -c prod get ws              Use 'prod' context
 
 ###### **Subcommands:**
 
@@ -74,10 +94,12 @@ EXAMPLES:
 * `watch` — Watch resources for changes
 * `invite` — Invite a user to an organization
 * `set` — Set resource properties (assign workspace to project, etc.)
+* `config` — Manage connection contexts for multiple TFE/HCP instances
 * `update` — Update hcpctl to the latest version
 
 ###### **Options:**
 
+* `-c`, `--context <CONTEXT>` — Use a specific named context (overrides current-context)
 * `-H`, `--host <HOST>` — TFE/HCP host URL (falls back to TFE_HOSTNAME env var or credentials file)
 * `-t`, `--token <TOKEN>` — API token (overrides env vars and credentials file)
 * `-l`, `--log-level <LOG_LEVEL>` — Log level (error, warn, info, debug, trace)
@@ -988,6 +1010,94 @@ Set tags on a project
 * `-y`, `--yes` — Skip confirmation prompt
 
   Default value: `false`
+
+
+
+## `hcpctl config`
+
+Manage connection contexts for multiple TFE/HCP instances
+
+**Usage:** `hcpctl config <COMMAND>`
+
+###### **Subcommands:**
+
+* `set-context` — Set a context entry in the config file
+* `use-context` — Set the current-context in the config file
+* `get-contexts` — Describe one or many contexts
+* `current-context` — Display the current-context
+* `delete-context` — Delete the specified context from the config file
+* `view` — Display config file contents
+
+
+
+## `hcpctl config set-context`
+
+Set a context entry in the config file
+
+**Usage:** `hcpctl config set-context [OPTIONS] <NAME>`
+
+EXAMPLES:
+  hcpctl config set-context prod --host app.terraform.io --org my-org
+  hcpctl config set-context dev --host tfe-dev.corp.com --token <TOKEN>
+  hcpctl config set-context prod --org new-org   # update existing context
+
+###### **Arguments:**
+
+* `<NAME>` — Context name
+
+###### **Options:**
+
+* `--host <HOST>` — TFE/HCP host URL
+* `--token <TOKEN>` — API token (stored in config file)
+* `--org <ORG>` — Default organization
+
+
+
+## `hcpctl config use-context`
+
+Set the current-context in the config file
+
+**Usage:** `hcpctl config use-context <NAME>`
+
+###### **Arguments:**
+
+* `<NAME>` — Context name to activate
+
+
+
+## `hcpctl config get-contexts`
+
+Describe one or many contexts
+
+**Usage:** `hcpctl config get-contexts`
+
+
+
+## `hcpctl config current-context`
+
+Display the current-context
+
+**Usage:** `hcpctl config current-context`
+
+
+
+## `hcpctl config delete-context`
+
+Delete the specified context from the config file
+
+**Usage:** `hcpctl config delete-context <NAME>`
+
+###### **Arguments:**
+
+* `<NAME>` — Context name to delete
+
+
+
+## `hcpctl config view`
+
+Display config file contents
+
+**Usage:** `hcpctl config view`
 
 
 

@@ -20,8 +20,9 @@ pub async fn run_team_command(
         unreachable!()
     };
 
-    let org = args
-        .org
+    let effective_org = client.effective_org(args.org.as_ref());
+
+    let org = effective_org
         .as_ref()
         .ok_or("Organization is required (--org)")?;
 
