@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.1](https://github.com/pkodzis/hcpctl/compare/v0.13.0...v0.13.1) (2026-02-23)
+
+
+### Bug Fixes
+
+* optimize --has-pending-runs to fetch only relevant workspaces ([#61](https://github.com/pkodzis/hcpctl/issues/61)) ([9d6f00b](https://github.com/pkodzis/hcpctl/commit/9d6f00bf559bfc6999a607dfb4afc082d49b4493))
+
 ## [0.13.0](https://github.com/pkodzis/hcpctl/compare/v0.12.0...v0.13.0) (2026-02-23)
 
 
