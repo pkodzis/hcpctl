@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD013 -->
 # hcpctl
 
-A CLI for HCP Terraform (formerly Terraform Cloud/Enterprise).
+A CLI for HCP Terraform (formerly Terraform Cloud/Enterprise)
 
 ```bash
 hcpctl get ws                    # List all workspaces
