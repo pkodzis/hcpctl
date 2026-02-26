@@ -70,6 +70,27 @@ impl std::fmt::Display for RunSortField {
     }
 }
 
+/// Sort field options for team-project access
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum TeamAccessSortField {
+    /// Sort by team name (default)
+    Team,
+    /// Sort by project name
+    Project,
+    /// Sort by access level
+    Access,
+}
+
+impl std::fmt::Display for TeamAccessSortField {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TeamAccessSortField::Team => write!(f, "team"),
+            TeamAccessSortField::Project => write!(f, "project"),
+            TeamAccessSortField::Access => write!(f, "access"),
+        }
+    }
+}
+
 /// Run subresources that can be fetched
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum RunSubresource {
@@ -118,5 +139,12 @@ mod tests {
         assert_eq!(RunSortField::CreatedAt.to_string(), "created-at");
         assert_eq!(RunSortField::Status.to_string(), "status");
         assert_eq!(RunSortField::WsId.to_string(), "ws-id");
+    }
+
+    #[test]
+    fn test_team_access_sort_field_display() {
+        assert_eq!(TeamAccessSortField::Team.to_string(), "team");
+        assert_eq!(TeamAccessSortField::Project.to_string(), "project");
+        assert_eq!(TeamAccessSortField::Access.to_string(), "access");
     }
 }

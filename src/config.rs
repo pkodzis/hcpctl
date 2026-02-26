@@ -18,6 +18,9 @@ pub mod api {
     /// Teams endpoint
     pub const TEAMS: &str = "teams";
 
+    /// Team projects (team-project access bindings) endpoint
+    pub const TEAM_PROJECTS: &str = "team-projects";
+
     /// Default page size for API requests
     pub const DEFAULT_PAGE_SIZE: u32 = 100;
 
@@ -118,6 +121,7 @@ mod tests {
         assert_eq!(api::WORKSPACES, "workspaces");
         assert_eq!(api::RUNS, "runs");
         assert_eq!(api::TEAMS, "teams");
+        assert_eq!(api::TEAM_PROJECTS, "team-projects");
     }
 
     #[test]

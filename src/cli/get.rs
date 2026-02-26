@@ -53,6 +53,15 @@ pub enum GetResource {
     )]
     OrgMember(OrgMemberArgs),
 
+    /// Get team project access bindings
+    #[command(
+        visible_alias = "team-accesses",
+        visible_alias = "teamaccess",
+        visible_alias = "teamaccesses",
+        visible_alias = "ta"
+    )]
+    TeamAccess(super::team_access::TeamAccessArgs),
+
     /// Get tags (org-level, workspace, or project)
     #[command(visible_alias = "tags")]
     Tag(super::tag::GetTagArgs),

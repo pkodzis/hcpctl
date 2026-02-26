@@ -1343,6 +1343,120 @@ fn test_ws_has_pending_runs_with_sort_accepted() {
     );
 }
 
+/// Test that 'get team-access --help' shows expected content
+#[test]
+fn test_team_access_help_flag() {
+    let output = Command::new(hcpctl_bin())
+        .args(["get", "team-access", "--help"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("--org"), "Should document --org flag");
+    assert!(
+        stdout.contains("--prj") || stdout.contains("-p"),
+        "Should document --prj flag"
+    );
+    assert!(
+        stdout.contains("--filter") || stdout.contains("-f"),
+        "Should document --filter flag"
+    );
+    assert!(
+        stdout.contains("--output") || stdout.contains("-o"),
+        "Should document --output flag"
+    );
+    assert!(
+        stdout.contains("--sort") || stdout.contains("-s"),
+        "Should document --sort flag"
+    );
+    assert!(
+        stdout.contains("--reverse") || stdout.contains("-r"),
+        "Should document --reverse flag"
+    );
+}
+
+/// Test that team-access aliases work
+#[test]
+fn test_team_access_alias_ta() {
+    let output = Command::new(hcpctl_bin())
+        .args(["get", "ta", "--help"])
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "'get ta' alias should work");
+}
+
+/// Test that 'get teamaccess' alias works
+#[test]
+fn test_team_access_alias_teamaccess() {
+    let output = Command::new(hcpctl_bin())
+        .args(["get", "teamaccess", "--help"])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "'get teamaccess' alias should work"
+    );
+}
+
+/// Test that 'get teamaccesses' alias works
+#[test]
+fn test_team_access_alias_teamaccesses() {
+    let output = Command::new(hcpctl_bin())
+        .args(["get", "teamaccesses", "--help"])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "'get teamaccesses' alias should work"
+    );
+}
+
+/// Test that 'get team-accesses' alias works
+#[test]
+fn test_team_access_alias_team_accesses() {
+    let output = Command::new(hcpctl_bin())
+        .args(["get", "team-accesses", "--help"])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "'get team-accesses' alias should work"
+    );
+}
+
+/// Test that team-access appears in 'get --help' output
+#[test]
+fn test_get_help_shows_team_access() {
+    let output = Command::new(hcpctl_bin())
+        .args(["get", "--help"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("team-access"),
+        "'get --help' should list team-access command"
+    );
+}
+
+/// Test that team-access sort options are documented
+#[test]
+fn test_team_access_sort_options_documented() {
+    let output = Command::new(hcpctl_bin())
+        .args(["get", "team-access", "--help"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("team") && stdout.contains("project") && stdout.contains("access"),
+        "Should document team, project, and access sort options"
+    );
+}
+
 /// Test that --context global flag is accepted
 #[test]
 fn test_global_context_flag() {

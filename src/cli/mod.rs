@@ -18,6 +18,7 @@ mod logs;
 mod purge;
 mod set;
 mod tag;
+mod team_access;
 mod watch;
 
 use clap::{Parser, Subcommand};
@@ -29,7 +30,9 @@ pub use common::OutputFormat;
 pub use context::{ConfigAction, DeleteContextArgs, SetContextArgs, UseContextArgs};
 pub use delete::{DeleteOrgMemberArgs, DeleteResource};
 pub use download::{DownloadConfigArgs, DownloadResource};
-pub use enums::{PrjSortField, RunSortField, RunSubresource, WsSortField, WsSubresource};
+pub use enums::{
+    PrjSortField, RunSortField, RunSubresource, TeamAccessSortField, WsSortField, WsSubresource,
+};
 pub use get::{GetResource, OcArgs, OrgArgs, OrgMemberArgs, PrjArgs, RunArgs, TeamArgs, WsArgs};
 pub use invite::InviteArgs;
 pub use logs::LogsArgs;
@@ -39,6 +42,7 @@ pub use tag::{
     classify_tags, parse_tags, DeleteTagPrjArgs, DeleteTagResource, DeleteTagWsArgs, GetTagArgs,
     GetTagPrjArgs, GetTagResource, GetTagWsArgs, SetTagPrjArgs, SetTagResource, SetTagWsArgs,
 };
+pub use team_access::TeamAccessArgs;
 pub use watch::{WatchResource, WatchWsArgs};
 
 const AFTER_LONG_HELP: &str = r#"HOST RESOLUTION:
@@ -1417,6 +1421,188 @@ mod tests {
     fn test_delete_tag_prj_requires_keys() {
         let result = Cli::try_parse_from(["hcp", "delete", "tag", "prj", "prj-abc123"]);
         assert!(result.is_err());
+    }
+
+    // === Get team-access tests ===
+
+    #[test]
+    fn test_get_team_access_list_all() {
+        let cli = Cli::parse_from(["hcp", "get", "team-access", "--org", "my-org"]);
+        match cli.command {
+            Command::Get {
+                resource: GetResource::TeamAccess(args),
+            } => {
+                assert!(args.name.is_none());
+                assert_eq!(args.org, Some("my-org".to_string()));
+                assert!(args.prj.is_none());
+                assert!(args.filter.is_none());
+                assert_eq!(args.output, OutputFormat::Table);
+                assert_eq!(args.sort, TeamAccessSortField::Team);
+                assert!(!args.reverse);
+            }
+            _ => panic!("Expected Get TeamAccess command"),
+        }
+    }
+
+    #[test]
+    fn test_get_team_access_with_team_name() {
+        let cli = Cli::parse_from(["hcp", "get", "team-access", "owners", "--org", "my-org"]);
+        match cli.command {
+            Command::Get {
+                resource: GetResource::TeamAccess(args),
+            } => {
+                assert_eq!(args.name, Some("owners".to_string()));
+                assert_eq!(args.org, Some("my-org".to_string()));
+            }
+            _ => panic!("Expected Get TeamAccess command"),
+        }
+    }
+
+    #[test]
+    fn test_get_team_access_with_all_flags() {
+        let cli = Cli::parse_from([
+            "hcp",
+            "get",
+            "team-access",
+            "devs",
+            "--org",
+            "my-org",
+            "-p",
+            "infra",
+            "-f",
+            "admin",
+            "-o",
+            "json",
+            "-s",
+            "access",
+            "-r",
+        ]);
+        match cli.command {
+            Command::Get {
+                resource: GetResource::TeamAccess(args),
+            } => {
+                assert_eq!(args.name, Some("devs".to_string()));
+                assert_eq!(args.org, Some("my-org".to_string()));
+                assert_eq!(args.prj, Some("infra".to_string()));
+                assert_eq!(args.filter, Some("admin".to_string()));
+                assert_eq!(args.output, OutputFormat::Json);
+                assert_eq!(args.sort, TeamAccessSortField::Access);
+                assert!(args.reverse);
+            }
+            _ => panic!("Expected Get TeamAccess command"),
+        }
+    }
+
+    #[test]
+    fn test_get_team_access_sort_project() {
+        let cli = Cli::parse_from([
+            "hcp",
+            "get",
+            "team-access",
+            "--org",
+            "my-org",
+            "-s",
+            "project",
+        ]);
+        match cli.command {
+            Command::Get {
+                resource: GetResource::TeamAccess(args),
+            } => {
+                assert_eq!(args.sort, TeamAccessSortField::Project);
+            }
+            _ => panic!("Expected Get TeamAccess command"),
+        }
+    }
+
+    #[test]
+    fn test_get_team_access_alias_ta() {
+        let cli = Cli::parse_from(["hcp", "get", "ta", "--org", "my-org"]);
+        assert!(matches!(
+            cli.command,
+            Command::Get {
+                resource: GetResource::TeamAccess(_)
+            }
+        ));
+    }
+
+    #[test]
+    fn test_get_team_access_alias_teamaccess() {
+        let cli = Cli::parse_from(["hcp", "get", "teamaccess", "--org", "my-org"]);
+        assert!(matches!(
+            cli.command,
+            Command::Get {
+                resource: GetResource::TeamAccess(_)
+            }
+        ));
+    }
+
+    #[test]
+    fn test_get_team_access_alias_teamaccesses() {
+        let cli = Cli::parse_from(["hcp", "get", "teamaccesses", "--org", "my-org"]);
+        assert!(matches!(
+            cli.command,
+            Command::Get {
+                resource: GetResource::TeamAccess(_)
+            }
+        ));
+    }
+
+    #[test]
+    fn test_get_team_access_alias_team_accesses() {
+        let cli = Cli::parse_from(["hcp", "get", "team-accesses", "--org", "my-org"]);
+        assert!(matches!(
+            cli.command,
+            Command::Get {
+                resource: GetResource::TeamAccess(_)
+            }
+        ));
+    }
+
+    #[test]
+    fn test_get_team_access_with_project_filter() {
+        let cli = Cli::parse_from([
+            "hcp",
+            "get",
+            "team-access",
+            "--org",
+            "my-org",
+            "-p",
+            "my-project",
+        ]);
+        match cli.command {
+            Command::Get {
+                resource: GetResource::TeamAccess(args),
+            } => {
+                assert_eq!(args.prj, Some("my-project".to_string()));
+            }
+            _ => panic!("Expected Get TeamAccess command"),
+        }
+    }
+
+    #[test]
+    fn test_get_team_access_output_yaml() {
+        let cli = Cli::parse_from(["hcp", "get", "team-access", "--org", "my-org", "-o", "yaml"]);
+        match cli.command {
+            Command::Get {
+                resource: GetResource::TeamAccess(args),
+            } => {
+                assert_eq!(args.output, OutputFormat::Yaml);
+            }
+            _ => panic!("Expected Get TeamAccess command"),
+        }
+    }
+
+    #[test]
+    fn test_get_team_access_output_csv() {
+        let cli = Cli::parse_from(["hcp", "get", "team-access", "--org", "my-org", "-o", "csv"]);
+        match cli.command {
+            Command::Get {
+                resource: GetResource::TeamAccess(args),
+            } => {
+                assert_eq!(args.output, OutputFormat::Csv);
+            }
+            _ => panic!("Expected Get TeamAccess command"),
+        }
     }
 
     // === Config tests (kubectl-style) ===

@@ -3,10 +3,7 @@ description: 'Plan review and critique — challenges Design proposals to improv
 model: Gemini 3.1 Pro (Preview) (copilot)
 user-invokable: false
 tools:
-  - search
-  - fetch
-  - problems
-  - read
+  ['read', 'search', 'web/fetch']
 ---
 
 # hcpctl Critic Agent
