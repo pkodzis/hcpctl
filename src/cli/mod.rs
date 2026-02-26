@@ -46,7 +46,9 @@ pub use team_access::TeamAccessArgs;
 pub use watch::{WatchResource, WatchWsArgs};
 
 const AFTER_LONG_HELP: &str = r#"HOST RESOLUTION:
-  The host is resolved in the following order (first match wins):
+
+The host is resolved in the following order (first match wins):
+
   1. CLI argument (-H, --host)
   2. Environment variable: TFE_HOSTNAME
   3. Active context (from --context, HCPCTL_CONTEXT env, or current-context)
@@ -55,7 +57,9 @@ const AFTER_LONG_HELP: &str = r#"HOST RESOLUTION:
      - If multiple hosts: interactive selection (or error in batch mode)
 
 TOKEN RESOLUTION:
-  The API token is resolved in the following order (first match wins):
+
+The API token is resolved in the following order (first match wins):
+
   1. CLI argument (-t, --token)
   2. Environment variables (in order): HCP_TOKEN, TFC_TOKEN, TFE_TOKEN
   3. Active context
@@ -63,21 +67,25 @@ TOKEN RESOLUTION:
      Token is read from the entry matching the resolved host.
 
 CONTEXT:
+
   Contexts store connection defaults (host, token, org) for quick switching:
-    hcpctl config set-context prod --host app.terraform.io --org my-org
-    hcpctl config use-context prod
+
+    - hcpctl config set-context prod --host app.terraform.io --org my-org
+    - hcpctl config use-context prod
 
   Resolution (first match wins):
-    Host:  -H flag → TFE_HOSTNAME env → context → credentials file
-    Token: -t flag → HCP_TOKEN/TFC_TOKEN/TFE_TOKEN env → context → credentials file
-    Org:   --org flag → context
+
+    - Host:  -H flag → TFE_HOSTNAME env → context → credentials file
+    - Token: -t flag → HCP_TOKEN/TFC_TOKEN/TFE_TOKEN env → context → credentials file
+    - Org:   --org flag → context
 
 EXAMPLES:
-  - hcpctl get org                     List all organizations
-  - hcpctl get ws --org myorg          List workspaces in organization
-  - hcpctl get ws myws --org myorg     Get workspace details
-  - hcpctl -H app.terraform.io get ws  Use specific host
-  - hcpctl -c prod get ws              Use 'prod' context"#;
+
+  - hcpctl get org                     # List all organizations
+  - hcpctl get ws --org myorg          # List workspaces in organization
+  - hcpctl get ws myws --org myorg     # Get workspace details
+  - hcpctl -H app.terraform.io get ws  # Use specific host
+  - hcpctl -c prod get ws              # Use 'prod' context"#;
 
 /// HCP/TFE CLI - Explore HashiCorp Cloud Platform and Terraform Enterprise
 #[derive(Parser, Debug)]
