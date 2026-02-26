@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.0](https://github.com/pkodzis/hcpctl/compare/v0.14.0...v0.15.0) (2026-02-26)
+
+
+### Features
+
+* add get team-access command for listing team-project access bindings ([#65](https://github.com/pkodzis/hcpctl/issues/65)) ([248e531](https://github.com/pkodzis/hcpctl/commit/248e5312fe46cdbd437277ed8e245935b7b6d9f4))
+
 ## [0.14.0](https://github.com/pkodzis/hcpctl/compare/v0.13.1...v0.14.0) (2026-02-23)
 
 
