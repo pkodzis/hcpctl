@@ -15,6 +15,7 @@ pub mod projects;
 pub mod runs;
 pub mod state;
 pub mod tags;
+pub mod team_projects;
 pub mod teams;
 pub mod traits;
 pub mod watch;
@@ -49,6 +50,10 @@ pub use state::run_purge_state_command;
 pub use tags::{
     run_delete_tag_command, run_get_tag_command, run_set_tag_command, OrgTag, OrgTagAttributes,
     TagBinding, TagBindingAttributes, TagBindingsResponse, TagTarget, TagTargetKind,
+};
+pub use team_projects::{
+    run_team_access_command, EnrichedTeamProjectAccess, TeamProjectAccess,
+    TeamProjectAccessAttributes,
 };
 pub use teams::{run_team_command, Team, TeamAttributes};
 pub use traits::{PaginatedResponse, TfeResource};

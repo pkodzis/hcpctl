@@ -9,7 +9,7 @@ tools:
   - problems
   - fetch
   - read
-agents: ['design', 'critic', 'api-perf', 'implement', 'test', 'review']
+agents: ['design', 'critic', 'api-perf', 'implement', 'test', 'review', 'rust-beast-mode']
 disable-model-invocation: true
 ---
 
@@ -74,9 +74,11 @@ All subsequent files go into this directory. Use sequential numbering: `01-`, `0
   NN-plan-approved.md        # final approved plan (or plan + disagreements)
   NN-implement.md            # implementation log (files changed, commands run)
   NN-test.md                 # test audit results
-  NN-review.md               # review findings
-  NN-fix-round-1.md          # fix details (if review found issues)
-  NN-review-final.md         # final review after fixes (if needed)
+  NN-review.md               # review findings (review agent)
+  NN-beast-mode.md           # deep Rust verification (rust-beast-mode agent)
+  NN-fix-round-1.md          # fix details (if review/beast-mode found issues)
+  NN-review-final.md         # final review after fixes (review agent)
+  NN-beast-mode-final.md     # final deep verification after fixes (rust-beast-mode agent)
   NN-report.md               # final summary report (ALWAYS LAST)
 ```
 
@@ -90,7 +92,8 @@ For **every** subagent invocation, save the **complete output** to the correspon
 - **Plan approved** (`plan-approved.md`): the final plan that will be implemented. If no consensus after 7 iterations, include a `## Disagreements` section with both positions
 - **Implement** (`implement.md`): list of files created/modified, cargo test output, cargo clippy -- -D warnings output
 - **Test** (`test.md`): coverage audit, tests added, test results
-- **Review** (`review.md`): all findings (bugs, violations, suggestions, coverage gaps)
+- **Review** (`review.md`): all findings from review agent (bugs, violations, suggestions, coverage gaps)
+- **Beast mode** (`beast-mode.md`): deep Rust verification from rust-beast-mode agent (edge cases, safety, idiomatic patterns, thorough testing)
 - **Fix rounds** (`fix-round-N.md`): what was fixed, why, test results after fix
 - **Report** (`report.md`): the final summary (same format as Final Report below)
 
@@ -226,28 +229,62 @@ The test agent will add missing tests and verify they pass.
 
 → Save to `NN-test.md`: coverage audit, tests added, full test results
 
-### Phase 4 — Review (subagent: review)
+### Phase 4 — Review (subagents: review + rust-beast-mode)
+
+This phase runs TWO independent review agents sequentially to maximize defect detection. Each agent has a different focus and model — their findings are combined.
+
+**Step 1: review agent** (pattern consistency, project conventions)
 
 Delegate to the **review** agent:
 > Review the implementation of: {feature summary}
 >
 > Files changed: {list all files modified across Phase 2 and 3}
 
-Collect the review findings.
+→ Save complete output to `NN-review.md`
 
-→ Save to `NN-review.md`: all findings
+**Step 2: rust-beast-mode agent** (deep Rust verification, edge cases, safety)
+
+Delegate to the **rust-beast-mode** agent:
+> You are verifying a newly implemented feature in hcpctl. Your job is to deeply verify the implementation quality — NOT to re-implement anything.
+>
+> **Feature**: {feature summary}
+> **Files changed**: {list all files modified across Phase 2 and 3}
+> **Review agent findings** (for context, avoid duplicating): {paste review agent's output}
+>
+> Your verification MUST cover:
+> 1. **Correctness**: Read every changed file. Are there logic bugs, off-by-one errors, missed edge cases?
+> 2. **Rust idioms**: Proper error handling with `?`, no unnecessary `.clone()`, correct ownership/borrowing, appropriate use of `Option`/`Result`
+> 3. **Safety**: No `.unwrap()` in non-test code, no panics on bad input, proper error propagation
+> 4. **Test rigor**: Run `cargo test` and `cargo clippy -- -D warnings`. Are tests actually testing the right things? Are edge cases covered? Add any missing tests you find.
+> 5. **Performance**: Unnecessary allocations? Could iterators be used instead of collecting? Are API calls efficient?
+> 6. **Integration**: Does the new code integrate correctly with existing modules? Any broken imports or dead code?
+>
+> Report your findings using these categories:
+> - 🔴 **Bug**: code that will fail at runtime
+> - 🟡 **Pattern violation**: works but doesn't match project conventions
+> - 🟢 **Suggestion**: optional improvement
+> - 📊 **Coverage gap**: missing test cases
+>
+> If you find issues, list them clearly with file paths and line numbers. If you find NO issues, explicitly state that verification passed.
+
+→ Save complete output to `NN-beast-mode.md`
+
+Combine findings from both agents for Phase 5 decision.
 
 ### Phase 5 — Fix Loop (if needed)
 
-If the review reports any 🔴 **Bug** or 🟡 **Pattern violation** issues:
+If **either** the review agent or rust-beast-mode agent reports any 🔴 **Bug** or 🟡 **Pattern violation** issues:
 
-1. Delegate back to the **implement** agent with the specific fixes needed
-2. Run `cargo test && cargo clippy -- -D warnings` to verify fixes
-3. → Save to `NN-fix-round-1.md`: what was fixed, why, test/clippy results
-4. Delegate to the **review** agent one more time to confirm fixes are clean
-5. → Save to `NN-review-final.md`: final review
+1. Merge all 🔴 and 🟡 findings from both agents into a single fix list (deduplicate overlapping issues)
+2. Delegate back to the **implement** agent with the specific fixes needed
+3. Run `cargo test && cargo clippy -- -D warnings` to verify fixes
+4. → Save to `NN-fix-round-N.md`: what was fixed, why, test/clippy results
+5. Re-run BOTH verification agents on the fixed code:
+   - Delegate to the **review** agent to confirm fixes are clean → Save to `NN-review-final.md`
+   - Delegate to the **rust-beast-mode** agent to confirm fixes are clean → Save to `NN-beast-mode-final.md`
+6. If new issues are found by either agent, repeat from step 1
 
-Repeat at most 2 fix rounds. If issues persist after 2 rounds, document them in the Final Report.
+Repeat at most 2 fix rounds. If issues persist after 2 rounds, document them in the Final Report with attribution to which agent found each remaining issue.
 
 ### Phase 6 — Final Report (ALWAYS LAST)
 
@@ -292,8 +329,10 @@ The report is written to `NN-report.md` AND printed to chat:
 - {list any ambiguities you resolved autonomously, with reasoning}
 
 ## Review status
-- 🔴 Bugs found: {0 or list}
-- 🟡 Pattern violations: {0 or list}
+- Review agent findings: {summary}
+- Rust Beast Mode findings: {summary}
+- 🔴 Bugs found: {0 or list, with source agent}
+- 🟡 Pattern violations: {0 or list, with source agent}
 - Fix rounds needed: {0, 1, or 2}
 
 ## Forensic trail

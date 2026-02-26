@@ -44,8 +44,9 @@ pub use cli::{
     GetResource, GetTagArgs, GetTagPrjArgs, GetTagResource, GetTagWsArgs, InviteArgs, LogsArgs,
     OcArgs, OrgArgs, OrgMemberArgs, OutputFormat, PrjArgs, PrjSortField, PurgeResource,
     PurgeRunArgs, PurgeStateArgs, RunArgs, RunSortField, RunSubresource, SetContextArgs,
-    SetResource, SetTagPrjArgs, SetTagResource, SetTagWsArgs, SetWsArgs, TeamArgs, UseContextArgs,
-    WatchResource, WatchWsArgs, WsArgs, WsSortField, WsSubresource,
+    SetResource, SetTagPrjArgs, SetTagResource, SetTagWsArgs, SetWsArgs, TeamAccessArgs,
+    TeamAccessSortField, TeamArgs, UseContextArgs, WatchResource, WatchWsArgs, WsArgs, WsSortField,
+    WsSubresource,
 };
 pub use context::{
     resolve_active_context, run_context_command, Context, ContextConfig, ContextStore,
@@ -55,13 +56,13 @@ pub use hcp::{
     run_delete_org_member_command, run_delete_tag_command, run_download_config_command,
     run_get_tag_command, run_invite_command, run_logs_command, run_oc_command, run_org_command,
     run_org_member_command, run_prj_command, run_purge_run_command, run_purge_state_command,
-    run_runs_command, run_set_tag_command, run_set_ws_command, run_team_command,
-    run_watch_ws_command, run_ws_command, HostResolver, OAuthClient, Organization, Project, Run,
-    Team, TfeClient, TfeResource, TokenResolver, Workspace,
+    run_runs_command, run_set_tag_command, run_set_ws_command, run_team_access_command,
+    run_team_command, run_watch_ws_command, run_ws_command, HostResolver, OAuthClient,
+    Organization, Project, Run, Team, TfeClient, TfeResource, TokenResolver, Workspace,
 };
 pub use output::{
     output_oauth_clients, output_org_tags, output_org_tags_with_workspaces, output_organizations,
-    output_projects, output_results_sorted, output_runs, output_tag_bindings,
+    output_projects, output_results_sorted, output_runs, output_tag_bindings, output_team_access,
     output_workspace_all_tags, WorkspaceRow,
 };
 pub use ui::{confirm_large_pagination, LargePaginationInfo};

@@ -7,6 +7,7 @@ mod organizations;
 mod projects;
 mod runs;
 mod tags;
+mod team_access;
 mod teams;
 mod workspaces;
 
@@ -19,6 +20,7 @@ pub use tags::{
     output_org_tags, output_org_tags_with_workspaces, output_tag_bindings,
     output_workspace_all_tags,
 };
+pub use team_access::output_team_access;
 pub use teams::output_teams;
 pub use workspaces::WorkspaceRow;
 

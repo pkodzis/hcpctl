@@ -9,9 +9,10 @@ use hcpctl::{
     run_delete_tag_command, run_download_config_command, run_get_tag_command, run_invite_command,
     run_logs_command, run_oc_command, run_org_command, run_org_member_command, run_prj_command,
     run_purge_run_command, run_purge_state_command, run_runs_command, run_set_tag_command,
-    run_set_ws_command, run_team_command, run_update, run_watch_ws_command, run_ws_command, Cli,
-    Command, DeleteResource, DownloadResource, GetResource, HostResolver, PurgeResource,
-    SetResource, TfeClient, TokenResolver, UpdateChecker, WatchResource,
+    run_set_ws_command, run_team_access_command, run_team_command, run_update,
+    run_watch_ws_command, run_ws_command, Cli, Command, DeleteResource, DownloadResource,
+    GetResource, HostResolver, PurgeResource, SetResource, TfeClient, TokenResolver, UpdateChecker,
+    WatchResource,
 };
 
 #[tokio::main]
@@ -82,6 +83,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
             GetResource::Oc(_) => run_oc_command(&client, &cli).await,
             GetResource::Run(_) => run_runs_command(&client, &cli).await,
             GetResource::Team(_) => run_team_command(&client, &cli).await,
+            GetResource::TeamAccess(_) => run_team_access_command(&client, &cli).await,
             GetResource::OrgMember(_) => run_org_member_command(&client, &cli).await,
             GetResource::Tag(_) => run_get_tag_command(&client, &cli).await,
         },

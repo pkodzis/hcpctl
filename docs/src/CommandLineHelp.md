@@ -13,6 +13,7 @@ This document contains the help content for the `hcpctl` command-line program.
 * [`hcpctl get run`↴](#hcpctl-get-run)
 * [`hcpctl get team`↴](#hcpctl-get-team)
 * [`hcpctl get org-member`↴](#hcpctl-get-org-member)
+* [`hcpctl get team-access`↴](#hcpctl-get-team-access)
 * [`hcpctl get tag`↴](#hcpctl-get-tag)
 * [`hcpctl get tag ws`↴](#hcpctl-get-tag-ws)
 * [`hcpctl get tag prj`↴](#hcpctl-get-tag-prj)
@@ -129,6 +130,7 @@ Get resources (organizations, projects, workspaces)
 * `run` — Get runs (active runs by default - non_final states)
 * `team` — Get teams in an organization
 * `org-member` — Get organization members
+* `team-access` — Get team project access bindings
 * `tag` — Get tags (org-level, workspace, or project)
 
 
@@ -473,6 +475,55 @@ Get organization members
   - `yaml`:
     YAML format
 
+
+
+
+## `hcpctl get team-access`
+
+Get team project access bindings
+
+**Usage:** `hcpctl get team-access [OPTIONS] [NAME]`
+
+**Command Aliases:** `team-accesses`, `teamaccess`, `teamaccesses`, `ta`
+
+###### **Arguments:**
+
+* `<NAME>` — Team name or ID — if omitted, lists all teams' bindings
+
+###### **Options:**
+
+* `--org <ORG>` — Organization name (required)
+* `-p`, `--prj <PRJ>` — Filter by project (name or ID)
+* `-f`, `--filter <FILTER>` — Filter results by team name, project name, or access level (substring match)
+* `-o`, `--output <OUTPUT>` — Output format
+
+  Default value: `table`
+
+  Possible values:
+  - `table`:
+    ASCII table (default)
+  - `csv`:
+    Comma-separated values
+  - `json`:
+    JSON array
+  - `yaml`:
+    YAML format
+
+* `-s`, `--sort <SORT>` — Sort results by field
+
+  Default value: `team`
+
+  Possible values:
+  - `team`:
+    Sort by team name (default)
+  - `project`:
+    Sort by project name
+  - `access`:
+    Sort by access level
+
+* `-r`, `--reverse` — Reverse sort order (descending)
+
+  Default value: `false`
 
 
 
