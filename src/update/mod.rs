@@ -119,16 +119,15 @@ impl Default for UpdateChecker {
 async fn check_version(current_version: &str, cache_path: &PathBuf) -> Option<String> {
     debug!("Checking for updates...");
 
-    // Fetch latest release from GitHub
-    let release = match fetch_latest_release().await {
-        Ok(r) => r,
+    // Fetch latest version via redirect (no API rate limits)
+    let latest = match fetch_latest_version().await {
+        Ok(v) => v,
         Err(e) => {
             debug!("Failed to check for updates: {}", e);
             return None;
         }
     };
 
-    let latest = release.version();
     debug!("Current: {}, Latest: {}", current_version, latest);
 
     // Update cache
@@ -137,7 +136,7 @@ async fn check_version(current_version: &str, cache_path: &PathBuf) -> Option<St
             .duration_since(SystemTime::UNIX_EPOCH)
             .map(|d| d.as_secs())
             .unwrap_or(0),
-        latest_version: latest.to_string(),
+        latest_version: latest.clone(),
     };
 
     if let Some(parent) = cache_path.parent() {
@@ -148,45 +147,97 @@ async fn check_version(current_version: &str, cache_path: &PathBuf) -> Option<St
     }
 
     // Check if update available
-    if is_newer(latest, current_version) {
-        Some(format_update_message(current_version, latest))
+    if is_newer(&latest, current_version) {
+        Some(format_update_message(current_version, &latest))
     } else {
         None
     }
 }
 
-/// Fetch latest release from GitHub Releases API
-async fn fetch_latest_release() -> Result<GitHubRelease, Box<dyn std::error::Error + Send + Sync>> {
-    let url = format!(
-        "https://api.github.com/repos/{}/releases/latest",
-        config::GITHUB_REPO
-    );
+/// Fetch latest version via GitHub releases redirect (no API rate limits)
+///
+/// Uses `https://github.com/{repo}/releases/latest` which returns a 302 redirect
+/// to `.../tag/v0.15.0`. We extract the version from the redirect URL.
+/// This does NOT hit the GitHub API and is not subject to rate limiting.
+async fn fetch_latest_version() -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+    let url = format!("https://github.com/{}/releases/latest", config::GITHUB_REPO);
+    fetch_latest_version_from(&url).await
+}
 
-    let client = Client::builder().timeout(config::REQUEST_TIMEOUT).build()?;
+/// Testable implementation that accepts a full URL
+async fn fetch_latest_version_from(
+    url: &str,
+) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+    let client = Client::builder()
+        .timeout(config::REQUEST_TIMEOUT)
+        .redirect(reqwest::redirect::Policy::none())
+        .build()?;
 
     let response = client
-        .get(&url)
+        .get(url)
         .header("User-Agent", "hcpctl-update-checker")
-        .header("Accept", "application/vnd.github.v3+json")
         .send()
         .await?;
 
-    let release: GitHubRelease = response.json().await?;
+    let status = response.status();
+    if !status.is_redirection() {
+        let body = response.text().await.unwrap_or_default();
+        return Err(format!("GitHub returned {} for {}: {}", status, url, body.trim()).into());
+    }
 
-    Ok(release)
+    let location = response
+        .headers()
+        .get("location")
+        .and_then(|v| v.to_str().ok())
+        .ok_or_else(|| format!("GitHub returned {} but no Location header", status))?;
+
+    // Location: https://github.com/pkodzis/hcpctl/releases/tag/v0.15.0
+    let version = location
+        .rsplit('/')
+        .next()
+        .ok_or("Could not parse version from redirect URL")?
+        .trim_start_matches('v');
+
+    Ok(version.to_string())
+}
+
+/// Fetch release details from GitHub API (best-effort, for release notes only)
+async fn fetch_release_body(tag: &str) -> Option<String> {
+    let url = format!(
+        "https://api.github.com/repos/{}/releases/tags/v{}",
+        config::GITHUB_REPO,
+        tag
+    );
+    fetch_release_body_from(&url).await
+}
+
+/// Testable implementation that accepts a full URL
+async fn fetch_release_body_from(url: &str) -> Option<String> {
+    let client = Client::builder()
+        .timeout(config::REQUEST_TIMEOUT)
+        .build()
+        .ok()?;
+
+    let response = client
+        .get(url)
+        .header("User-Agent", "hcpctl-update-checker")
+        .header("Accept", "application/vnd.github.v3+json")
+        .send()
+        .await
+        .ok()?;
+
+    if !response.status().is_success() {
+        return None;
+    }
+
+    let release: GitHubRelease = response.json().await.ok()?;
+    release.body
 }
 
 #[derive(Debug, Deserialize)]
 struct GitHubRelease {
-    tag_name: String,
     #[serde(default)]
     body: Option<String>,
-}
-
-impl GitHubRelease {
-    fn version(&self) -> &str {
-        self.tag_name.trim_start_matches('v')
-    }
 }
 
 /// Compare versions (simple semver comparison)
@@ -242,21 +293,20 @@ pub async fn run_update() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Checking for updates...");
 
-    // Fetch latest release
-    let release = match fetch_latest_release().await {
-        Ok(r) => r,
+    // Fetch latest version via redirect (no API rate limits)
+    let latest = match fetch_latest_version().await {
+        Ok(v) => v,
         Err(e) => {
             return Err(format!("Failed to check for updates: {}", e).into());
         }
     };
-    let latest = release.version();
 
-    if !is_newer(latest, current_version) {
+    if !is_newer(&latest, current_version) {
         println!("✓ hcpctl is up to date (v{})", current_version);
         return Ok(());
     }
 
-    println!("Updating hcpctl: {} → {}", current_version, latest);
+    println!("Updating hcpctl: {} → {}", current_version, &latest);
 
     // Fetch the install script using reqwest (no curl dependency)
     let script_url = get_install_script_url();
@@ -297,9 +347,11 @@ pub async fn run_update() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("✓ Successfully updated to v{}", latest);
 
-    // Show release notes if available
-    if let Some(notes) = format_changelog(release.body.as_deref()) {
-        println!("\n{}", notes);
+    // Show release notes if available (best-effort, may fail due to API rate limits)
+    if let Some(body) = fetch_release_body(&latest).await {
+        if let Some(notes) = format_changelog(Some(&body)) {
+            println!("\n{}", notes);
+        }
     }
 
     Ok(())
@@ -340,6 +392,10 @@ async fn fetch_install_script(url: &str) -> Result<String, Box<dyn std::error::E
 #[cfg(test)]
 mod tests {
     use super::*;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    // --- is_newer ---
 
     #[test]
     fn test_is_newer() {
@@ -352,6 +408,8 @@ mod tests {
         assert!(!is_newer("0.3.0", "0.3.1"));
         assert!(!is_newer("0.2.9", "0.3.1"));
     }
+
+    // --- format helpers ---
 
     #[test]
     fn test_get_install_script_url_not_empty() {
@@ -394,6 +452,8 @@ mod tests {
         assert!(format_changelog(Some("   \n\n  ")).is_none());
     }
 
+    // --- GitHubRelease deserialization ---
+
     #[test]
     fn test_github_release_deserialization() {
         let json_value = serde_json::json!({
@@ -401,16 +461,13 @@ mod tests {
             "body": "## Changes\n- New feature"
         });
         let release: GitHubRelease = serde_json::from_value(json_value).unwrap();
-        assert_eq!(release.tag_name, "v0.12.0");
         assert_eq!(release.body.as_deref(), Some("## Changes\n- New feature"));
-        assert_eq!(release.version(), "0.12.0");
     }
 
     #[test]
     fn test_github_release_deserialization_body_null() {
         let json = r#"{"tag_name": "v0.12.0", "body": null}"#;
         let release: GitHubRelease = serde_json::from_str(json).unwrap();
-        assert_eq!(release.tag_name, "v0.12.0");
         assert!(release.body.is_none());
     }
 
@@ -418,7 +475,185 @@ mod tests {
     fn test_github_release_deserialization_body_absent() {
         let json = r#"{"tag_name": "v0.12.0"}"#;
         let release: GitHubRelease = serde_json::from_str(json).unwrap();
-        assert_eq!(release.tag_name, "v0.12.0");
         assert!(release.body.is_none());
+    }
+
+    // --- fetch_latest_version_from (redirect-based) ---
+
+    #[tokio::test]
+    async fn test_fetch_latest_version_redirect() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/releases/latest"))
+            .respond_with(ResponseTemplate::new(302).insert_header(
+                "Location",
+                "https://github.com/pkodzis/hcpctl/releases/tag/v1.2.3",
+            ))
+            .mount(&mock_server)
+            .await;
+
+        let url = format!("{}/releases/latest", mock_server.uri());
+        let version = fetch_latest_version_from(&url).await.unwrap();
+        assert_eq!(version, "1.2.3");
+    }
+
+    #[tokio::test]
+    async fn test_fetch_latest_version_redirect_no_v_prefix() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/releases/latest"))
+            .respond_with(ResponseTemplate::new(302).insert_header(
+                "Location",
+                "https://github.com/pkodzis/hcpctl/releases/tag/1.0.0",
+            ))
+            .mount(&mock_server)
+            .await;
+
+        let url = format!("{}/releases/latest", mock_server.uri());
+        let version = fetch_latest_version_from(&url).await.unwrap();
+        assert_eq!(version, "1.0.0");
+    }
+
+    #[tokio::test]
+    async fn test_fetch_latest_version_not_found() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/releases/latest"))
+            .respond_with(ResponseTemplate::new(404).set_body_string("Not Found"))
+            .mount(&mock_server)
+            .await;
+
+        let url = format!("{}/releases/latest", mock_server.uri());
+        let err = fetch_latest_version_from(&url).await.unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("404"), "expected 404 in error: {}", msg);
+        assert!(msg.contains("Not Found"), "expected body in error: {}", msg);
+    }
+
+    #[tokio::test]
+    async fn test_fetch_latest_version_server_error() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/releases/latest"))
+            .respond_with(ResponseTemplate::new(500).set_body_string("Internal Server Error"))
+            .mount(&mock_server)
+            .await;
+
+        let url = format!("{}/releases/latest", mock_server.uri());
+        let err = fetch_latest_version_from(&url).await.unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("500"), "expected 500 in error: {}", msg);
+    }
+
+    #[tokio::test]
+    async fn test_fetch_latest_version_redirect_without_location_header() {
+        let mock_server = MockServer::start().await;
+
+        // 302 but no Location header
+        Mock::given(method("GET"))
+            .and(path("/releases/latest"))
+            .respond_with(ResponseTemplate::new(302))
+            .mount(&mock_server)
+            .await;
+
+        let url = format!("{}/releases/latest", mock_server.uri());
+        let err = fetch_latest_version_from(&url).await.unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("Location"),
+            "expected Location header mention in error: {}",
+            msg
+        );
+    }
+
+    #[tokio::test]
+    async fn test_fetch_latest_version_200_is_error() {
+        let mock_server = MockServer::start().await;
+
+        // 200 instead of redirect — should be treated as error
+        Mock::given(method("GET"))
+            .and(path("/releases/latest"))
+            .respond_with(ResponseTemplate::new(200).set_body_string("<html>page</html>"))
+            .mount(&mock_server)
+            .await;
+
+        let url = format!("{}/releases/latest", mock_server.uri());
+        let err = fetch_latest_version_from(&url).await.unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("200"), "expected 200 in error: {}", msg);
+    }
+
+    // --- fetch_release_body_from (API-based, best-effort) ---
+
+    #[tokio::test]
+    async fn test_fetch_release_body_success() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/releases/tags/v1.2.3"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "tag_name": "v1.2.3",
+                "body": "## What's Changed\n- Bug fix"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let url = format!("{}/releases/tags/v1.2.3", mock_server.uri());
+        let body = fetch_release_body_from(&url).await;
+        assert_eq!(body.as_deref(), Some("## What's Changed\n- Bug fix"));
+    }
+
+    #[tokio::test]
+    async fn test_fetch_release_body_rate_limited() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/releases/tags/v1.2.3"))
+            .respond_with(ResponseTemplate::new(403).set_body_json(serde_json::json!({
+                "message": "API rate limit exceeded"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let url = format!("{}/releases/tags/v1.2.3", mock_server.uri());
+        let body = fetch_release_body_from(&url).await;
+        assert!(body.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_fetch_release_body_not_found() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/releases/tags/v99.99.99"))
+            .respond_with(ResponseTemplate::new(404))
+            .mount(&mock_server)
+            .await;
+
+        let url = format!("{}/releases/tags/v99.99.99", mock_server.uri());
+        let body = fetch_release_body_from(&url).await;
+        assert!(body.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_fetch_release_body_null_body() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/releases/tags/v1.0.0"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "tag_name": "v1.0.0",
+                "body": null
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let url = format!("{}/releases/tags/v1.0.0", mock_server.uri());
+        let body = fetch_release_body_from(&url).await;
+        assert!(body.is_none());
     }
 }
