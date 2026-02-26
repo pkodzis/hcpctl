@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.1](https://github.com/pkodzis/hcpctl/compare/v0.15.0...v0.15.1) (2026-02-26)
+
+
+### Bug Fixes
+
+* 'hcpctl update' failing due to GitHub API rate-limit ([#67](https://github.com/pkodzis/hcpctl/issues/67)) ([522832b](https://github.com/pkodzis/hcpctl/commit/522832bbdcddfe934647c9b5c1d70628dea74d61))
+
 ## [0.15.0](https://github.com/pkodzis/hcpctl/compare/v0.14.0...v0.15.0) (2026-02-26)
 
 
