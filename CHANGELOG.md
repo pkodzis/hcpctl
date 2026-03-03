@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.0](https://github.com/pkodzis/hcpctl/compare/v0.15.1...v0.16.0) (2026-03-03)
+
+
+### Features
+
+* add single team-access lookup by tprj- ID with custom permissions detail ([#69](https://github.com/pkodzis/hcpctl/issues/69)) ([3465655](https://github.com/pkodzis/hcpctl/commit/346565544c83b91ebfc9df19839028d75829935c))
+
 ## [0.15.1](https://github.com/pkodzis/hcpctl/compare/v0.15.0...v0.15.1) (2026-02-26)
 
 
