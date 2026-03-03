@@ -1472,3 +1472,76 @@ fn test_global_context_flag() {
         "Should show --context global flag"
     );
 }
+
+/// Test that 'get team-access --help' mentions tprj- ID lookup
+#[test]
+fn test_get_team_access_help_shows_tprj_id() {
+    let output = Command::new(hcpctl_bin())
+        .args(["get", "team-access", "--help"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("tprj-"),
+        "Help should mention tprj- ID lookup"
+    );
+}
+
+/// Test that 'get team-access tprj-XXX' does NOT require --org (bypasses org validation)
+#[test]
+fn test_get_team_access_tprj_id_no_org_required() {
+    let output = Command::new(hcpctl_bin())
+        .args([
+            "--host",
+            "nonexistent.example.com",
+            "--token",
+            "test-token",
+            "get",
+            "team-access",
+            "tprj-NEQHetgHNaDKeH9s",
+        ])
+        .env_remove("HCP_TOKEN")
+        .env_remove("TFC_TOKEN")
+        .env_remove("TFE_TOKEN")
+        .env("HCPCTL_CONTEXT", "__nonexistent_test_context__")
+        .output()
+        .unwrap();
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        !stderr.contains("Organization is required"),
+        "tprj- ID lookup should NOT require --org, got: {}",
+        stderr
+    );
+}
+
+/// Test that 'get team-access some-team' without --org errors
+#[test]
+fn test_get_team_access_team_name_no_org_errors() {
+    let output = Command::new(hcpctl_bin())
+        .args([
+            "--host",
+            "nonexistent.example.com",
+            "--token",
+            "test-token",
+            "get",
+            "team-access",
+            "some-team",
+        ])
+        .env_remove("HCP_TOKEN")
+        .env_remove("TFC_TOKEN")
+        .env_remove("TFE_TOKEN")
+        .env("HCPCTL_CONTEXT", "__nonexistent_test_context__")
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Organization is required"),
+        "Should require --org for team name lookups, got: {}",
+        stderr
+    );
+}

@@ -496,7 +496,7 @@ Get team project access bindings
 
 ###### **Arguments:**
 
-* `<NAME>` — Team name or ID — if omitted, lists all teams' bindings
+* `<NAME>` — Team name to filter by, or a tprj- ID to fetch a single binding directly. Examples: "my-team" (requires --org), "tprj-NEQHetgHNaDKeH9s" (no --org needed)
 
 ###### **Options:**
 

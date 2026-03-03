@@ -192,6 +192,22 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_get_team_project_access_by_id_server_error() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/team-projects/tprj-err500"))
+            .respond_with(ResponseTemplate::new(500))
+            .mount(&mock_server)
+            .await;
+
+        let client = TfeClient::test_client(&mock_server.uri());
+        let result = client.get_team_project_access_by_id("tprj-err500").await;
+
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
     async fn test_get_team_project_access_pagination() {
         let mock_server = MockServer::start().await;
 

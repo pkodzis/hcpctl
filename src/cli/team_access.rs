@@ -8,7 +8,8 @@ use super::enums::TeamAccessSortField;
 /// Arguments for 'get team-access' subcommand
 #[derive(Parser, Debug)]
 pub struct TeamAccessArgs {
-    /// Team name or ID — if omitted, lists all teams' bindings
+    /// Team name to filter by, or a tprj- ID to fetch a single binding directly.
+    /// Examples: "my-team" (requires --org), "tprj-NEQHetgHNaDKeH9s" (no --org needed)
     pub name: Option<String>,
 
     /// Organization name (required)
