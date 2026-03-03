@@ -5,13 +5,13 @@ use std::collections::HashMap;
 use futures::stream::{self, StreamExt};
 use log::debug;
 
-use crate::cli::TeamAccessSortField;
+use crate::cli::{OutputFormat, TeamAccessSortField};
 use crate::config::api;
 use crate::error::Result as TfeResult;
 use crate::hcp::projects::{resolve_project, Project};
 use crate::hcp::teams::Team;
 use crate::hcp::TfeClient;
-use crate::output::output_team_access;
+use crate::output::{output_raw, output_team_access};
 use crate::ui::{create_spinner, finish_spinner};
 use crate::{Cli, Command, GetResource};
 
@@ -28,6 +28,13 @@ pub async fn run_team_access_command(
     else {
         unreachable!()
     };
+
+    // Direct lookup by tprj- ID — no org required
+    if let Some(name) = &args.name {
+        if name.starts_with("tprj-") {
+            return get_single_team_access(client, cli, name).await;
+        }
+    }
 
     let effective_org = client.effective_org(args.org.as_ref());
 
@@ -173,6 +180,49 @@ pub async fn run_team_access_command(
     Ok(())
 }
 
+/// Get a single team-project access binding by ID
+async fn get_single_team_access(
+    client: &TfeClient,
+    cli: &Cli,
+    tprj_id: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let Command::Get {
+        resource: GetResource::TeamAccess(args),
+    } = &cli.command
+    else {
+        unreachable!()
+    };
+
+    let spinner = create_spinner(
+        &format!("Fetching team-project access '{}'...", tprj_id),
+        cli.batch,
+    );
+
+    match client.get_team_project_access_by_id(tprj_id).await {
+        Ok(Some((binding, raw))) => {
+            finish_spinner(spinner);
+            match args.output {
+                OutputFormat::Json | OutputFormat::Yaml => {
+                    output_raw(&raw, &args.output);
+                }
+                _ => {
+                    let enriched = resolve_single_binding(client, &binding).await;
+                    output_team_access(&[enriched], &args.output, cli.no_header);
+                }
+            }
+            Ok(())
+        }
+        Ok(None) => {
+            finish_spinner(spinner);
+            Err(format!("Team-project access '{}' not found", tprj_id).into())
+        }
+        Err(e) => {
+            finish_spinner(spinner);
+            Err(e.into())
+        }
+    }
+}
+
 /// Fan out team-project access fetches per project with concurrency
 async fn fan_out_per_project(
     client: &TfeClient,
@@ -233,6 +283,41 @@ fn enrich_bindings(
             access: b.access().to_string(),
         })
         .collect()
+}
+
+/// Resolve a single team-project access binding by fetching team and project names in parallel
+async fn resolve_single_binding(
+    client: &TfeClient,
+    binding: &TeamProjectAccess,
+) -> EnrichedTeamProjectAccess {
+    let team_id = binding.team_id().to_string();
+    let project_id = binding.project_id().to_string();
+
+    let (team_result, project_result) = tokio::join!(
+        client.get_team(&team_id),
+        client.get_project_by_id(&project_id)
+    );
+
+    let team_name = team_result
+        .ok()
+        .flatten()
+        .map(|(t, _)| t.name().to_string())
+        .unwrap_or_else(|| team_id.clone());
+
+    let project_name = project_result
+        .ok()
+        .flatten()
+        .map(|(p, _)| p.attributes.name.clone())
+        .unwrap_or_else(|| project_id.clone());
+
+    EnrichedTeamProjectAccess {
+        id: binding.id.clone(),
+        team_id,
+        team_name,
+        project_id,
+        project_name,
+        access: binding.access().to_string(),
+    }
 }
 
 /// Filter enriched bindings by substring match on team name, project name, or access level
@@ -571,5 +656,149 @@ mod tests {
         let filtered = filter_bindings(bindings, "owner");
         assert_eq!(filtered.len(), 1);
         assert_eq!(filtered[0].team_name, "platform-owners");
+    }
+
+    // --- resolve_single_binding tests ---
+
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    fn make_binding(id: &str, team_id: &str, project_id: &str, access: &str) -> TeamProjectAccess {
+        serde_json::from_value(serde_json::json!({
+            "id": id,
+            "type": "team-projects",
+            "attributes": { "access": access },
+            "relationships": {
+                "team": { "data": { "id": team_id, "type": "teams" } },
+                "project": { "data": { "id": project_id, "type": "projects" } }
+            }
+        }))
+        .unwrap()
+    }
+
+    #[tokio::test]
+    async fn test_resolve_single_binding_both_found() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/teams/team-abc"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "data": {
+                    "id": "team-abc",
+                    "type": "teams",
+                    "attributes": { "name": "owners" }
+                }
+            })))
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/projects/prj-def"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "data": {
+                    "id": "prj-def",
+                    "type": "projects",
+                    "attributes": { "name": "infra" }
+                }
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = TfeClient::test_client(&mock_server.uri());
+        let binding = make_binding("tprj-1", "team-abc", "prj-def", "admin");
+        let enriched = resolve_single_binding(&client, &binding).await;
+
+        assert_eq!(enriched.id, "tprj-1");
+        assert_eq!(enriched.team_name, "owners");
+        assert_eq!(enriched.project_name, "infra");
+        assert_eq!(enriched.team_id, "team-abc");
+        assert_eq!(enriched.project_id, "prj-def");
+        assert_eq!(enriched.access, "admin");
+    }
+
+    #[tokio::test]
+    async fn test_resolve_single_binding_team_not_found() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/teams/team-missing"))
+            .respond_with(ResponseTemplate::new(404))
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/projects/prj-def"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "data": {
+                    "id": "prj-def",
+                    "type": "projects",
+                    "attributes": { "name": "infra" }
+                }
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = TfeClient::test_client(&mock_server.uri());
+        let binding = make_binding("tprj-2", "team-missing", "prj-def", "read");
+        let enriched = resolve_single_binding(&client, &binding).await;
+
+        assert_eq!(enriched.team_name, "team-missing");
+        assert_eq!(enriched.project_name, "infra");
+    }
+
+    #[tokio::test]
+    async fn test_resolve_single_binding_project_not_found() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/teams/team-abc"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "data": {
+                    "id": "team-abc",
+                    "type": "teams",
+                    "attributes": { "name": "owners" }
+                }
+            })))
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/projects/prj-missing"))
+            .respond_with(ResponseTemplate::new(404))
+            .mount(&mock_server)
+            .await;
+
+        let client = TfeClient::test_client(&mock_server.uri());
+        let binding = make_binding("tprj-3", "team-abc", "prj-missing", "write");
+        let enriched = resolve_single_binding(&client, &binding).await;
+
+        assert_eq!(enriched.team_name, "owners");
+        assert_eq!(enriched.project_name, "prj-missing");
+    }
+
+    #[tokio::test]
+    async fn test_resolve_single_binding_both_not_found() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/teams/team-gone"))
+            .respond_with(ResponseTemplate::new(404))
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/projects/prj-gone"))
+            .respond_with(ResponseTemplate::new(404))
+            .mount(&mock_server)
+            .await;
+
+        let client = TfeClient::test_client(&mock_server.uri());
+        let binding = make_binding("tprj-4", "team-gone", "prj-gone", "admin");
+        let enriched = resolve_single_binding(&client, &binding).await;
+
+        assert_eq!(enriched.team_name, "team-gone");
+        assert_eq!(enriched.project_name, "prj-gone");
+        assert_eq!(enriched.team_id, "team-gone");
+        assert_eq!(enriched.project_id, "prj-gone");
     }
 }
