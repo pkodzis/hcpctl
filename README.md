@@ -15,23 +15,32 @@ hcpctl get org                   # List organizations
 | Command | Resources | Capabilities |
 |---------|-----------|--------------|
 | `get` | `oc` | List/filter OAuth clients (VCS connections) |
-| | `org-member` | List/filter organization members by email/status |
 | | `org` | List/filter organizations |
-| | `prj` | List/filter/sort projects, show workspace counts/names/IDs |
-| | `run` | List active runs (non-final states), filter by status/workspace, fetch subresources (events, plan, apply), stream/download logs |
+| | `org-member` | List/filter organization members by email/status |
+| | `prj` | List/filter/sort projects, show workspace counts/names/IDs/details |
+| | `run` | List active runs (non-final states), filter by status/workspace/project, fetch subresources (events, plan, apply), stream/download logs |
+| | `tag` | List tags at org level or per workspace/project (`tag ws`, `tag prj`) |
 | | `team` | List/filter teams in organization |
-| | `ws` | List/filter/sort workspaces, group by org/project, fetch subresources (current-run, current-state-version, current-configuration-version, current-assessment-result) |
+| | `team-access` | List/filter/sort team-project access assignments |
+| | `ws` | List/filter/sort workspaces, group by org/project, filter by pending runs, fetch subresources (current-run, current-state-version, current-configuration-version, current-assessment-result) |
+| `set` | `ws` | Modify workspace properties (assign to project, set description) |
+| | `tag ws` | Set tags on a workspace (key-only or key=value) |
+| | `tag prj` | Set tags on a project (key=value) |
+| `delete` | `org-member` | Remove user from organization (by ID or email) |
+| | `tag ws` | Remove tags from a workspace |
+| | `tag prj` | Remove tags from a project |
 | `logs` | — | View plan/apply logs for run or workspace's current run, follow in real-time |
 | `watch` | `ws` | Continuously monitor workspace for new runs, auto-stream logs |
+| `download` | `cv` | Download configuration version archive for a workspace |
 | `invite` | — | Invite user to organization, optionally assign to teams |
-| `delete` | `org-member` | Remove user from organization (by ID or email) |
-| `purge` | `run` | Cancel/discard pending runs blocking a workspace |
+| `purge` | `run` | Cancel/discard pending runs blocking a workspace (supports dry-run) |
 | | `state` | Zero out all resources from workspace state (with mandatory confirmation) |
+| `context` | — | Manage named connection contexts (set, use, list, current, delete, show) |
 | `update` | — | Self-update to latest version |
 
 **Output formats:** `table` (default), `json`, `yaml`, `csv`
 
-**Global options:** `--host`, `--token`, `--batch` (no prompts/spinners), `--no-header`
+**Global options:** `--host`, `--token`, `--context`, `--batch` (no prompts/spinners), `--no-header`, `--log-level`
 
 ## Documentation
 

@@ -64,6 +64,7 @@ tests/
 4. Code review mindset - verify: idiomatic Rust/clap? duplicates? right file? efficient API usage? consistent? extensible?
 5. Tests always - every feature has tests, run cargo test and cargo clippy -- -D warnings after changes.
 6. Module locality - functions for a resource belong in that resource's module. E.g. resolve_project goes in hcp/projects/, not in the calling command module like set/.
+7. README Features table - after adding a new command, resource, or capability, update the `## Features` table in `README.md` to reflect the change. Keep entries sorted by command, then by resource name.
 
 ## Key Conventions
 
