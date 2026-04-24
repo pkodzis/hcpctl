@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.0](https://github.com/pkodzis/hcpctl/compare/v0.16.0...v0.17.0) (2026-04-24)
+
+
+### Features
+
+* add --runs and --states flags for workspace run history and state versions ([#74](https://github.com/pkodzis/hcpctl/issues/74)) ([59d707e](https://github.com/pkodzis/hcpctl/commit/59d707e403d48bc7126a84da6e4f5c195ec045f7))
+
 ## [0.16.0](https://github.com/pkodzis/hcpctl/compare/v0.15.1...v0.16.0) (2026-03-03)
 
 
