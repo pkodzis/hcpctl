@@ -37,6 +37,11 @@ pub async fn run_ws_command(
         return Err("--subresource requires a workspace name or ID".into());
     }
 
+    // Validate: --runs requires a workspace name
+    if args.runs && args.name.is_none() {
+        return Err("--runs requires a workspace name or ID".into());
+    }
+
     // Validate: --sort pending-runs requires --has-pending-runs
     if args.sort == WsSortField::PendingRuns && !args.has_pending_runs {
         return Err("--sort pending-runs requires --has-pending-runs".into());
@@ -331,6 +336,11 @@ async fn get_single_workspace(
         );
     }
 
+    // Handle --runs flag: fetch runs for this workspace and show run history
+    if args.runs {
+        return get_workspace_runs(client, cli, name, org).await;
+    }
+
     // If it's an ID (ws-...), we can fetch directly without knowing the org
     if name.starts_with("ws-") {
         let spinner = create_spinner(&format!("Fetching workspace '{}'...", name), cli.batch);
@@ -439,6 +449,77 @@ async fn get_single_workspace(
 
     finish_spinner(spinner);
     Err(crate::hcp::helpers::not_found_in_orgs_error("Workspace", name, &organizations).into())
+}
+
+/// Fetch runs for a workspace and output as run history table
+async fn get_workspace_runs(
+    client: &TfeClient,
+    cli: &Cli,
+    name: &str,
+    org: Option<&String>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let Command::Get {
+        resource: GetResource::Ws(args),
+    } = &cli.command
+    else {
+        unreachable!()
+    };
+
+    // Resolve workspace ID
+    let ws_id = if name.starts_with("ws-") {
+        name.to_string()
+    } else {
+        let organizations = resolve_organizations(client, org).await?;
+        let name_owned = name.to_string();
+        let found = crate::hcp::helpers::search_first_in_orgs(&organizations, |org| {
+            let ws_name = name_owned.clone();
+            async move {
+                match client.get_workspace_by_name(&org, &ws_name).await {
+                    Ok(Some(result)) => (org, Some(result)),
+                    _ => (org, None),
+                }
+            }
+        })
+        .await;
+
+        match found {
+            Some((_org_name, (workspace, _raw))) => workspace.id,
+            None => {
+                return Err(crate::hcp::helpers::not_found_in_orgs_error(
+                    "Workspace",
+                    name,
+                    &organizations,
+                )
+                .into());
+            }
+        }
+    };
+
+    let spinner = create_spinner(
+        &format!("Fetching runs for workspace '{}'...", name),
+        cli.batch,
+    );
+
+    let query = RunQuery {
+        page_size: if args.all_runs { None } else { Some(24) },
+        ..Default::default()
+    };
+
+    let max_results = if args.all_runs { None } else { Some(24) };
+
+    let runs = client
+        .get_runs_for_workspace(&ws_id, query, max_results)
+        .await?;
+
+    finish_spinner(spinner);
+
+    if runs.is_empty() {
+        println!("\nNo runs found for workspace '{}'", name);
+        return Ok(());
+    }
+
+    crate::output::output_run_history(&runs, &args.output, cli.no_header);
+    Ok(())
 }
 
 /// Fetch pending run counts for a single workspace.

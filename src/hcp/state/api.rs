@@ -103,7 +103,11 @@ impl TfeClient {
         // Calculate MD5 hash
         let mut hasher = Md5::new();
         hasher.update(state_json.as_bytes());
-        let md5_hash = format!("{:x}", hasher.finalize());
+        let md5_hash = hasher
+            .finalize()
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect::<String>();
 
         // Base64 encode the state
         let state_base64 = BASE64.encode(state_json.as_bytes());

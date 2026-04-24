@@ -952,6 +952,7 @@ mod tests {
                     is_discardable: Some(false),
                     is_force_cancelable: None,
                 }),
+                status_timestamps: None,
             },
             relationships: None,
         };
@@ -978,6 +979,7 @@ mod tests {
                     is_discardable: Some(true),
                     is_force_cancelable: None,
                 }),
+                status_timestamps: None,
             },
             relationships: None,
         };
@@ -1004,6 +1006,7 @@ mod tests {
                     is_discardable: Some(false),
                     is_force_cancelable: None,
                 }),
+                status_timestamps: None,
             },
             relationships: None,
         };

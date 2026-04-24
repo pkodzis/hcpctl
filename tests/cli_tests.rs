@@ -1517,6 +1517,130 @@ fn test_get_team_access_tprj_id_no_org_required() {
     );
 }
 
+/// Test that 'get ws --help' shows --runs flag
+#[test]
+fn test_ws_help_shows_runs_flag() {
+    let output = Command::new(hcpctl_bin())
+        .args(["get", "ws", "--help"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("--runs"),
+        "Should document --runs flag, got: {}",
+        stdout
+    );
+    assert!(
+        stdout.contains("--all-runs"),
+        "Should document --all-runs flag, got: {}",
+        stdout
+    );
+}
+
+/// Test that --all-runs requires --runs
+#[test]
+fn test_ws_all_runs_requires_runs() {
+    let output = Command::new(hcpctl_bin())
+        .args([
+            "--host",
+            "nonexistent.example.com",
+            "--token",
+            "test-token",
+            "get",
+            "ws",
+            "my-ws",
+            "--all-runs",
+        ])
+        .env_remove("HCP_TOKEN")
+        .env_remove("TFC_TOKEN")
+        .env_remove("TFE_TOKEN")
+        .env("HCPCTL_CONTEXT", "__nonexistent_test_context__")
+        .output()
+        .unwrap();
+
+    assert!(
+        !output.status.success(),
+        "--all-runs without --runs should fail"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("--runs"),
+        "Error should mention --runs requirement, got: {}",
+        stderr
+    );
+}
+
+/// Test that --runs without a workspace name fails with a meaningful error
+#[test]
+fn test_ws_runs_requires_workspace_name() {
+    let output = Command::new(hcpctl_bin())
+        .args([
+            "--host",
+            "nonexistent.example.com",
+            "--token",
+            "test-token",
+            "get",
+            "ws",
+            "--runs",
+        ])
+        .env_remove("HCP_TOKEN")
+        .env_remove("TFC_TOKEN")
+        .env_remove("TFE_TOKEN")
+        .env("HCPCTL_CONTEXT", "__nonexistent_test_context__")
+        .output()
+        .unwrap();
+
+    assert!(
+        !output.status.success(),
+        "--runs without workspace name should fail"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("--runs requires a workspace name"),
+        "Should mention workspace name requirement, got: {}",
+        stderr
+    );
+}
+
+/// Test that --runs flag is accepted with a workspace name (will fail at API call, not parsing)
+#[test]
+fn test_ws_runs_flag_accepted_with_name() {
+    let output = Command::new(hcpctl_bin())
+        .args([
+            "--host",
+            "nonexistent.example.com",
+            "--token",
+            "test-token",
+            "get",
+            "ws",
+            "my-workspace",
+            "--runs",
+            "--org",
+            "my-org",
+        ])
+        .env_remove("HCP_TOKEN")
+        .env_remove("TFC_TOKEN")
+        .env_remove("TFE_TOKEN")
+        .env("HCPCTL_CONTEXT", "__nonexistent_test_context__")
+        .output()
+        .unwrap();
+
+    // Should fail at network level, not CLI parsing
+    assert!(
+        !output.status.success(),
+        "Should fail at network level, not parsing"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    // Should NOT contain clap parsing errors
+    assert!(
+        !stderr.contains("error: unexpected argument"),
+        "Should not have CLI parsing errors, got: {}",
+        stderr
+    );
+}
+
 /// Test that 'get team-access some-team' without --org errors
 #[test]
 fn test_get_team_access_team_name_no_org_errors() {

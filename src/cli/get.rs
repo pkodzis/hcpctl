@@ -219,6 +219,14 @@ pub struct WsArgs {
     #[arg(long, default_value_t = false)]
     pub has_pending_runs: bool,
 
+    /// List recent runs with phase durations for this workspace
+    #[arg(long)]
+    pub runs: bool,
+
+    /// Fetch all runs (default: 24 most recent). Requires --runs
+    #[arg(long, requires = "runs")]
+    pub all_runs: bool,
+
     /// Fetch a related subresource (run=current-run, state=current-state-version,
     /// config=current-configuration-version, assessment=current-assessment-result).
     /// Only works with single workspace lookup and JSON/YAML output.
