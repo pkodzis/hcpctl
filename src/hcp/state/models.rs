@@ -110,9 +110,285 @@ impl StateVersionRequest {
     }
 }
 
+/// Response wrapper for state versions list
+#[derive(Deserialize, Debug)]
+pub struct StateVersionListResponse {
+    pub data: Vec<StateVersionListItem>,
+    #[serde(default)]
+    pub meta: Option<crate::hcp::PaginationMeta>,
+}
+
+impl crate::hcp::PaginatedResponse<StateVersionListItem> for StateVersionListResponse {
+    fn into_data(self) -> Vec<StateVersionListItem> {
+        self.data
+    }
+
+    fn meta(&self) -> Option<&crate::hcp::PaginationMeta> {
+        self.meta.as_ref()
+    }
+}
+
+/// A single state version item from the list endpoint
+#[derive(Deserialize, Debug)]
+pub struct StateVersionListItem {
+    pub id: String,
+    pub attributes: StateVersionListAttributes,
+    pub relationships: Option<StateVersionRelationships>,
+}
+
+/// Attributes for a state version list item
+#[derive(Deserialize, Debug)]
+pub struct StateVersionListAttributes {
+    pub serial: Option<u64>,
+
+    #[serde(rename = "created-at")]
+    pub created_at: Option<String>,
+
+    pub size: Option<u64>,
+
+    pub status: Option<String>,
+
+    #[serde(rename = "terraform-version")]
+    pub terraform_version: Option<String>,
+
+    #[serde(rename = "vcs-commit-sha")]
+    pub vcs_commit_sha: Option<String>,
+
+    #[serde(rename = "resources-processed")]
+    pub resources_processed: Option<bool>,
+
+    pub resources: Option<Vec<StateResource>>,
+}
+
+/// A resource entry in the state version
+#[derive(Deserialize, Debug)]
+pub struct StateResource {
+    pub count: Option<u64>,
+}
+
+/// Relationships for a state version
+#[derive(Deserialize, Debug)]
+pub struct StateVersionRelationships {
+    pub run: Option<RelationshipItem>,
+}
+
+/// A relationship item with data
+#[derive(Deserialize, Debug)]
+pub struct RelationshipItem {
+    pub data: Option<RelationshipData>,
+}
+
+/// Relationship data containing an ID
+#[derive(Deserialize, Debug)]
+pub struct RelationshipData {
+    pub id: String,
+}
+
+impl StateVersionListItem {
+    /// Sum of resource counts, or None if not processed
+    pub fn resource_count(&self) -> Option<u64> {
+        if self.attributes.resources_processed != Some(true) {
+            return None;
+        }
+        self.attributes
+            .resources
+            .as_ref()
+            .map(|resources| resources.iter().filter_map(|r| r.count).sum())
+    }
+
+    /// Extract run ID from relationships, or "-"
+    pub fn run_id(&self) -> &str {
+        self.relationships
+            .as_ref()
+            .and_then(|r| r.run.as_ref())
+            .and_then(|r| r.data.as_ref())
+            .map(|d| d.id.as_str())
+            .unwrap_or("-")
+    }
+
+    /// First 8 chars of VCS commit SHA, or "-"
+    pub fn vcs_sha_short(&self) -> &str {
+        self.attributes
+            .vcs_commit_sha
+            .as_deref()
+            .map(|s| if s.len() > 8 { &s[..8] } else { s })
+            .unwrap_or("-")
+    }
+
+    /// Format size in human-readable form
+    pub fn size_human(&self) -> String {
+        match self.attributes.size {
+            Some(bytes) if bytes >= 1_048_576 => format!("{:.1} MB", bytes as f64 / 1_048_576.0),
+            Some(bytes) if bytes >= 1024 => format!("{:.1} KB", bytes as f64 / 1024.0),
+            Some(bytes) => format!("{} B", bytes),
+            None => "-".to_string(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_state_version_list_item_resource_count() {
+        let item = StateVersionListItem {
+            id: "sv-1".to_string(),
+            attributes: StateVersionListAttributes {
+                serial: Some(1),
+                created_at: None,
+                size: None,
+                status: None,
+                terraform_version: None,
+                vcs_commit_sha: None,
+                resources_processed: Some(true),
+                resources: Some(vec![
+                    StateResource { count: Some(5) },
+                    StateResource { count: Some(3) },
+                ]),
+            },
+            relationships: None,
+        };
+        assert_eq!(item.resource_count(), Some(8));
+    }
+
+    #[test]
+    fn test_state_version_list_item_resource_count_not_processed() {
+        let item = StateVersionListItem {
+            id: "sv-1".to_string(),
+            attributes: StateVersionListAttributes {
+                serial: Some(1),
+                created_at: None,
+                size: None,
+                status: None,
+                terraform_version: None,
+                vcs_commit_sha: None,
+                resources_processed: Some(false),
+                resources: None,
+            },
+            relationships: None,
+        };
+        assert_eq!(item.resource_count(), None);
+    }
+
+    #[test]
+    fn test_state_version_list_item_run_id() {
+        let item = StateVersionListItem {
+            id: "sv-1".to_string(),
+            attributes: StateVersionListAttributes {
+                serial: Some(1),
+                created_at: None,
+                size: None,
+                status: None,
+                terraform_version: None,
+                vcs_commit_sha: None,
+                resources_processed: None,
+                resources: None,
+            },
+            relationships: Some(StateVersionRelationships {
+                run: Some(RelationshipItem {
+                    data: Some(RelationshipData {
+                        id: "run-abc123".to_string(),
+                    }),
+                }),
+            }),
+        };
+        assert_eq!(item.run_id(), "run-abc123");
+    }
+
+    #[test]
+    fn test_state_version_list_item_run_id_missing() {
+        let item = StateVersionListItem {
+            id: "sv-1".to_string(),
+            attributes: StateVersionListAttributes {
+                serial: Some(1),
+                created_at: None,
+                size: None,
+                status: None,
+                terraform_version: None,
+                vcs_commit_sha: None,
+                resources_processed: None,
+                resources: None,
+            },
+            relationships: None,
+        };
+        assert_eq!(item.run_id(), "-");
+    }
+
+    #[test]
+    fn test_state_version_list_item_vcs_sha_short() {
+        let item = StateVersionListItem {
+            id: "sv-1".to_string(),
+            attributes: StateVersionListAttributes {
+                serial: Some(1),
+                created_at: None,
+                size: None,
+                status: None,
+                terraform_version: None,
+                vcs_commit_sha: Some("abcdef1234567890".to_string()),
+                resources_processed: None,
+                resources: None,
+            },
+            relationships: None,
+        };
+        assert_eq!(item.vcs_sha_short(), "abcdef12");
+    }
+
+    #[test]
+    fn test_state_version_list_item_size_human() {
+        let make = |size: Option<u64>| StateVersionListItem {
+            id: "sv-1".to_string(),
+            attributes: StateVersionListAttributes {
+                serial: Some(1),
+                created_at: None,
+                size,
+                status: None,
+                terraform_version: None,
+                vcs_commit_sha: None,
+                resources_processed: None,
+                resources: None,
+            },
+            relationships: None,
+        };
+        assert_eq!(make(Some(500)).size_human(), "500 B");
+        assert_eq!(make(Some(2048)).size_human(), "2.0 KB");
+        assert_eq!(make(Some(2_097_152)).size_human(), "2.0 MB");
+        assert_eq!(make(None).size_human(), "-");
+    }
+
+    #[test]
+    fn test_state_version_list_response_deserialization() {
+        let json = serde_json::json!({
+            "data": [{
+                "id": "sv-123",
+                "attributes": {
+                    "serial": 42,
+                    "created-at": "2024-01-01T00:00:00Z",
+                    "size": 1024,
+                    "status": "finalized",
+                    "terraform-version": "1.6.0",
+                    "vcs-commit-sha": "abc123def456",
+                    "resources-processed": true,
+                    "resources": [{"count": 10}]
+                },
+                "relationships": {
+                    "run": {
+                        "data": {
+                            "id": "run-abc",
+                            "type": "runs"
+                        }
+                    }
+                }
+            }]
+        });
+
+        let response: StateVersionListResponse = serde_json::from_value(json).unwrap();
+        assert_eq!(response.data.len(), 1);
+        assert_eq!(response.data[0].id, "sv-123");
+        assert_eq!(response.data[0].attributes.serial, Some(42));
+        assert_eq!(response.data[0].resource_count(), Some(10));
+        assert_eq!(response.data[0].run_id(), "run-abc");
+    }
 
     #[test]
     fn test_empty_state_from_current() {

@@ -15,6 +15,9 @@ pub mod api {
     /// Runs endpoint
     pub const RUNS: &str = "runs";
 
+    /// State versions endpoint
+    pub const STATE_VERSIONS: &str = "state-versions";
+
     /// Teams endpoint
     pub const TEAMS: &str = "teams";
 
