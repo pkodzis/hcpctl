@@ -2,7 +2,7 @@
 
 use super::common::escape_csv;
 use crate::cli::OutputFormat;
-use crate::hcp::runs::{Apply, Plan, RunEvent};
+use crate::hcp::runs::{format_duration, Apply, Plan, RunEvent};
 use crate::hcp::Run;
 use comfy_table::{presets::NOTHING, Table};
 use serde::Serialize;
@@ -301,6 +301,131 @@ fn output_apply_csv(apply: &Apply, no_header: bool) {
     );
 }
 
+/// Serializable run history entry for JSON/YAML output
+#[derive(Serialize)]
+struct RunHistoryEntry {
+    run_id: String,
+    status: String,
+    created_at: String,
+    queue_seconds: Option<i64>,
+    plan_seconds: Option<i64>,
+    apply_seconds: Option<i64>,
+    total_seconds: Option<i64>,
+    message: String,
+}
+
+impl From<&Run> for RunHistoryEntry {
+    fn from(run: &Run) -> Self {
+        Self {
+            run_id: run.id.clone(),
+            status: run.status().to_string(),
+            created_at: run.created_at().to_string(),
+            queue_seconds: run.queue_duration().map(|d| d.num_seconds()),
+            plan_seconds: run.plan_duration().map(|d| d.num_seconds()),
+            apply_seconds: run.apply_duration().map(|d| d.num_seconds()),
+            total_seconds: run.total_duration().map(|d| d.num_seconds()),
+            message: run.message().to_string(),
+        }
+    }
+}
+
+/// Output runs as a history table with phase duration columns
+pub fn output_run_history(runs: &[Run], format: &OutputFormat, no_header: bool) {
+    match format {
+        OutputFormat::Table => output_run_history_table(runs, no_header),
+        OutputFormat::Csv => output_run_history_csv(runs, no_header),
+        OutputFormat::Json => {
+            let entries: Vec<RunHistoryEntry> = runs.iter().map(RunHistoryEntry::from).collect();
+            println!("{}", serde_json::to_string_pretty(&entries).unwrap());
+        }
+        OutputFormat::Yaml => {
+            let entries: Vec<RunHistoryEntry> = runs.iter().map(RunHistoryEntry::from).collect();
+            println!("{}", serde_yml::to_string(&entries).unwrap());
+        }
+    }
+}
+
+fn output_run_history_table(runs: &[Run], no_header: bool) {
+    let mut table = Table::new();
+    table.load_preset(NOTHING);
+    if !no_header {
+        table.set_header(vec![
+            "RUN ID", "STATUS", "CREATED", "QUEUE", "PLAN", "APPLY", "TOTAL", "MESSAGE",
+        ]);
+    }
+
+    for run in runs {
+        let created = run.created_at();
+        let short_created = if created.len() >= 16 {
+            &created[..16]
+        } else {
+            created
+        };
+
+        let message = run.message();
+        let short_message = if message.chars().count() > 50 {
+            let truncated: String = message.chars().take(47).collect();
+            format!("{truncated}...")
+        } else {
+            message.to_string()
+        };
+
+        table.add_row(vec![
+            run.id.as_str(),
+            run.status(),
+            short_created,
+            &format_duration(run.queue_duration()),
+            &format_duration(run.plan_duration()),
+            &format_duration(run.apply_duration()),
+            &format_duration(run.total_duration()),
+            &short_message,
+        ]);
+    }
+
+    println!();
+    println!("{table}");
+    if !no_header {
+        println!("\nTotal: {} runs", runs.len());
+    }
+}
+
+fn output_run_history_csv(runs: &[Run], no_header: bool) {
+    if !no_header {
+        println!("run_id,status,created_at,queue_seconds,plan_seconds,apply_seconds,total_seconds,message");
+    }
+
+    for run in runs {
+        let queue = run
+            .queue_duration()
+            .map(|d| d.num_seconds().to_string())
+            .unwrap_or_default();
+        let plan = run
+            .plan_duration()
+            .map(|d| d.num_seconds().to_string())
+            .unwrap_or_default();
+        let apply = run
+            .apply_duration()
+            .map(|d| d.num_seconds().to_string())
+            .unwrap_or_default();
+        let total = run
+            .total_duration()
+            .map(|d| d.num_seconds().to_string())
+            .unwrap_or_default();
+
+        println!(
+            "{},{},{},{},{},{},{},{}",
+            escape_csv(&run.id),
+            escape_csv(run.status()),
+            escape_csv(run.created_at()),
+            queue,
+            plan,
+            apply,
+            total,
+            escape_csv(run.message())
+        );
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -495,5 +620,72 @@ mod tests {
         assert_eq!(apply.resource_destructions(), 0);
         assert_eq!(apply.resource_imports(), 2);
         assert!(apply.log_read_url().is_some());
+    }
+
+    fn create_run_with_timestamps() -> Run {
+        serde_json::from_value(serde_json::json!({
+            "id": "run-hist1",
+            "type": "runs",
+            "attributes": {
+                "status": "applied",
+                "message": "Deploy v1.2",
+                "created-at": "2025-01-01T10:00:00.000Z",
+                "status-timestamps": {
+                    "queued-at": "2025-01-01T10:00:00Z",
+                    "planning-at": "2025-01-01T10:00:30Z",
+                    "planned-at": "2025-01-01T10:01:30Z",
+                    "applying-at": "2025-01-01T10:02:00Z",
+                    "applied-at": "2025-01-01T10:03:00Z"
+                }
+            }
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn test_run_history_entry_from_run() {
+        let run = create_run_with_timestamps();
+        let entry: RunHistoryEntry = (&run).into();
+        assert_eq!(entry.run_id, "run-hist1");
+        assert_eq!(entry.status, "applied");
+        assert_eq!(entry.queue_seconds, Some(30));
+        assert_eq!(entry.plan_seconds, Some(60));
+        assert_eq!(entry.apply_seconds, Some(60));
+        assert_eq!(entry.total_seconds, Some(180));
+        assert_eq!(entry.message, "Deploy v1.2");
+    }
+
+    #[test]
+    fn test_run_history_entry_no_timestamps() {
+        let run = create_test_run();
+        let entry: RunHistoryEntry = (&run).into();
+        assert!(entry.queue_seconds.is_none());
+        assert!(entry.plan_seconds.is_none());
+        assert!(entry.apply_seconds.is_none());
+        assert!(entry.total_seconds.is_none());
+    }
+
+    #[test]
+    fn test_run_history_entry_json_serialization() {
+        let run = create_run_with_timestamps();
+        let entry: RunHistoryEntry = (&run).into();
+        let json = serde_json::to_string(&entry).unwrap();
+        assert!(json.contains("queue_seconds"));
+        assert!(json.contains("plan_seconds"));
+        assert!(json.contains("apply_seconds"));
+        assert!(json.contains("total_seconds"));
+    }
+
+    #[test]
+    fn test_output_run_history_table_no_panic() {
+        let run = create_run_with_timestamps();
+        output_run_history_table(&[run], false);
+    }
+
+    #[test]
+    fn test_output_run_history_csv_no_panic() {
+        let run = create_run_with_timestamps();
+        output_run_history_csv(&[run], false);
+        output_run_history_csv(&[], true);
     }
 }

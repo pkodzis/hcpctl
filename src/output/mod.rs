@@ -6,6 +6,7 @@ pub mod org_memberships;
 mod organizations;
 mod projects;
 mod runs;
+mod state_versions;
 mod tags;
 mod team_access;
 mod teams;
@@ -15,7 +16,8 @@ pub use common::{escape_csv, output_raw};
 pub use oauth_clients::output_oauth_clients;
 pub use organizations::output_organizations;
 pub use projects::output_projects;
-pub use runs::{output_apply, output_plan, output_run_events, output_runs};
+pub use runs::{output_apply, output_plan, output_run_events, output_run_history, output_runs};
+pub use state_versions::output_state_versions;
 pub use tags::{
     output_org_tags, output_org_tags_with_workspaces, output_tag_bindings,
     output_workspace_all_tags,

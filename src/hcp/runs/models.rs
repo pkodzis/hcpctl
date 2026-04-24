@@ -247,6 +247,8 @@ pub struct RunAttributes {
     #[serde(rename = "trigger-reason")]
     pub trigger_reason: Option<String>,
     pub actions: Option<RunActions>,
+    #[serde(rename = "status-timestamps")]
+    pub status_timestamps: Option<serde_json::Value>,
 }
 
 /// Run action flags
@@ -573,6 +575,72 @@ impl Run {
             .as_ref()
             .and_then(|a| a.is_discardable)
             .unwrap_or(false)
+    }
+
+    /// Queue duration: planning-at − queued-at
+    pub fn queue_duration(&self) -> Option<chrono::Duration> {
+        let ts = self.attributes.status_timestamps.as_ref()?;
+        let start = parse_ts(ts, "queued-at")?;
+        let end = parse_ts(ts, "planning-at")?;
+        Some(end - start)
+    }
+
+    /// Plan duration: planned-at − planning-at
+    pub fn plan_duration(&self) -> Option<chrono::Duration> {
+        let ts = self.attributes.status_timestamps.as_ref()?;
+        let start = parse_ts(ts, "planning-at")?;
+        let end = parse_ts(ts, "planned-at").or_else(|| parse_ts(ts, "planned-and-finished-at"))?;
+        Some(end - start)
+    }
+
+    /// Apply duration: applied-at − applying-at
+    pub fn apply_duration(&self) -> Option<chrono::Duration> {
+        let ts = self.attributes.status_timestamps.as_ref()?;
+        let start = parse_ts(ts, "applying-at")?;
+        let end = parse_ts(ts, "applied-at")?;
+        Some(end - start)
+    }
+
+    /// Total duration: last timestamp − queued-at
+    pub fn total_duration(&self) -> Option<chrono::Duration> {
+        let ts = self.attributes.status_timestamps.as_ref()?;
+        let start = parse_ts(ts, "queued-at")?;
+        let obj = ts.as_object()?;
+        let last = obj
+            .values()
+            .filter_map(|v| v.as_str())
+            .filter_map(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+            .map(|dt| dt.with_timezone(&chrono::Utc))
+            .max()?;
+        Some(last - start)
+    }
+}
+
+/// Parse a timestamp from the status_timestamps JSON object
+fn parse_ts(timestamps: &serde_json::Value, key: &str) -> Option<chrono::DateTime<chrono::Utc>> {
+    let s = timestamps.get(key)?.as_str()?;
+    chrono::DateTime::parse_from_rfc3339(s)
+        .ok()
+        .map(|dt| dt.with_timezone(&chrono::Utc))
+}
+
+/// Format a duration as human-readable string (e.g. "2m 30s", "45s", or "-")
+pub fn format_duration(d: Option<chrono::Duration>) -> String {
+    match d {
+        Some(d) => {
+            let secs = d.num_seconds();
+            if secs < 0 {
+                return "-".to_string();
+            }
+            let mins = secs / 60;
+            let remaining = secs % 60;
+            if mins > 0 {
+                format!("{}m {}s", mins, remaining)
+            } else {
+                format!("{}s", remaining)
+            }
+        }
+        None => "-".to_string(),
     }
 }
 
@@ -959,5 +1027,176 @@ mod tests {
 
         assert_eq!(response.data.id, "apply-xyz789");
         assert_eq!(response.data.status(), "finished");
+    }
+
+    #[test]
+    fn test_format_duration_none() {
+        assert_eq!(format_duration(None), "-");
+    }
+
+    #[test]
+    fn test_format_duration_seconds_only() {
+        assert_eq!(format_duration(Some(chrono::Duration::seconds(45))), "45s");
+    }
+
+    #[test]
+    fn test_format_duration_minutes_and_seconds() {
+        assert_eq!(
+            format_duration(Some(chrono::Duration::seconds(150))),
+            "2m 30s"
+        );
+    }
+
+    #[test]
+    fn test_format_duration_exact_minutes() {
+        assert_eq!(
+            format_duration(Some(chrono::Duration::seconds(120))),
+            "2m 0s"
+        );
+    }
+
+    #[test]
+    fn test_format_duration_zero() {
+        assert_eq!(format_duration(Some(chrono::Duration::seconds(0))), "0s");
+    }
+
+    #[test]
+    fn test_format_duration_negative() {
+        assert_eq!(format_duration(Some(chrono::Duration::seconds(-5))), "-");
+    }
+
+    #[test]
+    fn test_format_duration_large() {
+        assert_eq!(
+            format_duration(Some(chrono::Duration::seconds(3661))),
+            "61m 1s"
+        );
+    }
+
+    fn create_run_with_timestamps(timestamps: serde_json::Value) -> Run {
+        serde_json::from_value(serde_json::json!({
+            "id": "run-ts1",
+            "type": "runs",
+            "attributes": {
+                "status": "applied",
+                "status-timestamps": timestamps
+            }
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn test_queue_duration() {
+        let run = create_run_with_timestamps(serde_json::json!({
+            "queued-at": "2025-01-01T10:00:00Z",
+            "planning-at": "2025-01-01T10:01:30Z"
+        }));
+        let d = run.queue_duration().unwrap();
+        assert_eq!(d.num_seconds(), 90);
+    }
+
+    #[test]
+    fn test_queue_duration_missing_timestamps() {
+        let run = create_run_with_timestamps(serde_json::json!({
+            "queued-at": "2025-01-01T10:00:00Z"
+        }));
+        assert!(run.queue_duration().is_none());
+    }
+
+    #[test]
+    fn test_plan_duration() {
+        let run = create_run_with_timestamps(serde_json::json!({
+            "planning-at": "2025-01-01T10:01:30Z",
+            "planned-at": "2025-01-01T10:03:00Z"
+        }));
+        let d = run.plan_duration().unwrap();
+        assert_eq!(d.num_seconds(), 90);
+    }
+
+    #[test]
+    fn test_plan_duration_planned_and_finished_fallback() {
+        let run = create_run_with_timestamps(serde_json::json!({
+            "planning-at": "2025-01-01T10:01:30Z",
+            "planned-and-finished-at": "2025-01-01T10:02:00Z"
+        }));
+        let d = run.plan_duration().unwrap();
+        assert_eq!(d.num_seconds(), 30);
+    }
+
+    #[test]
+    fn test_plan_duration_missing() {
+        let run = create_run_with_timestamps(serde_json::json!({
+            "queued-at": "2025-01-01T10:00:00Z"
+        }));
+        assert!(run.plan_duration().is_none());
+    }
+
+    #[test]
+    fn test_apply_duration() {
+        let run = create_run_with_timestamps(serde_json::json!({
+            "applying-at": "2025-01-01T10:05:00Z",
+            "applied-at": "2025-01-01T10:07:30Z"
+        }));
+        let d = run.apply_duration().unwrap();
+        assert_eq!(d.num_seconds(), 150);
+    }
+
+    #[test]
+    fn test_apply_duration_no_apply() {
+        let run = create_run_with_timestamps(serde_json::json!({
+            "queued-at": "2025-01-01T10:00:00Z",
+            "planned-and-finished-at": "2025-01-01T10:02:00Z"
+        }));
+        assert!(run.apply_duration().is_none());
+    }
+
+    #[test]
+    fn test_total_duration() {
+        let run = create_run_with_timestamps(serde_json::json!({
+            "queued-at": "2025-01-01T10:00:00Z",
+            "planning-at": "2025-01-01T10:01:00Z",
+            "planned-at": "2025-01-01T10:02:00Z",
+            "applying-at": "2025-01-01T10:03:00Z",
+            "applied-at": "2025-01-01T10:05:00Z"
+        }));
+        let d = run.total_duration().unwrap();
+        assert_eq!(d.num_seconds(), 300);
+    }
+
+    #[test]
+    fn test_total_duration_no_timestamps() {
+        let run: Run = serde_json::from_value(serde_json::json!({
+            "id": "run-no-ts",
+            "type": "runs",
+            "attributes": { "status": "pending" }
+        }))
+        .unwrap();
+        assert!(run.total_duration().is_none());
+    }
+
+    #[test]
+    fn test_total_duration_no_queued_at() {
+        let run = create_run_with_timestamps(serde_json::json!({
+            "planning-at": "2025-01-01T10:01:00Z"
+        }));
+        assert!(run.total_duration().is_none());
+    }
+
+    #[test]
+    fn test_parse_ts_invalid_format() {
+        let ts = serde_json::json!({ "queued-at": "not-a-date" });
+        assert!(parse_ts(&ts, "queued-at").is_none());
+    }
+
+    #[test]
+    fn test_parse_ts_null_value() {
+        let ts = serde_json::json!({ "queued-at": null });
+        assert!(parse_ts(&ts, "queued-at").is_none());
+    }
+
+    #[test]
+    fn test_parse_ts_missing_key() {
+        let ts = serde_json::json!({});
+        assert!(parse_ts(&ts, "queued-at").is_none());
     }
 }

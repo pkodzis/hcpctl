@@ -22,7 +22,7 @@ hcpctl get org                   # List organizations
 | | `tag` | List tags at org level or per workspace/project (`tag ws`, `tag prj`) |
 | | `team` | List/filter teams in organization |
 | | `team-access` | List/filter/sort team-project access assignments |
-| | `ws` | List/filter/sort workspaces, group by org/project, filter by pending runs, fetch subresources (current-run, current-state-version, current-configuration-version, current-assessment-result) |
+| | `ws` | List/filter/sort workspaces, group by org/project, filter by pending runs, fetch subresources (current-run, current-state-version, current-configuration-version, current-assessment-result), show run history with phase durations (`--runs`), show state version history (`--states`) |
 | `set` | `ws` | Modify workspace properties (assign to project, set description) |
 | | `tag ws` | Set tags on a workspace (key-only or key=value) |
 | | `tag prj` | Set tags on a project (key=value) |

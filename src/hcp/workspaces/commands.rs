@@ -37,6 +37,16 @@ pub async fn run_ws_command(
         return Err("--subresource requires a workspace name or ID".into());
     }
 
+    // Validate: --runs requires a workspace name
+    if args.runs && args.name.is_none() {
+        return Err("--runs requires a workspace name or ID".into());
+    }
+
+    // Validate: --states requires a workspace name
+    if args.states && args.name.is_none() {
+        return Err("--states requires a workspace name or ID".into());
+    }
+
     // Validate: --sort pending-runs requires --has-pending-runs
     if args.sort == WsSortField::PendingRuns && !args.has_pending_runs {
         return Err("--sort pending-runs requires --has-pending-runs".into());
@@ -331,6 +341,16 @@ async fn get_single_workspace(
         );
     }
 
+    // Handle --runs flag: fetch runs for this workspace and show run history
+    if args.runs {
+        return get_workspace_runs(client, cli, name, org).await;
+    }
+
+    // Handle --states flag: fetch state versions for this workspace
+    if args.states {
+        return get_workspace_states(client, cli, name, org).await;
+    }
+
     // If it's an ID (ws-...), we can fetch directly without knowing the org
     if name.starts_with("ws-") {
         let spinner = create_spinner(&format!("Fetching workspace '{}'...", name), cli.batch);
@@ -439,6 +459,185 @@ async fn get_single_workspace(
 
     finish_spinner(spinner);
     Err(crate::hcp::helpers::not_found_in_orgs_error("Workspace", name, &organizations).into())
+}
+
+/// Fetch runs for a workspace and output as run history table
+async fn get_workspace_runs(
+    client: &TfeClient,
+    cli: &Cli,
+    name: &str,
+    org: Option<&String>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let Command::Get {
+        resource: GetResource::Ws(args),
+    } = &cli.command
+    else {
+        unreachable!()
+    };
+
+    // Resolve workspace ID
+    let ws_id = if name.starts_with("ws-") {
+        name.to_string()
+    } else {
+        let organizations = resolve_organizations(client, org).await?;
+        let name_owned = name.to_string();
+        let found = crate::hcp::helpers::search_first_in_orgs(&organizations, |org| {
+            let ws_name = name_owned.clone();
+            async move {
+                match client.get_workspace_by_name(&org, &ws_name).await {
+                    Ok(Some(result)) => (org, Some(result)),
+                    _ => (org, None),
+                }
+            }
+        })
+        .await;
+
+        match found {
+            Some((_org_name, (workspace, _raw))) => workspace.id,
+            None => {
+                return Err(crate::hcp::helpers::not_found_in_orgs_error(
+                    "Workspace",
+                    name,
+                    &organizations,
+                )
+                .into());
+            }
+        }
+    };
+
+    let spinner = create_spinner(
+        &format!("Fetching runs for workspace '{}'...", name),
+        cli.batch,
+    );
+
+    let query = RunQuery {
+        page_size: if args.all_runs { None } else { Some(24) },
+        ..Default::default()
+    };
+
+    let max_results = if args.all_runs { None } else { Some(24) };
+
+    let runs = client
+        .get_runs_for_workspace(&ws_id, query, max_results)
+        .await?;
+
+    finish_spinner(spinner);
+
+    if runs.is_empty() {
+        println!("\nNo runs found for workspace '{}'", name);
+        return Ok(());
+    }
+
+    crate::output::output_run_history(&runs, &args.output, cli.no_header);
+    Ok(())
+}
+
+/// Fetch state versions for a workspace and output as table
+async fn get_workspace_states(
+    client: &TfeClient,
+    cli: &Cli,
+    name: &str,
+    org: Option<&String>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let Command::Get {
+        resource: GetResource::Ws(args),
+    } = &cli.command
+    else {
+        unreachable!()
+    };
+
+    // State versions API requires org name + workspace name (not IDs)
+    // Resolve both regardless of what was provided
+    let (effective_org, effective_ws_name) = if name.starts_with("ws-") {
+        // Resolve ws ID to org + name
+        let resolve_spinner =
+            create_spinner(&format!("Resolving workspace '{}'...", name), cli.batch);
+        match client.get_workspace_by_id(name).await? {
+            Some((ws, _raw)) => {
+                let org_name = ws
+                    .organization_name()
+                    .ok_or("Could not determine organization for workspace")?
+                    .to_string();
+                let ws_name = ws.attributes.name.clone();
+                finish_spinner(resolve_spinner);
+                (org_name, ws_name)
+            }
+            None => {
+                finish_spinner(resolve_spinner);
+                return Err(format!("Workspace '{}' not found", name).into());
+            }
+        }
+    } else if let Some(o) = org {
+        (o.clone(), name.to_string())
+    } else {
+        // Search orgs to find workspace
+        let organizations = resolve_organizations(client, None).await?;
+        let name_owned = name.to_string();
+        let found = crate::hcp::helpers::search_first_in_orgs(&organizations, |org| {
+            let ws_name = name_owned.clone();
+            async move {
+                match client.get_workspace_by_name(&org, &ws_name).await {
+                    Ok(Some(result)) => (org, Some(result)),
+                    _ => (org, None),
+                }
+            }
+        })
+        .await;
+
+        match found {
+            Some((org_name, (_ws, _raw))) => (org_name, name.to_string()),
+            None => {
+                return Err(crate::hcp::helpers::not_found_in_orgs_error(
+                    "Workspace",
+                    name,
+                    &organizations,
+                )
+                .into());
+            }
+        }
+    };
+
+    let spinner = create_spinner(
+        &format!(
+            "Fetching state versions for workspace '{}'...",
+            effective_ws_name
+        ),
+        cli.batch,
+    );
+
+    let mut states = client
+        .get_state_versions_for_workspace(&effective_org, &effective_ws_name, 24, args.all_states)
+        .await?;
+
+    finish_spinner(spinner);
+
+    if states.is_empty() {
+        println!("\nNo state versions found for workspace '{}'", name);
+        return Ok(());
+    }
+
+    // Sort by serial ascending for delta computation
+    states.sort_by_key(|s| s.attributes.serial);
+
+    // Compute resource count deltas between consecutive state versions
+    let deltas: Vec<Option<i64>> = states
+        .iter()
+        .enumerate()
+        .map(|(i, state)| {
+            if i == 0 {
+                return None;
+            }
+            let current = state.resource_count();
+            let prev = states[i - 1].resource_count();
+            match (current, prev) {
+                (Some(c), Some(p)) => Some(c as i64 - p as i64),
+                _ => None,
+            }
+        })
+        .collect();
+
+    crate::output::output_state_versions(&states, &deltas, &args.output, cli.no_header);
+    Ok(())
 }
 
 /// Fetch pending run counts for a single workspace.
