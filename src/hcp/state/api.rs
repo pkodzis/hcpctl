@@ -9,7 +9,8 @@ use crate::error::{Result, TfeError};
 use crate::hcp::TfeClient;
 
 use super::models::{
-    CurrentStateVersionResponse, EmptyTerraformState, StateVersionRequest, TerraformState,
+    CurrentStateVersionResponse, EmptyTerraformState, StateVersionListItem,
+    StateVersionListResponse, StateVersionRequest, TerraformState,
 };
 
 impl TfeClient {
@@ -156,6 +157,43 @@ impl TfeClient {
                     message: format!("Failed to upload state version: {}", body),
                 })
             }
+        }
+    }
+    /// List state versions for a workspace
+    ///
+    /// Uses `fetch_all_pages` for full pagination, or a single-page request
+    /// with the specified `page_size` when `all` is false.
+    pub async fn get_state_versions_for_workspace(
+        &self,
+        org: &str,
+        workspace_name: &str,
+        page_size: usize,
+        all: bool,
+    ) -> crate::error::Result<Vec<StateVersionListItem>> {
+        let path = format!(
+            "/{}?filter[organization][name]={}&filter[workspace][name]={}&page[size]={}",
+            api::STATE_VERSIONS,
+            urlencoding::encode(org),
+            urlencoding::encode(workspace_name),
+            page_size
+        );
+
+        let error_context = format!("state versions for workspace '{}'", workspace_name);
+
+        if all {
+            self.fetch_all_pages::<StateVersionListItem, StateVersionListResponse>(
+                &path,
+                &error_context,
+            )
+            .await
+        } else {
+            let url = format!("{}{}", self.base_url(), path);
+            debug!("Fetching state versions: {}", url);
+
+            let response = self.get(&url).send().await?;
+            let data: StateVersionListResponse =
+                self.parse_api_response(response, &error_context).await?;
+            Ok(data.data)
         }
     }
 }

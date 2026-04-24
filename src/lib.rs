@@ -62,8 +62,8 @@ pub use hcp::{
 };
 pub use output::{
     output_oauth_clients, output_org_tags, output_org_tags_with_workspaces, output_organizations,
-    output_projects, output_results_sorted, output_runs, output_tag_bindings, output_team_access,
-    output_workspace_all_tags, WorkspaceRow,
+    output_projects, output_results_sorted, output_runs, output_state_versions,
+    output_tag_bindings, output_team_access, output_workspace_all_tags, WorkspaceRow,
 };
 pub use ui::{confirm_large_pagination, LargePaginationInfo};
 pub use update::{run_update, UpdateChecker, UpdateHandle};

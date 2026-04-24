@@ -297,6 +297,8 @@ Get workspaces
   Default value: `false`
 * `--runs` — List recent runs with phase durations for this workspace
 * `--all-runs` — Fetch all runs (default: 24 most recent). Requires --runs
+* `--states` — List recent state versions for this workspace
+* `--all-states` — Fetch all state versions (default: 24 most recent). Requires --states
 * `--subresource <SUBRESOURCE>` — Fetch a related subresource (run=current-run, state=current-state-version, config=current-configuration-version, assessment=current-assessment-result). Only works with single workspace lookup and JSON/YAML output
 
   Possible values:

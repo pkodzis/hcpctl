@@ -1669,3 +1669,56 @@ fn test_get_team_access_team_name_no_org_errors() {
         stderr
     );
 }
+
+/// Test that --states flag appears in help output
+#[test]
+fn test_ws_states_flag_documented() {
+    let output = Command::new(hcpctl_bin())
+        .args(["get", "ws", "--help"])
+        .env_remove("HCP_TOKEN")
+        .env_remove("TFC_TOKEN")
+        .env_remove("TFE_TOKEN")
+        .env("HCPCTL_CONTEXT", "__nonexistent_test_context__")
+        .output()
+        .unwrap();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("--states"),
+        "--states should appear in help output, got: {}",
+        stdout
+    );
+}
+
+/// Test that --all-states requires --states
+#[test]
+fn test_ws_all_states_requires_states() {
+    let output = Command::new(hcpctl_bin())
+        .args([
+            "--host",
+            "nonexistent.example.com",
+            "--token",
+            "test-token",
+            "get",
+            "ws",
+            "my-ws",
+            "--all-states",
+        ])
+        .env_remove("HCP_TOKEN")
+        .env_remove("TFC_TOKEN")
+        .env_remove("TFE_TOKEN")
+        .env("HCPCTL_CONTEXT", "__nonexistent_test_context__")
+        .output()
+        .unwrap();
+
+    assert!(
+        !output.status.success(),
+        "--all-states without --states should fail"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("--states"),
+        "Error should mention --states requirement, got: {}",
+        stderr
+    );
+}
