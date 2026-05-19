@@ -192,6 +192,11 @@ impl TfeClient {
 
     /// Helper to append run query parameters to URL
     fn append_run_query_params(&self, url: &mut String, query: &RunQuery) {
+        // Include all operation types (API excludes plan_only by default)
+        if query.include_all_operations {
+            url.push_str("&filter[operation]=plan_and_apply,plan_only,save_plan,refresh_only,destroy,empty_apply");
+        }
+
         // Add status group filter
         if let Some(status_group) = &query.status_group {
             url.push_str(&format!("&filter[status_group]={}", status_group));

@@ -142,6 +142,8 @@ pub struct RunQuery {
     pub page: Option<u32>,
     /// Page size for pagination
     pub page_size: Option<u32>,
+    /// Include all operation types (overrides API default which excludes plan_only)
+    pub include_all_operations: bool,
 }
 
 impl RunQuery {
