@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.1](https://github.com/pkodzis/hcpctl/compare/v0.17.0...v0.17.1) (2026-05-19)
+
+
+### Bug Fixes
+
+* **runs:** include all operation types in --runs output ([#77](https://github.com/pkodzis/hcpctl/issues/77)) ([2a6a933](https://github.com/pkodzis/hcpctl/commit/2a6a933da43b78e32866a0c2beeddc8ac1d39d4c))
+
 ## [0.17.0](https://github.com/pkodzis/hcpctl/compare/v0.16.0...v0.17.0) (2026-04-24)
 
 
