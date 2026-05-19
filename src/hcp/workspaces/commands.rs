@@ -512,6 +512,7 @@ async fn get_workspace_runs(
 
     let query = RunQuery {
         page_size: if args.all_runs { None } else { Some(24) },
+        include_all_operations: true,
         ..Default::default()
     };
 
