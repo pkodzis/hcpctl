@@ -170,6 +170,94 @@ fn output_yaml(rows: &[WorkspaceRow]) {
     super::common::print_yaml(&data);
 }
 
+/// Per-organization row in the resource summary
+#[derive(Serialize)]
+pub struct OrgResourceSummaryRow {
+    pub org: String,
+    pub workspace_count: usize,
+    pub resource_count: u64,
+}
+
+/// Instance-wide total for the resource summary
+#[derive(Serialize)]
+pub struct InstanceResourceSummary {
+    pub workspace_count: usize,
+    pub resource_count: u64,
+}
+
+/// Full resource summary (per-org + instance total)
+#[derive(Serialize)]
+pub struct WorkspaceResourceSummary {
+    pub organizations: Vec<OrgResourceSummaryRow>,
+    pub instance_total: InstanceResourceSummary,
+}
+
+/// Output the workspace resource summary in the specified format
+pub fn output_workspace_resource_summary(
+    summary: &WorkspaceResourceSummary,
+    format: &OutputFormat,
+    no_header: bool,
+) {
+    match format {
+        OutputFormat::Table => output_resource_summary_table(summary, no_header),
+        OutputFormat::Csv => output_resource_summary_csv(summary, no_header),
+        OutputFormat::Json => println!("{}", serde_json::to_string_pretty(summary).unwrap()),
+        OutputFormat::Yaml => println!("{}", serde_yml::to_string(summary).unwrap()),
+    }
+}
+
+fn output_resource_summary_table(summary: &WorkspaceResourceSummary, no_header: bool) {
+    let mut table = Table::new();
+    table.load_preset(NOTHING);
+
+    if !no_header {
+        table.set_header(vec!["ORG", "WORKSPACES", "RESOURCES"]);
+    }
+
+    for row in &summary.organizations {
+        table.add_row(vec![
+            row.org.clone(),
+            row.workspace_count.to_string(),
+            row.resource_count.to_string(),
+        ]);
+    }
+
+    // Separator row then TOTAL
+    table.add_row(vec![
+        "---".to_string(),
+        "---".to_string(),
+        "---".to_string(),
+    ]);
+    table.add_row(vec![
+        "TOTAL".to_string(),
+        summary.instance_total.workspace_count.to_string(),
+        summary.instance_total.resource_count.to_string(),
+    ]);
+
+    println!();
+    println!("{table}");
+}
+
+fn output_resource_summary_csv(summary: &WorkspaceResourceSummary, no_header: bool) {
+    if !no_header {
+        println!("org,workspace_count,resource_count");
+    }
+
+    for row in &summary.organizations {
+        println!(
+            "{},{},{}",
+            escape_csv(&row.org),
+            row.workspace_count,
+            row.resource_count
+        );
+    }
+
+    println!(
+        "TOTAL,{},{}",
+        summary.instance_total.workspace_count, summary.instance_total.resource_count
+    );
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -335,5 +423,99 @@ mod tests {
         // Should not panic
         output_workspaces(&[], &OutputFormat::Table, true);
         output_workspaces(&[], &OutputFormat::Csv, true);
+    }
+
+    // -------------------------------------------------------------------------
+    // WorkspaceResourceSummary output tests
+    // -------------------------------------------------------------------------
+
+    fn make_summary(orgs: Vec<(&str, usize, u64)>) -> WorkspaceResourceSummary {
+        let organizations: Vec<OrgResourceSummaryRow> = orgs
+            .into_iter()
+            .map(|(org, wc, rc)| OrgResourceSummaryRow {
+                org: org.to_string(),
+                workspace_count: wc,
+                resource_count: rc,
+            })
+            .collect();
+        let total_workspaces = organizations.iter().map(|r| r.workspace_count).sum();
+        let total_resources = organizations.iter().map(|r| r.resource_count).sum();
+        WorkspaceResourceSummary {
+            organizations,
+            instance_total: InstanceResourceSummary {
+                workspace_count: total_workspaces,
+                resource_count: total_resources,
+            },
+        }
+    }
+
+    #[test]
+    fn test_resource_summary_empty_zero_totals() {
+        let summary = make_summary(vec![]);
+        assert_eq!(summary.organizations.len(), 0);
+        assert_eq!(summary.instance_total.workspace_count, 0);
+        assert_eq!(summary.instance_total.resource_count, 0);
+    }
+
+    #[test]
+    fn test_resource_summary_empty_no_panic_all_formats() {
+        let summary = make_summary(vec![]);
+        output_workspace_resource_summary(&summary, &OutputFormat::Table, false);
+        output_workspace_resource_summary(&summary, &OutputFormat::Csv, false);
+        output_workspace_resource_summary(&summary, &OutputFormat::Json, false);
+        output_workspace_resource_summary(&summary, &OutputFormat::Yaml, false);
+    }
+
+    #[test]
+    fn test_resource_summary_multiple_orgs_totals() {
+        let summary = make_summary(vec![("beta-org", 3, 10), ("alpha-org", 2, 5)]);
+        assert_eq!(summary.instance_total.workspace_count, 5);
+        assert_eq!(summary.instance_total.resource_count, 15);
+    }
+
+    #[test]
+    fn test_resource_summary_json_has_organizations_and_instance_total_keys() {
+        let summary = make_summary(vec![("my-org", 1, 7)]);
+        let json = serde_json::to_string(&summary).unwrap();
+        assert!(
+            json.contains("\"organizations\""),
+            "JSON should have 'organizations' key, got: {}",
+            json
+        );
+        assert!(
+            json.contains("\"instance_total\""),
+            "JSON should have 'instance_total' key, got: {}",
+            json
+        );
+    }
+
+    #[test]
+    fn test_resource_summary_json_org_row_fields() {
+        let summary = make_summary(vec![("acme", 4, 99)]);
+        let json = serde_json::to_string(&summary).unwrap();
+        assert!(json.contains("\"org\":"), "JSON should contain 'org' field");
+        assert!(
+            json.contains("\"workspace_count\":"),
+            "JSON should contain 'workspace_count' field"
+        );
+        assert!(
+            json.contains("\"resource_count\":"),
+            "JSON should contain 'resource_count' field"
+        );
+    }
+
+    #[test]
+    fn test_resource_summary_csv_no_panic_with_data() {
+        let summary = make_summary(vec![("org-a", 2, 20), ("org-b", 1, 5)]);
+        // Should not panic for any format
+        output_workspace_resource_summary(&summary, &OutputFormat::Csv, false);
+        output_workspace_resource_summary(&summary, &OutputFormat::Csv, true);
+    }
+
+    #[test]
+    fn test_resource_summary_table_no_panic_with_data() {
+        let summary = make_summary(vec![("org-a", 2, 20)]);
+        output_workspace_resource_summary(&summary, &OutputFormat::Table, false);
+        output_workspace_resource_summary(&summary, &OutputFormat::Table, true);
     }
 }

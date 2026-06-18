@@ -1690,6 +1690,225 @@ fn test_ws_states_flag_documented() {
     );
 }
 
+// =============================================================================
+// --resources-summary flag tests
+// =============================================================================
+
+/// Test that 'get ws --help' contains --resources-summary
+#[test]
+fn test_ws_resources_summary_in_help() {
+    let output = Command::new(hcpctl_bin())
+        .args(["get", "ws", "--help"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("--resources-summary"),
+        "--resources-summary should appear in 'get ws --help', got: {}",
+        stdout
+    );
+}
+
+/// Test that 'get workspace --resources-summary' and 'get workspaces --resources-summary' are
+/// accepted by the CLI parser (will fail at network/token level, not at parse level)
+#[test]
+fn test_ws_resources_summary_aliases_accepted() {
+    for alias in ["workspace", "workspaces"] {
+        let output = Command::new(hcpctl_bin())
+            .args([
+                "--host",
+                "nonexistent.example.com",
+                "--token",
+                "test-token",
+                "get",
+                alias,
+                "--resources-summary",
+            ])
+            .env_remove("HCP_TOKEN")
+            .env_remove("TFC_TOKEN")
+            .env_remove("TFE_TOKEN")
+            .env("HCPCTL_CONTEXT", "__nonexistent_test_context__")
+            .output()
+            .unwrap();
+
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            !stderr.contains("unexpected argument") && !stderr.contains("unrecognized"),
+            "'get {} --resources-summary' should be accepted by CLI parser, stderr: {}",
+            alias,
+            stderr
+        );
+    }
+}
+
+/// Test that 'get ws myworkspace --resources-summary' is rejected with a helpful error
+#[test]
+fn test_ws_resources_summary_with_name_rejected() {
+    let output = Command::new(hcpctl_bin())
+        .args([
+            "--host",
+            "nonexistent.example.com",
+            "--token",
+            "test-token",
+            "get",
+            "ws",
+            "myworkspace",
+            "--resources-summary",
+        ])
+        .env_remove("HCP_TOKEN")
+        .env_remove("TFC_TOKEN")
+        .env_remove("TFE_TOKEN")
+        .env("HCPCTL_CONTEXT", "__nonexistent_test_context__")
+        .output()
+        .unwrap();
+
+    assert!(
+        !output.status.success(),
+        "'get ws myworkspace --resources-summary' should fail"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("resources-summary"),
+        "Error should mention resources-summary, got: {}",
+        stderr
+    );
+}
+
+/// Test that combining --resources-summary with --runs is rejected (no name needed)
+#[test]
+fn test_ws_resources_summary_with_runs_rejected() {
+    let output = Command::new(hcpctl_bin())
+        .args([
+            "--host",
+            "nonexistent.example.com",
+            "--token",
+            "test-token",
+            "get",
+            "ws",
+            "--resources-summary",
+            "--runs",
+        ])
+        .env_remove("HCP_TOKEN")
+        .env_remove("TFC_TOKEN")
+        .env_remove("TFE_TOKEN")
+        .env("HCPCTL_CONTEXT", "__nonexistent_test_context__")
+        .output()
+        .unwrap();
+
+    assert!(
+        !output.status.success(),
+        "--resources-summary combined with --runs should fail"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("resources-summary"),
+        "Error should mention resources-summary, got: {}",
+        stderr
+    );
+}
+
+/// Test that combining --resources-summary with --has-pending-runs is rejected
+#[test]
+fn test_ws_resources_summary_with_has_pending_runs_rejected() {
+    let output = Command::new(hcpctl_bin())
+        .args([
+            "--host",
+            "nonexistent.example.com",
+            "--token",
+            "test-token",
+            "get",
+            "ws",
+            "--resources-summary",
+            "--has-pending-runs",
+        ])
+        .env_remove("HCP_TOKEN")
+        .env_remove("TFC_TOKEN")
+        .env_remove("TFE_TOKEN")
+        .env("HCPCTL_CONTEXT", "__nonexistent_test_context__")
+        .output()
+        .unwrap();
+
+    assert!(
+        !output.status.success(),
+        "--resources-summary combined with --has-pending-runs should fail"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("resources-summary"),
+        "Error should mention resources-summary, got: {}",
+        stderr
+    );
+}
+
+/// Test that combining --resources-summary with --states is rejected
+#[test]
+fn test_ws_resources_summary_with_states_rejected() {
+    let output = Command::new(hcpctl_bin())
+        .args([
+            "--host",
+            "nonexistent.example.com",
+            "--token",
+            "test-token",
+            "get",
+            "ws",
+            "--resources-summary",
+            "--states",
+        ])
+        .env_remove("HCP_TOKEN")
+        .env_remove("TFC_TOKEN")
+        .env_remove("TFE_TOKEN")
+        .env("HCPCTL_CONTEXT", "__nonexistent_test_context__")
+        .output()
+        .unwrap();
+
+    assert!(
+        !output.status.success(),
+        "--resources-summary combined with --states should fail"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("resources-summary"),
+        "Error should mention resources-summary, got: {}",
+        stderr
+    );
+}
+
+/// Test that combining --resources-summary with --subresource is rejected
+#[test]
+fn test_ws_resources_summary_with_subresource_rejected() {
+    let output = Command::new(hcpctl_bin())
+        .args([
+            "--host",
+            "nonexistent.example.com",
+            "--token",
+            "test-token",
+            "get",
+            "ws",
+            "--resources-summary",
+            "--subresource",
+            "run",
+        ])
+        .env_remove("HCP_TOKEN")
+        .env_remove("TFC_TOKEN")
+        .env_remove("TFE_TOKEN")
+        .env("HCPCTL_CONTEXT", "__nonexistent_test_context__")
+        .output()
+        .unwrap();
+
+    assert!(
+        !output.status.success(),
+        "--resources-summary combined with --subresource should fail"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("resources-summary"),
+        "Error should mention resources-summary, got: {}",
+        stderr
+    );
+}
+
 /// Test that --all-states requires --states
 #[test]
 fn test_ws_all_states_requires_states() {

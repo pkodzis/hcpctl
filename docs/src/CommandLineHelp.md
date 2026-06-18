@@ -295,6 +295,9 @@ Get workspaces
 * `--has-pending-runs` — Only show workspaces that have runs in 'pending' status (queued behind another active run). Adds a "Pending Runs" count column
 
   Default value: `false`
+* `--resources-summary` — Summarize workspace resource counts per organization and instance total
+
+  Default value: `false`
 * `--runs` — List recent runs with phase durations for this workspace
 * `--all-runs` — Fetch all runs (default: 24 most recent). Requires --runs
 * `--states` — List recent state versions for this workspace

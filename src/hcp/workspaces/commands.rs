@@ -1,6 +1,6 @@
 //! Workspace command handlers
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use log::debug;
 
@@ -13,7 +13,10 @@ use crate::hcp::projects::resolve_project;
 use crate::hcp::runs::{count_runs_by_workspace, RunQuery};
 use crate::hcp::workspaces::WorkspaceQuery;
 use crate::hcp::TfeClient;
-use crate::output::{output_raw, output_results_sorted};
+use crate::output::{
+    output_raw, output_results_sorted, output_workspace_resource_summary, InstanceResourceSummary,
+    OrgResourceSummaryRow, WorkspaceResourceSummary,
+};
 use crate::ui::{
     confirm_large_pagination, create_spinner, finish_spinner, finish_spinner_with_status,
     LargePaginationInfo,
@@ -31,6 +34,25 @@ pub async fn run_ws_command(
     else {
         unreachable!()
     };
+
+    // Validate: --resources-summary incompatibilities (must be checked before other early returns)
+    if args.resources_summary {
+        if args.name.is_some() {
+            return Err("--resources-summary cannot be used with a workspace name".into());
+        }
+        if args.runs {
+            return Err("--resources-summary cannot be used with --runs".into());
+        }
+        if args.states {
+            return Err("--resources-summary cannot be used with --states".into());
+        }
+        if args.subresource.is_some() {
+            return Err("--resources-summary cannot be used with --subresource".into());
+        }
+        if args.has_pending_runs {
+            return Err("--resources-summary cannot be used with --has-pending-runs".into());
+        }
+    }
 
     // Validate: --subresource requires a workspace name
     if args.subresource.is_some() && args.name.is_none() {
@@ -168,12 +190,52 @@ pub async fn run_ws_command(
 
     finish_spinner_with_status(spinner, &all_workspaces, had_errors);
 
-    if !all_workspaces.is_empty() {
+    if args.resources_summary {
+        let summary = build_resource_summary(&all_workspaces);
+        output_workspace_resource_summary(&summary, &args.output, cli.no_header);
+    } else if !all_workspaces.is_empty() {
         output_results_sorted(all_workspaces, cli, None);
     }
 
     log_completion(had_errors);
     Ok(())
+}
+
+/// Aggregate workspace data into a resource summary grouped by organization
+fn build_resource_summary(
+    org_workspaces: &[(String, Vec<crate::hcp::Workspace>)],
+) -> WorkspaceResourceSummary {
+    let mut by_org: BTreeMap<String, (usize, u64)> = BTreeMap::new();
+    for (org, workspaces) in org_workspaces {
+        let entry = by_org.entry(org.clone()).or_insert((0, 0));
+        entry.0 += workspaces.len();
+        entry.1 += workspaces
+            .iter()
+            .map(|ws| ws.resource_count() as u64)
+            .sum::<u64>();
+    }
+
+    let organizations: Vec<OrgResourceSummaryRow> = by_org
+        .into_iter()
+        .map(
+            |(org, (workspace_count, resource_count))| OrgResourceSummaryRow {
+                org,
+                workspace_count,
+                resource_count,
+            },
+        )
+        .collect();
+
+    let total_workspaces = organizations.iter().map(|r| r.workspace_count).sum();
+    let total_resources = organizations.iter().map(|r| r.resource_count).sum();
+
+    WorkspaceResourceSummary {
+        organizations,
+        instance_total: InstanceResourceSummary {
+            workspace_count: total_workspaces,
+            resource_count: total_resources,
+        },
+    }
 }
 
 /// Optimized path for --has-pending-runs: fetch pending runs first, then only those workspaces
@@ -708,5 +770,78 @@ async fn fetch_and_output_subresource(
             finish_spinner(spinner);
             Err(e.into())
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::build_resource_summary;
+    use crate::hcp::workspaces::{Workspace, WorkspaceAttributes};
+
+    fn ws(resource_count: Option<u32>) -> Workspace {
+        Workspace {
+            id: "ws-test".to_string(),
+            attributes: WorkspaceAttributes {
+                name: "test-ws".to_string(),
+                execution_mode: None,
+                resource_count,
+                locked: None,
+                terraform_version: None,
+                updated_at: None,
+            },
+            relationships: None,
+        }
+    }
+
+    #[test]
+    fn test_build_resource_summary_empty_input() {
+        let summary = build_resource_summary(&[]);
+        assert_eq!(summary.organizations.len(), 0);
+        assert_eq!(summary.instance_total.workspace_count, 0);
+        assert_eq!(summary.instance_total.resource_count, 0);
+    }
+
+    #[test]
+    fn test_build_resource_summary_resource_count_none_treated_as_zero() {
+        let data = vec![("org-a".to_string(), vec![ws(None), ws(None)])];
+        let summary = build_resource_summary(&data);
+        assert_eq!(summary.organizations.len(), 1);
+        assert_eq!(summary.organizations[0].resource_count, 0);
+        assert_eq!(summary.organizations[0].workspace_count, 2);
+        assert_eq!(summary.instance_total.resource_count, 0);
+    }
+
+    #[test]
+    fn test_build_resource_summary_multiple_orgs_sorted_alphabetically() {
+        // Insert in reverse alphabetical order — BTreeMap should sort them
+        let data = vec![
+            ("zeta-org".to_string(), vec![ws(Some(5))]),
+            ("alpha-org".to_string(), vec![ws(Some(3)), ws(Some(7))]),
+            ("beta-org".to_string(), vec![ws(Some(1))]),
+        ];
+        let summary = build_resource_summary(&data);
+        assert_eq!(summary.organizations.len(), 3);
+        assert_eq!(summary.organizations[0].org, "alpha-org");
+        assert_eq!(summary.organizations[1].org, "beta-org");
+        assert_eq!(summary.organizations[2].org, "zeta-org");
+    }
+
+    #[test]
+    fn test_build_resource_summary_correct_totals() {
+        let data = vec![
+            ("org-a".to_string(), vec![ws(Some(10)), ws(Some(20))]),
+            ("org-b".to_string(), vec![ws(Some(5))]),
+        ];
+        let summary = build_resource_summary(&data);
+        assert_eq!(summary.instance_total.workspace_count, 3);
+        assert_eq!(summary.instance_total.resource_count, 35);
+    }
+
+    #[test]
+    fn test_build_resource_summary_per_org_counts() {
+        let data = vec![("org-a".to_string(), vec![ws(Some(10)), ws(Some(20))])];
+        let summary = build_resource_summary(&data);
+        assert_eq!(summary.organizations[0].workspace_count, 2);
+        assert_eq!(summary.organizations[0].resource_count, 30);
     }
 }
