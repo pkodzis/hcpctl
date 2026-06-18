@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.0](https://github.com/pkodzis/hcpctl/compare/v0.17.1...v0.18.0) (2026-06-18)
+
+
+### Features
+
+* add get ws --resources-summary to aggregate workspace resources per org and instance total ([#80](https://github.com/pkodzis/hcpctl/issues/80)) ([b11ee3c](https://github.com/pkodzis/hcpctl/commit/b11ee3c43826b750ba42a0accee863ed784094e6))
+
 ## [0.17.1](https://github.com/pkodzis/hcpctl/compare/v0.17.0...v0.17.1) (2026-05-19)
 
 
