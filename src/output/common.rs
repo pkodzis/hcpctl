@@ -38,7 +38,7 @@ pub fn print_json<T: serde::Serialize>(items: &[T]) {
 ///
 /// Generic helper that replaces per-resource `output_yaml` boilerplate.
 pub fn print_yaml<T: serde::Serialize>(items: &[T]) {
-    println!("{}", serde_yml::to_string(items).unwrap());
+    println!("{}", serde_yml::to_string(&items).unwrap());
 }
 
 #[cfg(test)]

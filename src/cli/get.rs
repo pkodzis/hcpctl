@@ -219,6 +219,10 @@ pub struct WsArgs {
     #[arg(long, default_value_t = false)]
     pub has_pending_runs: bool,
 
+    /// Summarize workspace resource counts per organization and instance total
+    #[arg(long, default_value_t = false)]
+    pub resources_summary: bool,
+
     /// List recent runs with phase durations for this workspace
     #[arg(long)]
     pub runs: bool,

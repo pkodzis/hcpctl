@@ -24,7 +24,10 @@ pub use tags::{
 };
 pub use team_access::output_team_access;
 pub use teams::output_teams;
-pub use workspaces::WorkspaceRow;
+pub use workspaces::{
+    output_workspace_resource_summary, InstanceResourceSummary, OrgResourceSummaryRow,
+    WorkspaceResourceSummary, WorkspaceRow,
+};
 
 use workspaces::output_workspaces;
 
