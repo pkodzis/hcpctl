@@ -41,6 +41,7 @@ pub fn output_results_sorted(
     org_workspaces: Vec<(String, Vec<Workspace>)>,
     cli: &Cli,
     pending_counts: Option<&HashMap<String, usize>>,
+    billable_counts: Option<&HashMap<String, u64>>,
 ) {
     let Command::Get {
         resource: GetResource::Ws(args),
@@ -58,6 +59,7 @@ pub fn output_results_sorted(
                 .map(move |ws| {
                     let mut row = WorkspaceRow::new(&org, ws);
                     row.pending_runs = pending_counts.and_then(|m| m.get(&ws.id).copied());
+                    row.billable = billable_counts.and_then(|m| m.get(&ws.id).copied());
                     row
                 })
                 .collect::<Vec<_>>()

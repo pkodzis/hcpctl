@@ -163,6 +163,43 @@ impl TfeClient {
         results.into_iter().flatten().collect()
     }
 
+    /// Fetch billable RUM counts for workspaces by calling current-state-version per workspace.
+    /// Returns a map of workspace_id -> billable_rum_count.
+    /// Skips workspaces with no state or errors.
+    pub async fn fetch_billable_counts(
+        &self,
+        workspace_ids: &[String],
+    ) -> std::collections::HashMap<String, u64> {
+        use std::collections::HashMap;
+
+        if workspace_ids.is_empty() {
+            return HashMap::new();
+        }
+
+        let results: Vec<Option<(String, u64)>> = stream::iter(workspace_ids)
+            .map(|ws_id| async move {
+                match self.get_current_state_version(ws_id).await {
+                    Ok(csv) => csv
+                        .data
+                        .attributes
+                        .billable_rum_count
+                        .map(|b| (ws_id.clone(), b)),
+                    Err(e) => {
+                        debug!(
+                            "Could not fetch billable count for '{}': {}, skipping",
+                            ws_id, e
+                        );
+                        None
+                    }
+                }
+            })
+            .buffer_unordered(api::MAX_CONCURRENT_PAGE_REQUESTS)
+            .collect()
+            .await;
+
+        results.into_iter().flatten().collect()
+    }
+
     /// Lock a workspace to prevent concurrent modifications
     pub async fn lock_workspace(&self, workspace_id: &str) -> Result<()> {
         let url = format!(

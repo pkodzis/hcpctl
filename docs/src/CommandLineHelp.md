@@ -298,6 +298,9 @@ Get workspaces
 * `--resources-summary` — Summarize workspace resource counts per organization and instance total
 
   Default value: `false`
+* `--billable` — Show billable RUM count column (fetches current-state-version per workspace)
+
+  Default value: `false`
 * `--runs` — List recent runs with phase durations for this workspace
 * `--all-runs` — Fetch all runs (default: 24 most recent). Requires --runs
 * `--states` — List recent state versions for this workspace

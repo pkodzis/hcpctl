@@ -223,6 +223,10 @@ pub struct WsArgs {
     #[arg(long, default_value_t = false)]
     pub resources_summary: bool,
 
+    /// Show billable RUM count column (fetches current-state-version per workspace)
+    #[arg(long, default_value_t = false)]
+    pub billable: bool,
+
     /// List recent runs with phase durations for this workspace
     #[arg(long)]
     pub runs: bool,

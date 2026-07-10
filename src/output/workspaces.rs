@@ -14,6 +14,7 @@ pub struct WorkspaceRow {
     pub name: String,
     pub id: String,
     pub resources: u32,
+    pub billable: Option<u64>,
     pub execution_mode: String,
     pub locked: bool,
     pub terraform_version: String,
@@ -30,6 +31,7 @@ impl WorkspaceRow {
             name: workspace.name().to_string(),
             id: workspace.id.clone(),
             resources: workspace.resource_count(),
+            billable: None,
             execution_mode: workspace.execution_mode().to_string(),
             locked: workspace.is_locked(),
             terraform_version: workspace.terraform_version().to_string(),
@@ -47,6 +49,8 @@ struct SerializableWorkspace {
     workspace_name: String,
     workspace_id: String,
     resources: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    billable: Option<u64>,
     execution_mode: String,
     locked: bool,
     terraform_version: String,
@@ -63,6 +67,7 @@ impl From<&WorkspaceRow> for SerializableWorkspace {
             workspace_name: row.name.clone(),
             workspace_id: row.id.clone(),
             resources: row.resources,
+            billable: row.billable,
             execution_mode: row.execution_mode.clone(),
             locked: row.locked,
             terraform_version: row.terraform_version.clone(),
@@ -86,6 +91,7 @@ fn output_table(rows: &[WorkspaceRow], no_header: bool) {
     let mut table = Table::new();
     table.load_preset(NOTHING);
     let show_pending = rows.iter().any(|r| r.pending_runs.is_some());
+    let show_billable = rows.iter().any(|r| r.billable.is_some());
     if !no_header {
         let mut header = vec![
             "Org",
@@ -93,11 +99,11 @@ fn output_table(rows: &[WorkspaceRow], no_header: bool) {
             "Workspace Name",
             "Workspace ID",
             "Resources",
-            "Execution Mode",
-            "Locked",
-            "TF Version",
-            "Updated At",
         ];
+        if show_billable {
+            header.push("Billable");
+        }
+        header.extend_from_slice(&["Execution Mode", "Locked", "TF Version", "Updated At"]);
         if show_pending {
             header.push("Pending Runs");
         }
@@ -112,11 +118,20 @@ fn output_table(rows: &[WorkspaceRow], no_header: bool) {
             ws.name.clone(),
             ws.id.clone(),
             ws.resources.to_string(),
+        ];
+        if show_billable {
+            row.push(
+                ws.billable
+                    .map(|b| b.to_string())
+                    .unwrap_or_else(|| "-".to_string()),
+            );
+        }
+        row.extend_from_slice(&[
             ws.execution_mode.clone(),
             locked.to_string(),
             ws.terraform_version.clone(),
             ws.updated_at.clone(),
-        ];
+        ]);
         if show_pending {
             row.push(ws.pending_runs.unwrap_or(0).to_string());
         }
@@ -132,8 +147,13 @@ fn output_table(rows: &[WorkspaceRow], no_header: bool) {
 
 fn output_csv(rows: &[WorkspaceRow], no_header: bool) {
     let show_pending = rows.iter().any(|r| r.pending_runs.is_some());
+    let show_billable = rows.iter().any(|r| r.billable.is_some());
     if !no_header {
-        let mut header = "org,project_id,workspace_name,workspace_id,resources,execution_mode,locked,terraform_version,updated_at".to_string();
+        let mut header = "org,project_id,workspace_name,workspace_id,resources".to_string();
+        if show_billable {
+            header.push_str(",billable");
+        }
+        header.push_str(",execution_mode,locked,terraform_version,updated_at");
         if show_pending {
             header.push_str(",pending_runs");
         }
@@ -142,17 +162,26 @@ fn output_csv(rows: &[WorkspaceRow], no_header: bool) {
 
     for ws in rows {
         let mut line = format!(
-            "{},{},{},{},{},{},{},{},{}",
+            "{},{},{},{},{}",
             escape_csv(&ws.org),
             escape_csv(&ws.project_id),
             escape_csv(&ws.name),
             escape_csv(&ws.id),
             ws.resources,
+        );
+        if show_billable {
+            line.push_str(&format!(
+                ",{}",
+                ws.billable.map(|b| b.to_string()).unwrap_or_default()
+            ));
+        }
+        line.push_str(&format!(
+            ",{},{},{},{}",
             escape_csv(&ws.execution_mode),
             ws.locked,
             escape_csv(&ws.terraform_version),
             escape_csv(&ws.updated_at)
-        );
+        ));
         if show_pending {
             line.push_str(&format!(",{}", ws.pending_runs.unwrap_or(0)));
         }
@@ -301,6 +330,7 @@ mod tests {
             name: "test-ws".to_string(),
             id: "ws-123".to_string(),
             resources: 10,
+            billable: None,
             execution_mode: "remote".to_string(),
             locked: true,
             terraform_version: "1.5.0".to_string(),
@@ -324,6 +354,7 @@ mod tests {
             name: "test-ws".to_string(),
             id: "ws-123".to_string(),
             resources: 10,
+            billable: None,
             execution_mode: "remote".to_string(),
             locked: false,
             terraform_version: "1.5.0".to_string(),
@@ -353,6 +384,7 @@ mod tests {
             name: "ws".to_string(),
             id: "ws-1".to_string(),
             resources: 0,
+            billable: None,
             execution_mode: "remote".to_string(),
             locked: false,
             terraform_version: "1.5.0".to_string(),
@@ -375,6 +407,7 @@ mod tests {
             name: "ws".to_string(),
             id: "ws-1".to_string(),
             resources: 0,
+            billable: None,
             execution_mode: "remote".to_string(),
             locked: false,
             terraform_version: "1.5.0".to_string(),
@@ -398,6 +431,7 @@ mod tests {
             name: "ws-a".to_string(),
             id: "ws-aaa".to_string(),
             resources: 5,
+            billable: None,
             execution_mode: "remote".to_string(),
             locked: false,
             terraform_version: "1.5.0".to_string(),
