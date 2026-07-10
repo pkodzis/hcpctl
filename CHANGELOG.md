@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.19.0](https://github.com/pkodzis/hcpctl/compare/v0.18.0...v0.19.0) (2026-07-10)
+
+
+### Features
+
+* add --billable flag to get ws for billable RUM count column ([#82](https://github.com/pkodzis/hcpctl/issues/82)) ([699e5e3](https://github.com/pkodzis/hcpctl/commit/699e5e37340d1457bfc3007ad0e132c204ec0d63))
+
 ## [0.18.0](https://github.com/pkodzis/hcpctl/compare/v0.17.1...v0.18.0) (2026-06-18)
 
 
