@@ -194,7 +194,25 @@ pub async fn run_ws_command(
         let summary = build_resource_summary(&all_workspaces);
         output_workspace_resource_summary(&summary, &args.output, cli.no_header);
     } else if !all_workspaces.is_empty() {
-        output_results_sorted(all_workspaces, cli, None);
+        let billable_counts = if args.billable {
+            let ws_ids: Vec<String> = all_workspaces
+                .iter()
+                .flat_map(|(_, wss)| wss.iter().map(|ws| ws.id.clone()))
+                .collect();
+            let spinner = create_spinner(
+                &format!(
+                    "Fetching billable counts for {} workspace(s)...",
+                    ws_ids.len()
+                ),
+                cli.batch,
+            );
+            let counts = client.fetch_billable_counts(&ws_ids).await;
+            finish_spinner(spinner);
+            Some(counts)
+        } else {
+            None
+        };
+        output_results_sorted(all_workspaces, cli, None, billable_counts.as_ref());
     }
 
     log_completion(had_errors);
@@ -375,7 +393,7 @@ async fn run_ws_pending_optimized(
     }
     let grouped: Vec<(String, Vec<Workspace>)> = grouped.into_iter().collect();
 
-    output_results_sorted(grouped, cli, Some(&counts));
+    output_results_sorted(grouped, cli, Some(&counts), None);
 
     log_completion(had_errors);
     Ok(())
@@ -450,8 +468,22 @@ async fn get_single_workspace(
                     return Ok(());
                 }
 
+                let billable_counts = if args.billable {
+                    let counts = client
+                        .fetch_billable_counts(std::slice::from_ref(&workspace.id))
+                        .await;
+                    Some(counts)
+                } else {
+                    None
+                };
+
                 let all_workspaces = vec![(org_name, vec![workspace])];
-                output_results_sorted(all_workspaces, cli, pending_counts.as_ref());
+                output_results_sorted(
+                    all_workspaces,
+                    cli,
+                    pending_counts.as_ref(),
+                    billable_counts.as_ref(),
+                );
                 return Ok(());
             }
             Ok(None) => {
@@ -514,8 +546,22 @@ async fn get_single_workspace(
             return Ok(());
         }
 
+        let billable_counts = if args.billable {
+            let counts = client
+                .fetch_billable_counts(std::slice::from_ref(&workspace.id))
+                .await;
+            Some(counts)
+        } else {
+            None
+        };
+
         let all_workspaces = vec![(org_name, vec![workspace])];
-        output_results_sorted(all_workspaces, cli, pending_counts.as_ref());
+        output_results_sorted(
+            all_workspaces,
+            cli,
+            pending_counts.as_ref(),
+            billable_counts.as_ref(),
+        );
         return Ok(());
     }
 

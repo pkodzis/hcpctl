@@ -30,6 +30,9 @@ pub struct StateVersionAttributes {
     pub resources_processed: Option<bool>,
 
     pub lineage: Option<String>,
+
+    #[serde(rename = "billable-rum-count")]
+    pub billable_rum_count: Option<u64>,
 }
 
 /// Downloaded Terraform state file structure

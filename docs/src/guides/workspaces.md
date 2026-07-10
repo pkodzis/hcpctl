@@ -40,6 +40,16 @@ To focus only on workspaces blocked by queued runs:
 hcpctl get ws --org my-org --has-pending-runs --sort pending-runs -r
 ```
 
+### Billable RUM Counts
+
+The default `Resources` column shows the raw resource count from the workspace API. To also see the **billable RUM count** (which excludes non-billable resources like `data` sources and `null_resource`), use the `--billable` flag:
+
+```bash
+hcpctl get ws --org my-org --billable
+```
+
+This fetches the `billable-rum-count` from each workspace's current state version and adds a `Billable` column next to `Resources`. Works with all output formats (table, CSV, JSON, YAML).
+
 ## Workspace Subresources
 
 You can fetch specific subresources of a workspace using the `--subresource` flag. This is useful for getting the current state version, current run, or configuration version.
