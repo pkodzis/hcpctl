@@ -24,6 +24,15 @@ fn build_workspaces_path(org: &str, query: &WorkspaceQuery<'_>) -> String {
     if let Some(tags) = query.search_tags {
         query_parts.push(format!("search[tags]={}", urlencoding::encode(tags)));
     }
+    if let Some(status) = query.current_run_status {
+        query_parts.push(format!(
+            "filter[current-run][status]={}",
+            urlencoding::encode(status)
+        ));
+    }
+    if query.include_current_run {
+        query_parts.push("include=current_run".to_string());
+    }
 
     if !query_parts.is_empty() {
         path.push('?');
@@ -31,6 +40,24 @@ fn build_workspaces_path(org: &str, query: &WorkspaceQuery<'_>) -> String {
     }
 
     path
+}
+
+/// Build a `run_id -> status` map from JSON:API `included` resources of type "runs".
+fn extract_run_statuses(
+    included: &[serde_json::Value],
+) -> std::collections::HashMap<String, String> {
+    included
+        .iter()
+        .filter(|item| item.get("type").and_then(|t| t.as_str()) == Some("runs"))
+        .filter_map(|item| {
+            let id = item.get("id").and_then(|i| i.as_str())?;
+            let status = item
+                .get("attributes")
+                .and_then(|a| a.get("status"))
+                .and_then(|s| s.as_str())?;
+            Some((id.to_string(), status.to_string()))
+        })
+        .collect()
 }
 
 impl TfeClient {
@@ -53,6 +80,34 @@ impl TfeClient {
 
         self.fetch_all_pages::<Workspace, ApiListResponse<Workspace>>(&path, &error_context)
             .await
+    }
+
+    /// Get workspaces along with each workspace's current run status.
+    ///
+    /// Uses `include=current_run` so run statuses arrive in the same paginated
+    /// request set (JSON:API `included`) — no per-workspace calls. Returns the
+    /// workspaces plus a map of `run_id -> status`.
+    pub async fn get_workspaces_with_run_status(
+        &self,
+        org: &str,
+        query: WorkspaceQuery<'_>,
+    ) -> Result<(Vec<Workspace>, std::collections::HashMap<String, String>)> {
+        let path = build_workspaces_path(org, &query);
+
+        let error_context = format!(
+            "workspaces with run status for organization '{}' (search: {:?}, project: {:?}, status: {:?})",
+            org, query.search, query.project_id, query.current_run_status
+        );
+
+        let (workspaces, included) = self
+            .fetch_all_pages_with_included::<Workspace, ApiListResponse<Workspace>>(
+                &path,
+                &error_context,
+            )
+            .await?;
+
+        let run_statuses = extract_run_statuses(&included);
+        Ok((workspaces, run_statuses))
     }
 
     /// Prefetch pagination info for workspaces without fetching all data
@@ -291,6 +346,106 @@ mod tests {
                 "terraform-version": "1.5.0"
             }
         })
+    }
+
+    #[test]
+    fn test_build_workspaces_path_run_status() {
+        let query = WorkspaceQuery {
+            include_current_run: true,
+            current_run_status: Some("errored"),
+            ..Default::default()
+        };
+        let path = build_workspaces_path("my-org", &query);
+        assert!(
+            path.contains("include=current_run"),
+            "path should include current_run: {path}"
+        );
+        assert!(
+            path.contains("filter[current-run][status]=errored"),
+            "path should filter by run status: {path}"
+        );
+    }
+
+    #[test]
+    fn test_build_workspaces_path_no_run_status() {
+        let path = build_workspaces_path("my-org", &WorkspaceQuery::default());
+        assert!(!path.contains("include=current_run"));
+        assert!(!path.contains("filter[current-run]"));
+    }
+
+    #[test]
+    fn test_extract_run_statuses() {
+        let included = vec![
+            serde_json::json!({
+                "id": "run-abc",
+                "type": "runs",
+                "attributes": { "status": "applied" }
+            }),
+            serde_json::json!({
+                "id": "run-def",
+                "type": "runs",
+                "attributes": { "status": "errored" }
+            }),
+            // Non-run resources are ignored
+            serde_json::json!({
+                "id": "cv-xyz",
+                "type": "configuration-versions",
+                "attributes": { "status": "uploaded" }
+            }),
+        ];
+        let map = extract_run_statuses(&included);
+        assert_eq!(map.len(), 2);
+        assert_eq!(map.get("run-abc").map(String::as_str), Some("applied"));
+        assert_eq!(map.get("run-def").map(String::as_str), Some("errored"));
+        assert!(!map.contains_key("cv-xyz"));
+    }
+
+    #[tokio::test]
+    async fn test_get_workspaces_with_run_status() {
+        let mock_server = MockServer::start().await;
+        let client = TfeClient::test_client(&mock_server.uri());
+
+        let response_body = serde_json::json!({
+            "data": [{
+                "id": "ws-1",
+                "attributes": {
+                    "name": "workspace-1",
+                    "execution-mode": "remote",
+                    "resource-count": 3,
+                    "locked": false,
+                    "terraform-version": "1.5.0"
+                },
+                "relationships": {
+                    "current-run": { "data": { "id": "run-1", "type": "runs" } }
+                }
+            }],
+            "included": [{
+                "id": "run-1",
+                "type": "runs",
+                "attributes": { "status": "errored" }
+            }]
+        });
+
+        Mock::given(method("GET"))
+            .and(path("/organizations/my-org/workspaces"))
+            .and(query_param("include", "current_run"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(&response_body))
+            .mount(&mock_server)
+            .await;
+
+        let query = WorkspaceQuery {
+            include_current_run: true,
+            ..Default::default()
+        };
+        let (workspaces, statuses) = client
+            .get_workspaces_with_run_status("my-org", query)
+            .await
+            .unwrap();
+
+        assert_eq!(workspaces.len(), 1);
+        let run_id = workspaces[0].current_run_id().unwrap();
+        assert_eq!(run_id, "run-1");
+        assert_eq!(statuses.get(run_id).map(String::as_str), Some("errored"));
     }
 
     #[tokio::test]

@@ -10,6 +10,9 @@ use crate::config::api;
 use crate::error::{Result, TfeError};
 use crate::hcp::traits::PaginatedResponse;
 
+/// A single fetched page: (page number, items, JSON:API `included` resources)
+type PageData<T> = (u32, Vec<T>, Vec<serde_json::Value>);
+
 /// Pagination info returned from first page fetch
 #[derive(Debug, Clone)]
 pub struct PaginationInfo {
@@ -179,6 +182,25 @@ impl TfeClient {
         T: Send,
         R: DeserializeOwned + PaginatedResponse<T> + Send,
     {
+        let (items, _included) = self
+            .fetch_all_pages_internal::<T, R>(path, error_context)
+            .await?;
+        Ok(items)
+    }
+
+    /// Fetch all pages and also return the aggregated JSON:API `included` resources.
+    ///
+    /// Use this with an `include=` query parameter to pull related resources (e.g.
+    /// `include=current_run`) in the same paginated request set — no per-item calls.
+    pub async fn fetch_all_pages_with_included<T, R>(
+        &self,
+        path: &str,
+        error_context: &str,
+    ) -> Result<(Vec<T>, Vec<serde_json::Value>)>
+    where
+        T: Send,
+        R: DeserializeOwned + PaginatedResponse<T> + Send,
+    {
         self.fetch_all_pages_internal::<T, R>(path, error_context)
             .await
     }
@@ -277,7 +299,7 @@ impl TfeClient {
         &self,
         path: &str,
         error_context: &str,
-    ) -> Result<Vec<T>>
+    ) -> Result<(Vec<T>, Vec<serde_json::Value>)>
     where
         T: Send,
         R: DeserializeOwned + PaginatedResponse<T> + Send,
@@ -298,24 +320,25 @@ impl TfeClient {
 
         let response = self.get(&first_page_url).send().await?;
 
-        let first_resp: R = self.parse_api_response(response, error_context).await?;
+        let mut first_resp: R = self.parse_api_response(response, error_context).await?;
         let meta = first_resp.meta().cloned();
+        let mut all_included = first_resp.take_included();
         let mut all_items = first_resp.into_data();
 
         // Extract pagination info
         let (total_pages, total_count) = match meta {
             Some(ref m) => match m.pagination {
                 Some(ref p) => (p.total_pages, p.total_count),
-                None => return Ok(all_items), // No pagination info = single page
+                None => return Ok((all_items, all_included)), // No pagination info = single page
             },
-            None => return Ok(all_items), // No meta = single page
+            None => return Ok((all_items, all_included)), // No meta = single page
         };
 
         debug!("Page 1/{}, total items: {}", total_pages, total_count);
 
         // If only one page, we're done
         if total_pages <= 1 {
-            return Ok(all_items);
+            return Ok((all_items, all_included));
         }
 
         // STEP 2: Fetch remaining pages in parallel
@@ -341,26 +364,27 @@ impl TfeClient {
         });
 
         // Execute with concurrency limit
-        let results: Vec<Result<(u32, Vec<T>)>> = stream::iter(page_futures)
+        let results: Vec<Result<PageData<T>>> = stream::iter(page_futures)
             .buffer_unordered(api::MAX_CONCURRENT_PAGE_REQUESTS)
             .collect()
             .await;
 
         // Collect results, maintaining order by page number
-        let mut page_results: Vec<(u32, Vec<T>)> = Vec::with_capacity(results.len());
+        let mut page_results: Vec<PageData<T>> = Vec::with_capacity(results.len());
         for result in results {
             match result {
-                Ok((page_num, items)) => page_results.push((page_num, items)),
+                Ok(page) => page_results.push(page),
                 Err(e) => return Err(e),
             }
         }
 
         // Sort by page number to maintain consistent ordering
-        page_results.sort_by_key(|(page_num, _)| *page_num);
+        page_results.sort_by_key(|(page_num, _, _)| *page_num);
 
         // Extend all_items with results from remaining pages
-        for (_, items) in page_results {
+        for (_, items, included) in page_results {
             all_items.extend(items);
+            all_included.extend(included);
         }
 
         debug!(
@@ -368,7 +392,7 @@ impl TfeClient {
             all_items.len(),
             error_context
         );
-        Ok(all_items)
+        Ok((all_items, all_included))
     }
 
     /// Fetch a single page (helper for parallel pagination)
@@ -377,7 +401,7 @@ impl TfeClient {
         url: String,
         page_num: u32,
         error_context: &str,
-    ) -> Result<(u32, Vec<T>)>
+    ) -> Result<PageData<T>>
     where
         R: DeserializeOwned + PaginatedResponse<T>,
     {
@@ -386,11 +410,12 @@ impl TfeClient {
         let response = self.get(&url).send().await?;
 
         let page_context = format!("{} (page {})", error_context, page_num);
-        let resp: R = self.parse_api_response(response, &page_context).await?;
+        let mut resp: R = self.parse_api_response(response, &page_context).await?;
+        let included = resp.take_included();
         let items = resp.into_data();
 
         debug!("Page {} returned {} items", page_num, items.len());
-        Ok((page_num, items))
+        Ok((page_num, items, included))
     }
 }
 

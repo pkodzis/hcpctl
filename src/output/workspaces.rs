@@ -20,6 +20,7 @@ pub struct WorkspaceRow {
     pub terraform_version: String,
     pub updated_at: String,
     pub pending_runs: Option<usize>,
+    pub run_status: Option<String>,
 }
 
 impl WorkspaceRow {
@@ -37,6 +38,7 @@ impl WorkspaceRow {
             terraform_version: workspace.terraform_version().to_string(),
             updated_at: workspace.updated_at().to_string(),
             pending_runs: None,
+            run_status: None,
         }
     }
 }
@@ -57,6 +59,8 @@ struct SerializableWorkspace {
     updated_at: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pending_runs: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    run_status: Option<String>,
 }
 
 impl From<&WorkspaceRow> for SerializableWorkspace {
@@ -73,6 +77,7 @@ impl From<&WorkspaceRow> for SerializableWorkspace {
             terraform_version: row.terraform_version.clone(),
             updated_at: row.updated_at.clone(),
             pending_runs: row.pending_runs,
+            run_status: row.run_status.clone(),
         }
     }
 }
@@ -92,6 +97,7 @@ fn output_table(rows: &[WorkspaceRow], no_header: bool) {
     table.load_preset(NOTHING);
     let show_pending = rows.iter().any(|r| r.pending_runs.is_some());
     let show_billable = rows.iter().any(|r| r.billable.is_some());
+    let show_run_status = rows.iter().any(|r| r.run_status.is_some());
     if !no_header {
         let mut header = vec![
             "Org",
@@ -104,6 +110,9 @@ fn output_table(rows: &[WorkspaceRow], no_header: bool) {
             header.push("Billable");
         }
         header.extend_from_slice(&["Execution Mode", "Locked", "TF Version", "Updated At"]);
+        if show_run_status {
+            header.push("Run Status");
+        }
         if show_pending {
             header.push("Pending Runs");
         }
@@ -132,6 +141,9 @@ fn output_table(rows: &[WorkspaceRow], no_header: bool) {
             ws.terraform_version.clone(),
             ws.updated_at.clone(),
         ]);
+        if show_run_status {
+            row.push(ws.run_status.clone().unwrap_or_else(|| "-".to_string()));
+        }
         if show_pending {
             row.push(ws.pending_runs.unwrap_or(0).to_string());
         }
@@ -148,12 +160,16 @@ fn output_table(rows: &[WorkspaceRow], no_header: bool) {
 fn output_csv(rows: &[WorkspaceRow], no_header: bool) {
     let show_pending = rows.iter().any(|r| r.pending_runs.is_some());
     let show_billable = rows.iter().any(|r| r.billable.is_some());
+    let show_run_status = rows.iter().any(|r| r.run_status.is_some());
     if !no_header {
         let mut header = "org,project_id,workspace_name,workspace_id,resources".to_string();
         if show_billable {
             header.push_str(",billable");
         }
         header.push_str(",execution_mode,locked,terraform_version,updated_at");
+        if show_run_status {
+            header.push_str(",run_status");
+        }
         if show_pending {
             header.push_str(",pending_runs");
         }
@@ -182,6 +198,12 @@ fn output_csv(rows: &[WorkspaceRow], no_header: bool) {
             escape_csv(&ws.terraform_version),
             escape_csv(&ws.updated_at)
         ));
+        if show_run_status {
+            line.push_str(&format!(
+                ",{}",
+                escape_csv(ws.run_status.as_deref().unwrap_or(""))
+            ));
+        }
         if show_pending {
             line.push_str(&format!(",{}", ws.pending_runs.unwrap_or(0)));
         }
@@ -336,6 +358,7 @@ mod tests {
             terraform_version: "1.5.0".to_string(),
             updated_at: "2024-01-01T00:00:00Z".to_string(),
             pending_runs: None,
+            run_status: None,
         };
 
         let serialized_ws = SerializableWorkspace::from(&row);
@@ -360,6 +383,7 @@ mod tests {
             terraform_version: "1.5.0".to_string(),
             updated_at: "2024-01-01T00:00:00Z".to_string(),
             pending_runs: Some(5),
+            run_status: None,
         };
 
         let serialized_ws = SerializableWorkspace::from(&row);
@@ -390,6 +414,7 @@ mod tests {
             terraform_version: "1.5.0".to_string(),
             updated_at: "2024-01-01T00:00:00Z".to_string(),
             pending_runs: None,
+            run_status: None,
         };
 
         let json = serde_json::to_string(&SerializableWorkspace::from(&row)).unwrap();
@@ -413,6 +438,7 @@ mod tests {
             terraform_version: "1.5.0".to_string(),
             updated_at: "2024-01-01T00:00:00Z".to_string(),
             pending_runs: Some(3),
+            run_status: None,
         };
 
         let json = serde_json::to_string(&SerializableWorkspace::from(&row)).unwrap();
@@ -437,6 +463,7 @@ mod tests {
             terraform_version: "1.5.0".to_string(),
             updated_at: "2024-01-01T00:00:00Z".to_string(),
             pending_runs: Some(2),
+            run_status: None,
         }];
         // Should not panic — table includes Pending Runs column
         output_workspaces(&rows, &OutputFormat::Table, false);

@@ -13,6 +13,10 @@ pub struct WorkspaceQuery<'a> {
     pub project_id: Option<&'a str>,
     /// Filter by flat string tag name(s) (comma-separated for multiple)
     pub search_tags: Option<&'a str>,
+    /// Include the current run (`include=current_run`) to expose run status in bulk
+    pub include_current_run: bool,
+    /// Filter by current run status (`filter[current-run][status]`)
+    pub current_run_status: Option<&'a str>,
 }
 
 /// Workspace data from TFE API
@@ -28,6 +32,8 @@ pub struct Workspace {
 pub struct WorkspaceRelationships {
     pub project: Option<RelationshipData>,
     pub organization: Option<RelationshipData>,
+    #[serde(rename = "current-run")]
+    pub current_run: Option<RelationshipData>,
 }
 
 /// Generic relationship data
@@ -106,6 +112,15 @@ impl Workspace {
             .as_ref()
             .and_then(|r| r.organization.as_ref())
             .and_then(|o| o.data.as_ref())
+            .map(|d| d.id.as_str())
+    }
+
+    /// Get current run ID if available (from relationships)
+    pub fn current_run_id(&self) -> Option<&str> {
+        self.relationships
+            .as_ref()
+            .and_then(|r| r.current_run.as_ref())
+            .and_then(|cr| cr.data.as_ref())
             .map(|d| d.id.as_str())
     }
 }
@@ -209,6 +224,7 @@ mod tests {
                     }),
                 }),
                 organization: None,
+                current_run: None,
             }),
         };
         assert_eq!(ws.project_id(), Some("prj-456"));
@@ -407,6 +423,7 @@ mod tests {
                         rel_type: Some("organizations".to_string()),
                     }),
                 }),
+                current_run: None,
             }),
         };
         assert_eq!(ws.organization_name(), Some("my-org"));
