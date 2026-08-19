@@ -46,7 +46,7 @@ pub fn output_team_access(
 
 fn output_table(bindings: &[EnrichedTeamProjectAccess], no_header: bool) {
     let mut table = Table::new();
-    table.load_preset(NOTHING);
+    table.load_style(NOTHING);
     if !no_header {
         table.set_header(vec!["ID", "TEAM", "PROJECT", "ACCESS"]);
     }

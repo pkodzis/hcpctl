@@ -62,7 +62,7 @@ pub fn output_oauth_clients(clients: &[OAuthClientRow], cli: &Cli) {
 
 fn output_table(clients: &[OAuthClientRow], no_header: bool) {
     let mut table = Table::new();
-    table.load_preset(NOTHING);
+    table.load_style(NOTHING);
     if !no_header {
         table.set_header(vec![
             "Org",

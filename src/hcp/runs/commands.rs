@@ -856,7 +856,7 @@ fn output_pending_runs_table(
     use comfy_table::{presets::UTF8_FULL_CONDENSED, Table};
 
     let mut table = Table::new();
-    table.load_preset(UTF8_FULL_CONDENSED);
+    table.load_style(UTF8_FULL_CONDENSED);
     table.set_header(vec!["Run ID", "Status", "Age", "Action", "URL"]);
 
     for run in runs {

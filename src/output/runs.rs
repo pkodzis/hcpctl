@@ -51,7 +51,7 @@ pub fn output_runs(runs: &[Run], format: &OutputFormat, no_header: bool) {
 
 fn output_table(runs: &[Run], no_header: bool) {
     let mut table = Table::new();
-    table.load_preset(NOTHING);
+    table.load_style(NOTHING);
     if !no_header {
         table.set_header(vec![
             "Run ID",
@@ -140,7 +140,7 @@ pub fn output_run_events(
 
 fn output_events_table(events: &[RunEvent], no_header: bool) {
     let mut table = Table::new();
-    table.load_preset(NOTHING);
+    table.load_style(NOTHING);
     if !no_header {
         table.set_header(vec![
             "Event ID",
@@ -197,7 +197,7 @@ pub fn output_plan(plan: &Plan, format: &OutputFormat, no_header: bool, raw: &se
 
 fn output_plan_table(plan: &Plan, no_header: bool) {
     let mut table = Table::new();
-    table.load_preset(NOTHING);
+    table.load_style(NOTHING);
     if !no_header {
         table.set_header(vec![
             "Plan ID",
@@ -260,7 +260,7 @@ pub fn output_apply(
 
 fn output_apply_table(apply: &Apply, no_header: bool) {
     let mut table = Table::new();
-    table.load_preset(NOTHING);
+    table.load_style(NOTHING);
     if !no_header {
         table.set_header(vec![
             "Apply ID",
@@ -347,7 +347,7 @@ pub fn output_run_history(runs: &[Run], format: &OutputFormat, no_header: bool) 
 
 fn output_run_history_table(runs: &[Run], no_header: bool) {
     let mut table = Table::new();
-    table.load_preset(NOTHING);
+    table.load_style(NOTHING);
     if !no_header {
         table.set_header(vec![
             "RUN ID", "STATUS", "CREATED", "QUEUE", "PLAN", "APPLY", "TOTAL", "MESSAGE",

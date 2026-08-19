@@ -38,7 +38,7 @@ pub fn output_state_versions(
 
 fn output_table(states: &[StateVersionListItem], deltas: &[Option<i64>], no_header: bool) {
     let mut table = Table::new();
-    table.load_preset(NOTHING);
+    table.load_style(NOTHING);
     if !no_header {
         table.set_header(vec![
             "ID",

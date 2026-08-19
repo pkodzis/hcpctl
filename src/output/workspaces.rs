@@ -94,7 +94,7 @@ pub fn output_workspaces(rows: &[WorkspaceRow], format: &OutputFormat, no_header
 
 fn output_table(rows: &[WorkspaceRow], no_header: bool) {
     let mut table = Table::new();
-    table.load_preset(NOTHING);
+    table.load_style(NOTHING);
     let show_pending = rows.iter().any(|r| r.pending_runs.is_some());
     let show_billable = rows.iter().any(|r| r.billable.is_some());
     let show_run_status = rows.iter().any(|r| r.run_status.is_some());
@@ -259,7 +259,7 @@ pub fn output_workspace_resource_summary(
 
 fn output_resource_summary_table(summary: &WorkspaceResourceSummary, no_header: bool) {
     let mut table = Table::new();
-    table.load_preset(NOTHING);
+    table.load_style(NOTHING);
 
     if !no_header {
         table.set_header(vec!["ORG", "WORKSPACES", "RESOURCES"]);

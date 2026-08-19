@@ -45,7 +45,7 @@ pub fn output_teams(teams: &[Team], cli: &Cli) {
 
 fn output_table(teams: &[Team], no_header: bool) {
     let mut table = Table::new();
-    table.load_preset(NOTHING);
+    table.load_style(NOTHING);
     if !no_header {
         table.set_header(vec!["ID", "NAME", "USERS", "VISIBILITY"]);
     }
