@@ -31,6 +31,13 @@ pub trait PaginatedResponse<T> {
     fn into_data(self) -> Vec<T>;
     /// Get reference to pagination metadata
     fn meta(&self) -> Option<&PaginationMeta>;
+    /// Take the JSON:API `included` related resources, if any.
+    ///
+    /// Default implementation returns nothing. Responses fetched with an
+    /// `include=` query parameter override this to expose the related resources.
+    fn take_included(&mut self) -> Vec<serde_json::Value> {
+        Vec::new()
+    }
 }
 
 /// Generic API list response wrapper for paginated endpoints
@@ -42,6 +49,8 @@ pub struct ApiListResponse<T> {
     pub data: Vec<T>,
     #[serde(default)]
     pub meta: Option<crate::hcp::PaginationMeta>,
+    #[serde(default)]
+    pub included: Vec<serde_json::Value>,
 }
 
 impl<T> PaginatedResponse<T> for ApiListResponse<T> {
@@ -51,6 +60,10 @@ impl<T> PaginatedResponse<T> for ApiListResponse<T> {
 
     fn meta(&self) -> Option<&crate::hcp::PaginationMeta> {
         self.meta.as_ref()
+    }
+
+    fn take_included(&mut self) -> Vec<serde_json::Value> {
+        std::mem::take(&mut self.included)
     }
 }
 

@@ -301,6 +301,7 @@ Get workspaces
 * `--billable` — Show billable RUM count column (fetches current-state-version per workspace)
 
   Default value: `false`
+* `--run-status <STATUS>` — Show the current run status column (like the TFE/TFC workspace list). Fetched in bulk via include=current_run (no per-workspace calls). Optionally pass a status to filter server-side (e.g. --run-status errored); with no value, all workspaces are shown
 * `--runs` — List recent runs with phase durations for this workspace
 * `--all-runs` — Fetch all runs (default: 24 most recent). Requires --runs
 * `--states` — List recent state versions for this workspace

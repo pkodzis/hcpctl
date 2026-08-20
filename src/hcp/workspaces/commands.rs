@@ -111,6 +111,11 @@ pub async fn run_ws_command(
     let filter = args.filter.as_deref();
     let project_id_ref = project_id.as_deref();
 
+    // Whether to fetch the current run status in bulk (include=current_run), and an
+    // optional server-side status filter (Some(Some(status)) => filter, Some(None) => all).
+    let run_status_requested = args.run_status.is_some();
+    let run_status_filter = args.run_status.as_ref().and_then(|o| o.as_deref());
+
     // Phase 1: Prefetch pagination info from all orgs to check scale
     let prefetch_spinner = create_spinner(
         &format!(
@@ -124,6 +129,7 @@ pub async fn run_ws_command(
         let query = WorkspaceQuery {
             search: filter,
             project_id: project_id_ref,
+            current_run_status: run_status_filter,
             ..Default::default()
         };
         match client
@@ -168,25 +174,50 @@ pub async fn run_ws_command(
         let query = WorkspaceQuery {
             search: filter,
             project_id: project_id_ref,
+            current_run_status: run_status_filter,
+            include_current_run: run_status_requested,
             ..Default::default()
         };
-        let workspaces = client.get_workspaces(&org, query).await;
 
-        match workspaces {
-            Ok(ws) => {
-                debug!("Found {} workspaces for org '{}'", ws.len(), org);
-                Ok((org, ws))
+        if run_status_requested {
+            match client.get_workspaces_with_run_status(&org, query).await {
+                Ok((ws, statuses)) => {
+                    debug!("Found {} workspaces for org '{}'", ws.len(), org);
+                    Ok((org, ws, statuses))
+                }
+                Err(e) => {
+                    debug!("Error fetching workspaces for org '{}': {}", org, e);
+                    Err((org, e))
+                }
             }
-            Err(e) => {
-                debug!("Error fetching workspaces for org '{}': {}", org, e);
-                Err((org, e))
+        } else {
+            match client.get_workspaces(&org, query).await {
+                Ok(ws) => {
+                    debug!("Found {} workspaces for org '{}'", ws.len(), org);
+                    Ok((org, ws, std::collections::HashMap::new()))
+                }
+                Err(e) => {
+                    debug!("Error fetching workspaces for org '{}': {}", org, e);
+                    Err((org, e))
+                }
             }
         }
     })
     .await;
 
-    let (all_workspaces, had_errors): (Vec<(String, Vec<Workspace>)>, bool) =
+    #[allow(clippy::type_complexity)]
+    let (fetched, had_errors): (Vec<(String, Vec<Workspace>, HashMap<String, String>)>, bool) =
         collect_org_results(results, &spinner, "workspaces");
+
+    // Split into per-org workspaces and a merged run_id -> status map
+    let mut run_statuses: HashMap<String, String> = HashMap::new();
+    let all_workspaces: Vec<(String, Vec<Workspace>)> = fetched
+        .into_iter()
+        .map(|(org, ws, statuses)| {
+            run_statuses.extend(statuses);
+            (org, ws)
+        })
+        .collect();
 
     finish_spinner_with_status(spinner, &all_workspaces, had_errors);
 
@@ -212,7 +243,18 @@ pub async fn run_ws_command(
         } else {
             None
         };
-        output_results_sorted(all_workspaces, cli, None, billable_counts.as_ref());
+        let run_statuses_opt = if run_status_requested {
+            Some(&run_statuses)
+        } else {
+            None
+        };
+        output_results_sorted(
+            all_workspaces,
+            cli,
+            None,
+            billable_counts.as_ref(),
+            run_statuses_opt,
+        );
     }
 
     log_completion(had_errors);
@@ -393,13 +435,33 @@ async fn run_ws_pending_optimized(
     }
     let grouped: Vec<(String, Vec<Workspace>)> = grouped.into_iter().collect();
 
-    output_results_sorted(grouped, cli, Some(&counts), None);
+    output_results_sorted(grouped, cli, Some(&counts), None, None);
 
     log_completion(had_errors);
     Ok(())
 }
 
 /// Get a single workspace by name or ID
+/// Fetch the current run status for a single workspace as a `run_id -> status` map,
+/// suitable for `output_results_sorted`. Returns an empty map when not requested or
+/// when the workspace has no current run.
+async fn fetch_run_status_for_workspace(
+    client: &TfeClient,
+    workspace: &Workspace,
+    requested: bool,
+) -> HashMap<String, String> {
+    let mut statuses = HashMap::new();
+    if !requested {
+        return statuses;
+    }
+    if let Some(run_id) = workspace.current_run_id() {
+        if let Ok(Some((run, _raw))) = client.get_run_by_id(run_id).await {
+            statuses.insert(run_id.to_string(), run.status().to_string());
+        }
+    }
+    statuses
+}
+
 async fn get_single_workspace(
     client: &TfeClient,
     cli: &Cli,
@@ -478,11 +540,19 @@ async fn get_single_workspace(
                 };
 
                 let all_workspaces = vec![(org_name, vec![workspace])];
+                let run_status_requested = args.run_status.is_some();
+                let run_statuses = fetch_run_status_for_workspace(
+                    client,
+                    &all_workspaces[0].1[0],
+                    run_status_requested,
+                )
+                .await;
                 output_results_sorted(
                     all_workspaces,
                     cli,
                     pending_counts.as_ref(),
                     billable_counts.as_ref(),
+                    run_status_requested.then_some(&run_statuses),
                 );
                 return Ok(());
             }
@@ -556,11 +626,16 @@ async fn get_single_workspace(
         };
 
         let all_workspaces = vec![(org_name, vec![workspace])];
+        let run_status_requested = args.run_status.is_some();
+        let run_statuses =
+            fetch_run_status_for_workspace(client, &all_workspaces[0].1[0], run_status_requested)
+                .await;
         output_results_sorted(
             all_workspaces,
             cli,
             pending_counts.as_ref(),
             billable_counts.as_ref(),
+            run_status_requested.then_some(&run_statuses),
         );
         return Ok(());
     }

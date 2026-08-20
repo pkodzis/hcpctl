@@ -263,7 +263,7 @@ fn format_update_message(current: &str, latest: &str) -> String {
     use comfy_table::{presets::UTF8_BORDERS_ONLY, Table};
 
     let mut table = Table::new();
-    table.load_preset(UTF8_BORDERS_ONLY);
+    table.load_style(UTF8_BORDERS_ONLY);
 
     table.add_row(vec![format!(
         "A new version of hcpctl is available: {} → {}",

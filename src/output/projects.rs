@@ -93,7 +93,7 @@ fn output_table(
     show_details: bool,
 ) {
     let mut table = Table::new();
-    table.load_preset(NOTHING);
+    table.load_style(NOTHING);
 
     // Build header dynamically
     let mut headers = vec!["Org", "Name", "ID"];

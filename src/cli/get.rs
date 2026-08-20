@@ -227,6 +227,12 @@ pub struct WsArgs {
     #[arg(long, default_value_t = false)]
     pub billable: bool,
 
+    /// Show the current run status column (like the TFE/TFC workspace list). Fetched in bulk
+    /// via include=current_run (no per-workspace calls). Optionally pass a status to filter
+    /// server-side (e.g. --run-status errored); with no value, all workspaces are shown.
+    #[arg(long, value_name = "STATUS", num_args = 0..=1)]
+    pub run_status: Option<Option<String>>,
+
     /// List recent runs with phase durations for this workspace
     #[arg(long)]
     pub runs: bool,

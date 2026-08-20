@@ -42,6 +42,7 @@ pub fn output_results_sorted(
     cli: &Cli,
     pending_counts: Option<&HashMap<String, usize>>,
     billable_counts: Option<&HashMap<String, u64>>,
+    run_statuses: Option<&HashMap<String, String>>,
 ) {
     let Command::Get {
         resource: GetResource::Ws(args),
@@ -60,6 +61,8 @@ pub fn output_results_sorted(
                     let mut row = WorkspaceRow::new(&org, ws);
                     row.pending_runs = pending_counts.and_then(|m| m.get(&ws.id).copied());
                     row.billable = billable_counts.and_then(|m| m.get(&ws.id).copied());
+                    row.run_status = run_statuses
+                        .and_then(|m| ws.current_run_id().and_then(|rid| m.get(rid).cloned()));
                     row
                 })
                 .collect::<Vec<_>>()

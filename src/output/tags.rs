@@ -39,7 +39,7 @@ pub fn output_tag_bindings(tags: &[TagBinding], format: &OutputFormat, no_header
 
 fn output_table(tags: &[TagBinding], no_header: bool) {
     let mut table = Table::new();
-    table.load_preset(NOTHING);
+    table.load_style(NOTHING);
     if !no_header {
         table.set_header(vec!["Key", "Value", "Created At"]);
     }
@@ -117,7 +117,7 @@ pub fn output_org_tags(tags: &[OrgTag], format: &OutputFormat, no_header: bool) 
 
 fn output_org_table(tags: &[OrgTag], no_header: bool) {
     let mut table = Table::new();
-    table.load_preset(NOTHING);
+    table.load_style(NOTHING);
     if !no_header {
         table.set_header(vec!["Name", "Instance Count", "Created At"]);
     }
@@ -235,7 +235,7 @@ fn output_associated_workspaces_table(workspaces: &[Workspace]) {
     println!("\nAssociated workspaces:");
 
     let mut table = Table::new();
-    table.load_preset(NOTHING);
+    table.load_style(NOTHING);
     table.set_header(vec!["Workspace", "ID"]);
 
     for ws in workspaces {
@@ -268,7 +268,7 @@ pub fn output_workspace_all_tags(
             if !workspace_tags.is_empty() {
                 println!("\nTags:");
                 let mut table = Table::new();
-                table.load_preset(NOTHING);
+                table.load_style(NOTHING);
                 for tag in workspace_tags {
                     table.add_row(vec![&tag.attributes.name]);
                 }
@@ -277,7 +277,7 @@ pub fn output_workspace_all_tags(
             if !tag_bindings.is_empty() {
                 println!("\nTag bindings:");
                 let mut table = Table::new();
-                table.load_preset(NOTHING);
+                table.load_style(NOTHING);
                 if !no_header {
                     table.set_header(vec!["Key", "Value", "Created At"]);
                 }

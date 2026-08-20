@@ -59,7 +59,7 @@ pub fn output_organizations(orgs: &[OrganizationWithTokens], cli: &Cli) {
 
 fn output_table(orgs: &[OrganizationWithTokens], no_header: bool) {
     let mut table = Table::new();
-    table.load_preset(NOTHING);
+    table.load_style(NOTHING);
     if !no_header {
         table.set_header(vec![
             "Name",
