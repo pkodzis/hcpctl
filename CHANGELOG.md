@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.20.0](https://github.com/pkodzis/hcpctl/compare/v0.19.0...v0.20.0) (2026-08-20)
+
+
+### Features
+
+* add --run-status column to get ws for bulk current-run status display ([#86](https://github.com/pkodzis/hcpctl/issues/86)) ([154b0b9](https://github.com/pkodzis/hcpctl/commit/154b0b97d2259c08929d00fbfec4f34e9e70c230))
+
 ## [0.19.0](https://github.com/pkodzis/hcpctl/compare/v0.18.0...v0.19.0) (2026-07-10)
 
 
