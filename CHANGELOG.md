@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.21.0](https://github.com/pkodzis/hcpctl/compare/v0.20.0...v0.21.0) (2026-08-25)
+
+
+### Features
+
+* add --locked filter to get ws to show only locked workspaces ([#88](https://github.com/pkodzis/hcpctl/issues/88)) ([070f7e1](https://github.com/pkodzis/hcpctl/commit/070f7e12eb476db3923703a6c4d33759dfae1a9d))
+
 ## [0.20.0](https://github.com/pkodzis/hcpctl/compare/v0.19.0...v0.20.0) (2026-08-20)
 
 
