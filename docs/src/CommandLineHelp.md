@@ -253,6 +253,9 @@ Get workspaces
 * `--org <ORG>` — Organization name (required for single workspace, optional for list)
 * `-p`, `--prj <PRJ>` — Filter by project (name or ID)
 * `-f`, `--filter <FILTER>` — Filter workspaces by name (substring match)
+* `--locked` — Only show locked workspaces
+
+  Default value: `false`
 * `-o`, `--output <OUTPUT>` — Output format (defaults to yaml when --subresource is used)
 
   Default value: `table`

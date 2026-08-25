@@ -189,6 +189,10 @@ pub struct WsArgs {
     #[arg(short, long)]
     pub filter: Option<String>,
 
+    /// Only show locked workspaces
+    #[arg(long, default_value_t = false)]
+    pub locked: bool,
+
     /// Output format (defaults to yaml when --subresource is used)
     #[arg(
         short = 'o',

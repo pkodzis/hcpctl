@@ -351,6 +351,23 @@ fn test_ws_group_by_prj_documented() {
     );
 }
 
+/// Test that the locked filter flag is documented
+#[test]
+fn test_ws_locked_filter_documented() {
+    let output = Command::new(hcpctl_bin())
+        .args(["get", "ws", "--help"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    assert!(
+        stdout.contains("--locked"),
+        "Should document --locked option"
+    );
+}
+
 /// Test that prj workspace info flags are documented
 #[test]
 fn test_prj_workspace_flags_documented() {
