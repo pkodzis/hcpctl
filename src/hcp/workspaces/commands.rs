@@ -221,6 +221,16 @@ pub async fn run_ws_command(
 
     finish_spinner_with_status(spinner, &all_workspaces, had_errors);
 
+    // Client-side filter: only locked workspaces (TFE has no server-side locked filter)
+    let all_workspaces: Vec<(String, Vec<Workspace>)> = if args.locked {
+        all_workspaces
+            .into_iter()
+            .map(|(org, wss)| (org, wss.into_iter().filter(|ws| ws.is_locked()).collect()))
+            .collect()
+    } else {
+        all_workspaces
+    };
+
     if args.resources_summary {
         let summary = build_resource_summary(&all_workspaces);
         output_workspace_resource_summary(&summary, &args.output, cli.no_header);
@@ -417,6 +427,9 @@ async fn run_ws_pending_optimized(
                 if ws.project_id() != Some(pid.as_str()) {
                     return false;
                 }
+            }
+            if args.locked && !ws.is_locked() {
+                return false;
             }
             true
         })

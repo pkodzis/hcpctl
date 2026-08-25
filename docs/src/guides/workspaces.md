@@ -18,6 +18,16 @@ Use the `-f` or `--filter` flag to search for workspaces by name. This performs 
 hcpctl get ws -f "network" --org my-org
 ```
 
+### Locked Workspaces
+
+Use the `--locked` flag to show only workspaces that are currently locked:
+
+```bash
+hcpctl get ws --org my-org --locked
+```
+
+This can be combined with other filters and all output formats (table, CSV, JSON, YAML).
+
 ### Sorting
 
 You can sort the output using the `-s` or `--sort` flag. For workspaces, available sort fields are:
