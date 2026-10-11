@@ -1,46 +1,51 @@
 <!-- SEO Meta Tags -->
-<meta name="keywords"
-    content="hcpctl, terraform, terraform cloud, terraform enterprise, HCP Terraform, CLI, kubectl, infrastructure as code, IaC, devops, workspace management, terraform cli tool">
-<meta name="author" content="pkodzis">
-<meta name="robots" content="index, follow">
-<link rel="canonical" href="https://hcpctl.com/">
+{{!-- No hardcoded canonical/og:url: a single site-wide canonical tells search
+engines every page is a duplicate of the homepage and drops it from the index. --}}
+<meta name="author" content="Piotr Kodzis">
 
 <!-- Open Graph / Facebook -->
 <meta property="og:type" content="website">
-<meta property="og:url" content="https://hcpctl.com/">
-<meta property="og:title" content="hcpctl - kubectl-style CLI for HCP Terraform">
-<meta property="og:description"
-    content="A powerful kubectl-style command-line interface for HCP Terraform. Manage workspaces, projects, runs, and state with simple commands like hcpctl get ws.">
+<meta property="og:title" content="{{ title }}">
+<meta property="og:description" content="{{ description }}">
 <meta property="og:site_name" content="hcpctl">
 
 <!-- Twitter -->
-<meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:url" content="https://hcpctl.com/">
-<meta name="twitter:title" content="hcpctl - kubectl-style CLI for HCP Terraform">
-<meta name="twitter:description"
-    content="A powerful kubectl-style command-line interface for HCP Terraform. Manage workspaces, projects, runs, and state with simple commands.">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="{{ title }}">
+<meta name="twitter:description" content="{{ description }}">
 
-<!-- Structured Data (JSON-LD) for Google -->
+<!-- Structured Data (JSON-LD) -->
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
   "name": "hcpctl",
+  "alternateName": [
+    "HCP Terraform CLI",
+    "Terraform Cloud CLI",
+    "Terraform Enterprise CLI",
+    "TFC CLI",
+    "TFE CLI"
+  ],
   "applicationCategory": "DeveloperApplication",
+  "applicationSubCategory": "Command-line tool",
   "operatingSystem": "Linux, macOS, Windows",
-  "description": "A kubectl-style command-line interface for HCP Terraform (Terraform Cloud/Enterprise). Manage workspaces, projects, organizations, runs, and state.",
+  "description": "Open-source, kubectl-style command-line tool (CLI) for HCP Terraform (formerly Terraform Cloud, TFC) and Terraform Enterprise (TFE). List and manage workspaces, projects, runs, logs, teams, tags and state from the terminal.",
   "url": "https://hcpctl.com/",
   "downloadUrl": "https://github.com/pkodzis/hcpctl/releases",
-  "softwareVersion": "latest",
+  "codeRepository": "https://github.com/pkodzis/hcpctl",
+  "license": "https://opensource.org/licenses/MIT",
+  "sameAs": ["https://github.com/pkodzis/hcpctl"],
   "author": {
     "@type": "Person",
-    "name": "pkodzis"
+    "name": "Piotr Kodzis",
+    "url": "https://github.com/pkodzis"
   },
   "offers": {
     "@type": "Offer",
     "price": "0",
     "priceCurrency": "USD"
   },
-  "keywords": "terraform, terraform cloud, HCP terraform, CLI, kubectl, devops, infrastructure as code"
+  "keywords": "HCP Terraform CLI, Terraform Cloud CLI, Terraform Enterprise CLI, TFC CLI, TFE CLI, tfe API, terraform workspaces, kubectl-style"
 }
 </script>

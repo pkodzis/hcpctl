@@ -1,6 +1,6 @@
 [book]
-title = "hcpctl - kubectl-style CLI for HCP Terraform"
-description = "A powerful kubectl-style command-line interface for HCP Terraform (Terraform Cloud/Enterprise). Manage workspaces, projects, runs, and state with simple commands like hcpctl get ws."
+title = "hcpctl: CLI for HCP Terraform, Terraform Cloud & TFE"
+description = "hcpctl is an open-source, kubectl-style CLI for HCP Terraform (Terraform Cloud, TFC) and Terraform Enterprise (TFE). List workspaces, runs, projects, teams and state from the terminal."
 authors = ["pkodzis"]
 language = "en"
 src = "src"

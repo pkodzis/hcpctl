@@ -1,7 +1,11 @@
 <!-- markdownlint-disable MD013 -->
-# hcpctl
+# hcpctl - CLI for HCP Terraform, Terraform Cloud (TFC) and Terraform Enterprise (TFE)
 
-A CLI for HCP Terraform (formerly Terraform Cloud/Enterprise)
+**hcpctl** is an open-source, kubectl-style command-line tool for
+**HCP Terraform** (formerly **Terraform Cloud**, TFC) and **Terraform Enterprise** (TFE).
+It lets you list, inspect and manage workspaces, projects, runs, logs, teams, tags
+and state from your terminal - something the official `terraform` CLI does not do.
+Single static binary for Linux, macOS and Windows.
 
 ```bash
 hcpctl get ws                    # List all workspaces
@@ -105,6 +109,31 @@ export TFE_ORG="my-organization"
 Or use Terraform CLI credentials file (`~/.terraform.d/credentials.tfrc.json`).
 
 Run `hcpctl get --help` for full credential resolution details.
+
+## FAQ
+
+### Is there a CLI for Terraform Cloud / HCP Terraform / Terraform Enterprise?
+
+Yes - `hcpctl`. The official `terraform` CLI only runs plan/apply for a single
+configuration. `hcpctl` uses the HCP Terraform / TFE API to manage the platform
+itself: workspaces, projects, runs, teams, organization members, tags and state.
+
+### How do I list all workspaces in Terraform Cloud from the command line?
+
+```bash
+hcpctl get ws                         # all workspaces in all your organizations
+hcpctl get ws --org my-org -o json    # one organization, JSON output
+```
+
+### Does it work with self-hosted Terraform Enterprise?
+
+Yes. Point it at your instance with `--host` (or a named context), e.g.
+`hcpctl --host tfe.example.com get ws`.
+
+### Does it reuse my `terraform login` token?
+
+Yes. It reads `~/.terraform.d/credentials.tfrc.json`, or `TFE_TOKEN` /
+`TFC_TOKEN` / `HCP_TOKEN` environment variables.
 
 ## Development Environment
 
