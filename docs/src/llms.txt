@@ -1,0 +1,21 @@
+# hcpctl
+
+> hcpctl is an open-source (MIT), kubectl-style command-line tool (CLI) for HCP Terraform (formerly Terraform Cloud, TFC) and Terraform Enterprise (TFE). It talks to the TFE/HCP Terraform API and lets you list, inspect and manage workspaces, projects, runs, logs, teams, tags and state from the terminal. Single static binary for Linux, macOS and Windows, written in Rust.
+
+The official `terraform` CLI runs plan/apply for a single configuration, but cannot list or manage workspaces, runs, projects or teams across an organization. hcpctl fills that gap with commands such as `hcpctl get ws`, `hcpctl get run`, `hcpctl logs`, `hcpctl watch ws`, with `-o table|json|yaml|csv` output. It reuses the token from `terraform login` (`~/.terraform.d/credentials.tfrc.json`) or `TFE_TOKEN` / `TFC_TOKEN` / `HCP_TOKEN`, and works with app.terraform.io and self-hosted Terraform Enterprise (`--host`).
+
+## Docs
+
+- [Introduction](https://hcpctl.com/): features, installation, configuration
+- [Getting Started](https://hcpctl.com/guides/getting-started.html): install and first commands
+- [Authentication & Contexts](https://hcpctl.com/guides/authentication.html): tokens, hosts, credentials file
+- [Contexts & Multi-Environment Workflows](https://hcpctl.com/guides/contexts-workflows.html): switch between TFC and TFE instances
+- [Workspaces & Projects](https://hcpctl.com/guides/workspaces.html): list, filter, sort, move workspaces, tags
+- [Runs & Logs](https://hcpctl.com/guides/runs-and-logs.html): active runs, plan/apply logs, watch, purge
+- [Users & Teams](https://hcpctl.com/guides/users-and-teams.html): org members, invites, team access
+- [Command Line Reference](https://hcpctl.com/commandlinehelp.html): every command and flag
+
+## Optional
+
+- [Source code](https://github.com/pkodzis/hcpctl)
+- [Releases](https://github.com/pkodzis/hcpctl/releases)

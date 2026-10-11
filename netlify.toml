@@ -2,8 +2,10 @@
   # Base directory - where dependencies are installed and build is run
   base = "docs"
 
-  # Build command - install Rust toolchain, mdbook, build, and copy static SEO files
-  command = "rustup default stable && cargo install mdbook --version 0.4.44 && mdbook build && cp src/robots.txt src/sitemap.xml book/"
+  # Build command - install Rust toolchain, mdbook, build, publish install scripts
+  # (docs reference https://hcpctl.com/install.sh) and generate sitemap.
+  # robots.txt and llms.txt are copied from src/ by mdbook automatically.
+  command = "rustup default stable && cargo install mdbook --version 0.4.44 && mdbook build && cp ../scripts/install.sh ../scripts/install.ps1 book/ && bash gen-sitemap.sh book"
 
   # Publish directory - relative to base
   publish = "book"
@@ -44,3 +46,18 @@
   [headers.values]
     Content-Type = "text/plain"
     Cache-Control = "public, max-age=86400"
+
+[[headers]]
+  for = "/llms.txt"
+  [headers.values]
+    Content-Type = "text/plain; charset=utf-8"
+
+[[headers]]
+  for = "/install.sh"
+  [headers.values]
+    Content-Type = "text/plain; charset=utf-8"
+
+[[headers]]
+  for = "/install.ps1"
+  [headers.values]
+    Content-Type = "text/plain; charset=utf-8"
