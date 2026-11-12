@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.22.1](https://github.com/pkodzis/hcpctl/compare/v0.22.0...v0.22.1) (2026-11-12)
+
+
+### Bug Fixes
+
+* omit unsupported action_only run operation on older TFE servers in bulk logs ([#94](https://github.com/pkodzis/hcpctl/issues/94)) ([cef9470](https://github.com/pkodzis/hcpctl/commit/cef9470ceb94f35e603eea63b6e4d614ae051a00))
+
 ## [0.22.0](https://github.com/pkodzis/hcpctl/compare/v0.21.0...v0.22.0) (2026-11-12)
 
 
