@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.22.0](https://github.com/pkodzis/hcpctl/compare/v0.21.0...v0.22.0) (2026-11-12)
+
+
+### Features
+
+* add bulk run log download to workspace logs ([#92](https://github.com/pkodzis/hcpctl/issues/92)) ([d838ab3](https://github.com/pkodzis/hcpctl/commit/d838ab32e70bcf29716c139d89613f80b10f2f5f))
+
 ## [0.21.0](https://github.com/pkodzis/hcpctl/compare/v0.20.0...v0.21.0) (2026-08-25)
 
 
