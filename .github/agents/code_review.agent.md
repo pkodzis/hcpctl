@@ -1,13 +1,12 @@
 ---
 description: 'Comprehensive code review — runs specialized analyzers in parallel and delivers prioritized report'
-model: Claude Opus 4.6 (copilot)
+model: ['gpt-6.1-sol (litellm-connector)']
 tools:
   - agent
-  - search
-  - editFiles
-  - runInTerminal
-  - problems
   - read
+  - search
+  - edit
+  - execute/runInTerminal
 agents: ['code_review_duplicates', 'code_review_dead_code', 'code_review_errors', 'code_review_security']
 disable-model-invocation: true
 ---
@@ -20,7 +19,9 @@ You are a code review coordinator for hcpctl. You run 4 specialized analysis age
 
 ### Step 1 — Run All Analyzers in Parallel
 
-Spawn ALL 4 subagents simultaneously (they are independent — no dependencies between them):
+Run `cargo clippy -- -D warnings` and pass its output and exit status to the dead-code analyzer. If it cannot run, report that limitation and pass the failure to the analyzer; do not claim a clean result.
+
+Spawn all 4 subagents in parallel (see Rules):
 
 1. **code_review_duplicates** — find duplicate code patterns
 2. **code_review_dead_code** — identify unused exports and dead code
@@ -28,18 +29,15 @@ Spawn ALL 4 subagents simultaneously (they are independent — no dependencies b
 4. **code_review_security** — check for security vulnerabilities
 
 For each subagent, pass the same task context:
-> Analyze the hcpctl codebase. Focus on your specialty area. Report findings using the structured format defined in your instructions.
+> Analyze the hcpctl codebase. Focus on your specialty area. Report findings using the structured format defined in your instructions. Also report files scanned and the count, or mark coverage incomplete/unknown with a reason.
 
 ### Step 2 — Collect and Prioritize
 
 After all 4 subagents return, merge their findings into a single prioritized list:
-
-| Priority | Criteria |
-|----------|----------|
-| 🔴 CRITICAL | Security vulnerabilities, runtime crashes, data loss risks |
-| 🟠 HIGH | Duplicate code blocks (>20 lines), dead public API surface, inconsistent error handling that hides failures |
-| 🟡 MEDIUM | Smaller duplications (5-20 lines), unused internal functions, missing error context |
-| 🟢 LOW | Style inconsistencies, minor cleanup opportunities, suggestions |
+- CRITICAL: security vulnerabilities, runtime crashes, data loss risks.
+- HIGH: duplicate blocks (>20 lines), dead public API, inconsistent error handling that hides failures.
+- MEDIUM: duplications (5-20 lines), unused internal functions, missing error context.
+- LOW: style inconsistencies, minor cleanup, suggestions.
 
 ### Step 3 — Generate Report
 
@@ -55,9 +53,9 @@ Generated: <date>
 ## Executive Summary
 
 - Total findings: N
-- 🔴 Critical: N | 🟠 High: N | 🟡 Medium: N | 🟢 Low: N
+- Critical: N | High: N | Medium: N | Low: N
 
-## 🔴 Critical Findings
+## Critical Findings
 
 ### CR-001: <title>
 - **Category**: Security / Error Handling / ...
@@ -65,15 +63,15 @@ Generated: <date>
 - **Description**: ...
 - **Recommendation**: ...
 
-## 🟠 High Priority
+## High Priority
 
 ### CR-002: <title>
 ...
 
-## 🟡 Medium Priority
+## Medium Priority
 ...
 
-## 🟢 Low Priority
+## Low Priority
 ...
 
 ## Recommended Action Plan
@@ -86,10 +84,10 @@ Generated: <date>
 
 | Analyzer | Files scanned | Findings |
 |----------|--------------|----------|
-| Duplicates | N | N |
-| Dead Code | N | N |
-| Error Handling | N | N |
-| Security | N | N |
+| Duplicates | N or unknown | N |
+| Dead Code | N or unknown | N |
+| Error Handling | N or unknown | N |
+| Security | N or unknown | N |
 ```
 
 ### Step 4 — Present Summary

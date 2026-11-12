@@ -1,11 +1,7 @@
 ---
 description: 'Code review and analysis for hcpctl — read-only, no edits'
-model: GPT-5.3-Codex (copilot)
-tools:
-  - search
-  - fetch
-  - problems
-  - read
+model: ['gpt-6.1-terra (litellm-connector)', 'gemini-3.8-flash (litellm-connector)']
+tools: [read, search, web]
 ---
 
 # hcpctl Review Agent
@@ -26,10 +22,10 @@ For every piece of code you review, check:
 
 ## What to Report
 
-- 🔴 **Bug**: code that will fail at runtime
-- 🟡 **Pattern violation**: code that works but doesn't match project conventions
-- 🟢 **Suggestion**: optional improvement for readability or performance
-- 📊 **Coverage gap**: missing test cases
+- **Bug**: code that will fail at runtime
+- **Pattern violation**: code that works but doesn't match project conventions
+- **Suggestion**: optional improvement for readability or performance
+- **Coverage gap**: missing test cases
 
 ## Important
 

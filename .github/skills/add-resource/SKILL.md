@@ -22,23 +22,11 @@ Create `src/hcp/<resource>/` with 4 files:
 
 ### 1.1 `models.rs` — Data Structures
 
-Reference: [src/hcp/teams/models.rs](../../src/hcp/teams/models.rs)
+Reference: [src/hcp/teams/models.rs](../../../src/hcp/teams/models.rs)
 
 ```rust
 use serde::Deserialize;
-use crate::hcp::traits::{PaginatedResponse, TfeResource};
-use crate::hcp::PaginationMeta;
-
-#[derive(Deserialize, Debug)]
-pub struct ResourcesResponse {
-    pub data: Vec<Resource>,
-    pub meta: Option<PaginationMeta>,
-}
-
-impl PaginatedResponse<Resource> for ResourcesResponse {
-    fn into_data(self) -> Vec<Resource> { self.data }
-    fn meta(&self) -> Option<&PaginationMeta> { self.meta.as_ref() }
-}
+use crate::hcp::traits::TfeResource;
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct Resource {
@@ -60,26 +48,27 @@ impl TfeResource for Resource {
 
 ### 1.2 `api.rs` — API Operations
 
-Reference: [src/hcp/teams/api.rs](../../src/hcp/teams/api.rs)
+Reference: [src/hcp/teams/api.rs](../../../src/hcp/teams/api.rs)
 
 ```rust
 use crate::config::api;
-use crate::error::{Result, TfeError};
+use crate::error::Result;
+use crate::hcp::traits::ApiListResponse;
 use crate::hcp::TfeClient;
-use super::models::{Resource, ResourcesResponse};
+use super::models::Resource;
 
 impl TfeClient {
     pub async fn get_resources(&self, org: &str) -> Result<Vec<Resource>> {
         let path = format!("/{}/{}/{}", api::ORGANIZATIONS, org, "resources");
         let error_context = format!("resources for organization '{}'", org);
-        self.fetch_all_pages::<Resource, ResourcesResponse>(&path, &error_context).await
+        self.fetch_all_pages::<Resource, ApiListResponse<Resource>>(&path, &error_context).await
     }
 }
 ```
 
 ### 1.3 `commands.rs` — Command Handler
 
-Reference: [src/hcp/teams/commands.rs](../../src/hcp/teams/commands.rs)
+Reference: [src/hcp/teams/commands.rs](../../../src/hcp/teams/commands.rs)
 
 Pattern: spinner → fetch → filter → output
 
@@ -98,7 +87,7 @@ pub use models::{Resource, ResourceAttributes};
 
 Create `src/output/<resource>.rs`:
 
-Reference: [src/output/teams.rs](../../src/output/teams.rs)
+Reference: [src/output/teams.rs](../../../src/output/teams.rs)
 
 Pattern: `SerializableResource` struct + `output_table/csv/json/yaml` functions using comfy_table.
 
@@ -117,7 +106,7 @@ Register in `src/cli/mod.rs` re-exports.
 
 1. `src/hcp/mod.rs` — add `pub mod resource;` and re-exports
 2. `src/lib.rs` — add to `pub use hcp::...` and `pub use cli::...`
-3. `src/main.rs` — add `Command::Get { resource: GetResource::Resource(_) }` arm
+3. `src/main.rs` — add `GetResource::Resource(_) => run_resource_command(&client, &cli).await,` arm inside the `Command::Get { resource }` match (see `GetResource::Team(_)`)
 
 ## Step 5: Write Tests
 
@@ -133,4 +122,4 @@ cargo test
 cargo clippy -- -D warnings
 ```
 
-All 500+ tests must pass with zero warnings.
+All tests must pass with zero clippy warnings.

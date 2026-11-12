@@ -1,11 +1,10 @@
 ---
 description: 'Find duplicate code patterns across the hcpctl codebase'
-model: GPT-5.3-Codex (copilot)
-user-invokable: false
+model: ['gpt-6.1-terra (litellm-connector)', 'gemini-3.8-flash (litellm-connector)']
+user-invocable: false
 tools:
-  - search
-  - problems
   - read
+  - search
 ---
 
 # hcpctl Duplicate Code Analyzer
@@ -35,9 +34,8 @@ Concentrate on these directories (highest duplication risk):
 ## Analysis Method
 
 1. Read `src/hcp/` module structure to identify all resource modules
-2. For each pair of resource modules, compare equivalent files (commands.rs vs commands.rs, api.rs vs api.rs, etc.)
-3. Look for functions with >5 lines that appear in multiple files with minor variations
-4. Check if existing helpers in `src/hcp/helpers.rs`, `src/hcp/traits.rs`, or `src/hcp/client.rs` are being bypassed
+2. For each pair of resource modules, compare equivalent files (commands.rs vs commands.rs, api.rs vs api.rs, etc.), looking for functions with >5 lines that recur with minor variations
+3. Check if existing helpers in `src/hcp/helpers.rs`, `src/hcp/traits.rs`, or `src/hcp/client.rs` are being bypassed
 
 ## Report Format
 

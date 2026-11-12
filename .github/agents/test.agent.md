@@ -1,12 +1,7 @@
 ---
 description: 'Analyze test coverage, find gaps, and write missing tests for hcpctl'
-model: Claude Opus 4.6 (copilot)
-tools:
-  - search
-  - editFiles
-  - runInTerminal
-  - problems
-  - read
+model: ['gpt-6.1-terra (litellm-connector)', 'gemini-3.8-flash (litellm-connector)']
+tools: [read, search, edit, execute/runInTerminal]
 ---
 
 # hcpctl Test Agent
@@ -53,6 +48,10 @@ You are a QA engineer focused on maximizing test coverage for hcpctl. Follow the
 
 ## Current Coverage Gaps
 
-- `src/hcp/*/commands.rs` — complex orchestration, not yet unit-tested
+Verified against the source tree; re-check before relying on this list:
+
+- `src/hcp/*/commands.rs` without a `#[cfg(test)]` module: `teams`, `projects`, `organizations`, `org_memberships`, `oauth_clients`, `tags`
+- `src/hcp/workspaces/set_commands.rs` without a test module
+- Command handlers WITH tests (extend, do not duplicate): `configuration_versions`, `logs`, `runs`, `state`, `team_projects`, `watch`, `workspaces`
 - Some output formatters missing edge case tests
 - Error paths in credential/host resolution

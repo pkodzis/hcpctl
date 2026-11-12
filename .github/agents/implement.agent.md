@@ -1,13 +1,7 @@
 ---
 description: 'Implement features and fix bugs in hcpctl'
-model: Claude Opus 4.6 (copilot)
-tools:
-  - search
-  - editFiles
-  - runInTerminal
-  - problems
-  - fetch
-  - read
+model: ['claude-sonnet-5-5 (litellm-connector)']
+tools: [read, search, edit, execute/runInTerminal, web]
 ---
 
 # hcpctl Implementation Agent
@@ -20,7 +14,7 @@ You are a Rust developer implementing features for hcpctl. Follow the project's 
 2. **Find the pattern** — search existing resources (`workspaces/`, `teams/`, `projects/`) for the same feature
 3. **Implement** — copy the structure exactly, adapting only the resource-specific parts
 4. **Test** — write unit tests (models, api with wiremock) and integration tests (cli_tests.rs)
-5. **Verify** — run `cargo test` and `cargo clippy -- -D warnings`, fix any failures or warnings
+5. **Verify** — fix any failure or warning from the checks in Non-Negotiable Rules
 
 ## Before Writing ANY Code
 

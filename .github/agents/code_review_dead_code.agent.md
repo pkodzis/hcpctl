@@ -1,11 +1,10 @@
 ---
 description: 'Identify unused exports, dead code, and unreachable paths in hcpctl'
-model: GPT-5.3-Codex (copilot)
-user-invokable: false
+model: ['gpt-6.1-terra (litellm-connector)', 'gemini-3.8-flash (litellm-connector)']
+user-invocable: false
 tools:
-  - search
-  - problems
   - read
+  - search
 ---
 
 # hcpctl Dead Code Analyzer
@@ -42,10 +41,8 @@ You are a specialist in identifying dead code in Rust projects. You analyze the 
 ## Analysis Method
 
 1. Start from `src/lib.rs` and `src/main.rs` — these are the entry points
-2. For each `pub` item, search for usages across the codebase
-3. For each error variant, search for where it's constructed
-4. For each config constant, search for references
-5. Check `cargo clippy -- -D warnings` output for dead_code warnings (read from `problems` tool)
+2. For each `pub` item, error variant, and config constant (see Where to Focus), search for usages across the codebase per the Rules below
+3. Check the coordinator's `cargo clippy -- -D warnings` output and available editor diagnostics (`read/problems`) for dead_code warnings; report if the clippy output is unavailable.
 
 ## Report Format
 
