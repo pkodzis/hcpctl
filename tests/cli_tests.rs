@@ -12,6 +12,174 @@ fn hcpctl_bin() -> &'static std::path::Path {
     assert_cmd::cargo::cargo_bin!("hcpctl")
 }
 
+#[cfg(unix)]
+#[test]
+fn bulk_error_with_cached_update_and_closed_stderr_exits_without_panic() {
+    let cache = tempfile::tempdir().unwrap();
+    let update_dir = cache.path().join(".hcpctl");
+    std::fs::create_dir(&update_dir).unwrap();
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    std::fs::write(
+        update_dir.join("update-check.json"),
+        serde_json::json!({
+            "last_check":now,"latest_version":"999.0.0"
+        })
+        .to_string(),
+    )
+    .unwrap();
+    let (read, write) = rustix::pipe::pipe().unwrap();
+    drop(read);
+    let output = Command::new(hcpctl_bin())
+        .env("XDG_CACHE_HOME", cache.path())
+        .args([
+            "--host",
+            "example.invalid",
+            "--token",
+            "test",
+            "logs",
+            "ws-abc",
+            "--runs",
+            "1",
+            "--output-dir",
+        ])
+        .arg(cache.path().join("missing"))
+        .stderr(std::process::Stdio::from(write))
+        .output()
+        .unwrap();
+    // A panic from update reporting would return 101 rather than the bulk error.
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stdout.is_empty());
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn bulk_sigint_exits_gracefully_during_pending_request() {
+    bulk_signal_exits_gracefully("-INT").await;
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn bulk_sigterm_exits_gracefully_during_pending_request() {
+    bulk_signal_exits_gracefully("-TERM").await;
+}
+
+#[cfg(unix)]
+async fn bulk_signal_exits_gracefully(signal: &str) {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let host = listener.local_addr().unwrap().to_string();
+    let dir = tempfile::tempdir().unwrap();
+    let mut child = Command::new(hcpctl_bin())
+        .args([
+            "--batch",
+            "--host",
+            &host,
+            "--token",
+            "test",
+            "logs",
+            "ws-abc",
+            "--runs",
+            "1",
+            "--output-dir",
+            dir.path().to_str().unwrap(),
+        ])
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    // Accept the TLS connection without replying, so resolution stays pending.
+    let accepted =
+        tokio::time::timeout(std::time::Duration::from_secs(10), listener.accept()).await;
+    if accepted.is_err() {
+        let _ = child.kill();
+        panic!("bulk client never connected");
+    }
+    let _connection = accepted.unwrap().unwrap();
+    assert!(Command::new("kill")
+        .args([signal, &child.id().to_string()])
+        .status()
+        .unwrap()
+        .success());
+    let output = tokio::task::spawn_blocking(move || child.wait_with_output().unwrap())
+        .await
+        .unwrap();
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "must exit normally, not by signal"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("cancelled"), "{stderr}");
+    assert!(!stderr.contains("panicked"));
+    assert!(output.stdout.is_empty());
+    assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 0);
+}
+
+#[test]
+fn test_bulk_logs_help_and_conflicts() {
+    let output = Command::new(hcpctl_bin())
+        .args(["logs", "--help"])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let help = String::from_utf8_lossy(&output.stdout);
+    for flag in ["--runs", "--all-phases", "--output-dir"] {
+        assert!(help.contains(flag));
+    }
+    for (first, second) in [("--all-phases", "--apply"), ("--follow", "--runs")] {
+        let flags = if first == "--follow" {
+            vec!["--follow"]
+        } else {
+            vec![first, second]
+        };
+        let output = Command::new(hcpctl_bin())
+            .args(["logs", "ws", "--runs", "3", "--output-dir", "."])
+            .args(flags)
+            .output()
+            .unwrap();
+        assert_eq!(output.status.code(), Some(2));
+        let err = String::from_utf8_lossy(&output.stderr);
+        assert!(err.contains(first) && err.contains(second));
+    }
+}
+
+#[test]
+fn test_bulk_logs_invalid_counts_have_actionable_errors() {
+    for (count, message) in [
+        ("0", "at least 1"),
+        ("abc", "positive integer"),
+        ("+1", "positive integer"),
+        ("1.5", "positive integer"),
+        ("999999999999999999999999999999999999999999", "too large"),
+    ] {
+        let output = Command::new(hcpctl_bin())
+            .args(["logs", "workspace", "--runs", count, "--output-dir", "."])
+            .output()
+            .unwrap();
+        assert_eq!(output.status.code(), Some(2));
+        let err = String::from_utf8_lossy(&output.stderr);
+        assert!(err.contains("--runs") && err.contains(message));
+    }
+}
+
+#[test]
+fn test_bulk_logs_missing_flags_have_actionable_errors() {
+    for (flags, missing) in [
+        (vec!["--output-dir", "."], "--runs"),
+        (vec!["--all-phases"], "--runs"),
+    ] {
+        let output = Command::new(hcpctl_bin())
+            .args(["logs", "workspace"])
+            .args(flags)
+            .output()
+            .unwrap();
+        assert_eq!(output.status.code(), Some(2));
+        assert!(String::from_utf8_lossy(&output.stderr).contains(missing));
+    }
+}
+
 /// Test that help flag works and shows expected content
 #[test]
 fn test_help_flag() {

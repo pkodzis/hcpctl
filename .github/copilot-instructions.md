@@ -7,54 +7,22 @@ A kubectl-style CLI for HCP Terraform / Terraform Enterprise, written in Rust wi
 - Language: Rust (edition 2021)
 - CLI framework: clap 4 (derive) + clap-markdown
 - HTTP: reqwest 0.13 (rustls) + tokio async
-- Output: comfy-table 7.2, serde_json, serde_yml 0.0.12
-- Serialization: serde, base64 0.22
-- Utilities: dialoguer 0.12, indicatif 0.18, dirs 6, urlencoding, md-5, futures 0.3, chrono 0.4
+- Output: comfy-table 8.0, serde_json, serde_yml 0.0.13
+- Serialization: serde, base64 0.23
+- Utilities: dialoguer 0.12, indicatif 0.18, dirs 7.0, urlencoding, md-5, futures 0.3, chrono 0.4
+- Logging: log + env_logger
 - Testing: wiremock 0.6, assert_cmd, predicates, tempfile
 - CI: GitHub Actions (release-please + cross-compilation)
 
 ## Project Structure
 
-```
-src/
-  cli/           - CLI argument definitions (clap derive)
-    common.rs      - OutputFormat enum
-    delete.rs      - Delete subcommand args
-    download.rs    - Download subcommand args
-    enums.rs       - Shared enums (sort fields, subresources)
-    get.rs         - Get subcommand args (all resources)
-    invite.rs      - Invite subcommand args
-    logs.rs        - Logs subcommand args
-    purge.rs       - Purge subcommand args
-    set.rs         - Set subcommand args
-    tag.rs         - Tag subcommand args (set/get/delete tag ws|prj)
-    watch.rs       - Watch subcommand args
-  config.rs      - Configuration constants
-  error.rs       - Custom error types (TfeError)
-  hcp/           - Core logic, one submodule per resource
-    client.rs      - TfeClient HTTP client + fetch_all_pages
-    credentials.rs - Token resolution (CLI, env, file)
-    host.rs        - Host resolution (CLI, env, file)
-    helpers.rs     - Multi-org parallel fetch utilities
-    traits.rs      - TfeResource, PaginatedResponse traits
-    configuration_versions/ - Config version download (models, api, commands)
-    logs/          - Log streaming (commands)
-    oauth_clients/ - OAuth/VCS connections (models, api, commands)
-    org_memberships/ - Organization members (models, api, commands)
-    organizations/ - Organizations (models, api, commands)
-    projects/      - Projects (models, api, commands, resolver)
-    runs/          - Runs (models, api, commands, log_utils)
-    state/         - State purge (models, api, commands)
-    tags/          - Tag bindings for ws/prj (models, api, commands)
-    teams/         - Teams (models, api, commands)
-    watch/         - Workspace watching (commands)
-    workspaces/    - Workspaces (models, api, commands, resolver, set_api, set_commands)
-  output/        - Formatters per resource (table/csv/json/yaml)
-  ui/            - Spinners (indicatif), confirmation prompts (dialoguer)
-  update/        - Self-update checker and command
-tests/
-  cli_tests.rs   - Integration tests (binary execution)
-```
+- `src/cli/`: clap arguments. `common.rs` defines `OutputFormat`; `enums.rs` has shared sort and subresource enums. Subcommands: `context.rs`, `delete.rs`, `download.rs`, `get.rs`, `invite.rs`, `logs.rs`, `purge.rs`, `set.rs`, `tag.rs` (set/get/delete tag ws|prj), `team_access.rs` (get team-access), `watch.rs`.
+- `src/config.rs`: constants; `src/context/`: named context store, resolution and commands; `src/error.rs`: `TfeError`; `src/lib.rs`: library and re-exports; `src/main.rs`: binary.
+- `src/hcp/`: core logic. `client.rs`: `TfeClient` and `fetch_all_pages`; `credentials.rs`: CLI/env/file token resolution; `host.rs`: CLI/env/file host resolution; `helpers.rs`: multi-org parallel fetch; `traits.rs`: `TfeResource`, `PaginatedResponse`.
+- Resource modules: `configuration_versions/` (config download), `oauth_clients/` (OAuth/VCS), `org_memberships/` (members), `organizations/`, `projects/`, `runs/`, `state/` (purge), `tags/` (ws/prj bindings), `team_projects/` (access), `teams/`, `workspaces/`: models, API and commands. `projects/` and `workspaces/` also have resolvers; `workspaces/` has `set_api` and `set_commands`; `runs/` has `log_utils`.
+- `src/hcp/logs/` and `src/hcp/watch/`: commands for log streaming and workspace watching.
+- `src/output/`: per-resource table/CSV/JSON/YAML formatters; `src/ui/`: spinners and confirmation prompts; `src/update/`: self-update checker and command.
+- `tests/cli_tests.rs`: binary integration tests.
 
 ## Top Rules (always apply)
 
@@ -68,11 +36,11 @@ tests/
 
 ## Key Conventions
 
-- Resource aliases: ws/workspace/workspaces, prj/prjs/project/projects, org/orgs/organization/organizations, oc/oauth-client/oauth-clients, run/runs, team/teams, org-member/org-members/orgmember/orgmembers, tag/tags
+- Resource aliases: ws/workspace/workspaces, prj/prjs/project/projects, org/orgs/organization/organizations, oc/oauth-client/oauth-clients, run/runs, team/teams, team-access/team-accesses/teamaccess/ta, org-member/org-members/orgmember/orgmembers, tag/tags
 - Output formats: table (default), json, yaml, csv
-- Commands: get, delete, purge, download, logs, watch, invite, set, update
+- Commands: get, delete, purge, download, logs (alias: log), watch, invite, set, config (contexts), update
 - `set` command philosophy: `set <resource>` modifies specific settings of that resource (e.g. `set ws` assigns to project, future: execution-mode, working-dir, etc.). It is the generic "modify resource properties" verb — new settings will be added as flags over time.
 - Tag bindings are a separate TFE API subresource, so they use `set|get|delete tag ws|prj` rather than flags on `set ws|prj`. This keeps tag CRUD (add/list/remove key-value pairs) cleanly separated from resource property modifications.
-- Global flags: -H/--host, -t/--token, -b/--batch, --no-header, -l/--log-level
+- Global flags: -c/--context, -H/--host, -t/--token, -b/--batch, --no-header, -l/--log-level
 - Per-resource flags: --org, -f/--filter, -o/--output, -s/--sort, -r/--reverse
 - Environment variables: HCP_TOKEN, TFC_TOKEN, TFE_TOKEN, TFE_HOSTNAME

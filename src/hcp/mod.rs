@@ -23,7 +23,7 @@ pub mod workspaces;
 
 use serde::Deserialize;
 
-pub use client::{PaginationInfo, TfeClient};
+pub use client::{PaginationInfo, RetryPolicy, TfeClient};
 pub use configuration_versions::run_download_config_command;
 pub use credentials::TokenResolver;
 pub use helpers::{

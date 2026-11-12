@@ -21,11 +21,25 @@ impl TfeClient {
         let url = format!("{}/{}", self.base_url(), api::ORGANIZATIONS);
         debug!("Fetching organizations from: {}", url);
 
-        let response = self.get(&url).send().await?;
+        let response = self.send_get(&url).await?;
 
         let orgs_response: ApiListResponse<Organization> =
             self.parse_api_response(response, "organizations").await?;
         Ok(orgs_response.data)
+    }
+
+    /// Fetch every accessible organization page, failing rather than returning partial results.
+    pub(crate) async fn get_all_organizations(&self) -> Result<Vec<String>> {
+        let organizations = self
+            .fetch_all_pages::<Organization, ApiListResponse<Organization>>(
+                "/organizations",
+                "organizations",
+            )
+            .await?;
+        Ok(organizations
+            .into_iter()
+            .map(|organization| organization.id)
+            .collect())
     }
 
     /// Get a single organization by name or external ID
@@ -43,7 +57,7 @@ impl TfeClient {
         let url = format!("{}/{}/{}", self.base_url(), api::ORGANIZATIONS, name_or_id);
         debug!("Fetching organization by name: {}", url);
 
-        let response = self.get(&url).send().await?;
+        let response = self.send_get(&url).await?;
 
         match response.status().as_u16() {
             200 => {
@@ -85,7 +99,7 @@ impl TfeClient {
         if let Some(org) = orgs.into_iter().find(|o| o.external_id() == external_id) {
             // Fetch full details by name to get raw JSON
             let url = format!("{}/{}/{}", self.base_url(), api::ORGANIZATIONS, org.id);
-            let response = self.get(&url).send().await?;
+            let response = self.send_get(&url).await?;
 
             if response.status().is_success() {
                 let raw: serde_json::Value = response.json().await?;
@@ -105,8 +119,67 @@ impl TfeClient {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wiremock::matchers::{method, path};
+    use crate::hcp::RetryPolicy;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use wiremock::matchers::{method, path, query_param};
     use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    #[tokio::test]
+    async fn bulk_organization_listing_paginates_and_retries_later_pages() {
+        let server = MockServer::start().await;
+        for page in 1..=2 {
+            let attempts = AtomicUsize::new(0);
+            Mock::given(method("GET"))
+                .and(path("/organizations"))
+                .and(query_param("page[number]", page.to_string()))
+                .respond_with(move |_: &wiremock::Request| {
+                    if page == 2 && attempts.fetch_add(1, Ordering::SeqCst) == 0 {
+                        return ResponseTemplate::new(503);
+                    }
+                    ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                        "data":[org_json(&format!("org-{page}"), &format!("org-ext-{page}"))],
+                        "meta":{"pagination":{"current-page":page,"total-pages":2,"total-count":2}}
+                    }))
+                })
+                .expect(if page == 2 { 2 } else { 1 })
+                .mount(&server)
+                .await;
+        }
+        let client =
+            TfeClient::test_client(&server.uri()).with_request_policy(RetryPolicy::instant());
+        assert_eq!(
+            client.get_all_organizations().await.unwrap(),
+            vec!["org-1", "org-2"]
+        );
+    }
+
+    #[tokio::test]
+    async fn bulk_organization_listing_later_page_error_is_not_partial_success() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/organizations"))
+            .and(query_param("page[number]", "1"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "data":[org_json("org-1", "org-ext-1")],
+                "meta":{"pagination":{"current-page":1,"total-pages":2,"total-count":2}}
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/organizations"))
+            .and(query_param("page[number]", "2"))
+            .respond_with(ResponseTemplate::new(401))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let error = TfeClient::test_client(&server.uri())
+            .with_request_policy(RetryPolicy::instant())
+            .get_all_organizations()
+            .await
+            .unwrap_err();
+        assert!(matches!(error, TfeError::Api { status: 401, .. }));
+    }
 
     fn org_json(id: &str, external_id: &str) -> serde_json::Value {
         serde_json::json!({

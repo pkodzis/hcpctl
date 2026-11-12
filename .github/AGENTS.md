@@ -2,85 +2,74 @@
 
 ## Agent Architecture
 
-```text
-User
- ├── @feature         (end-to-end coordinator, orchestrates all phases)
- │    ├── subagent → design     (requirements + plan, read-only)
- │    ├── subagent → critic     (plan review, iterates with design, different model)
- │    ├── subagent → api-perf   (API query efficiency review, iterates with design)
- │    ├── subagent → implement  (Rust/clap implementation)
- │    ├── subagent → test       (coverage gaps, write missing tests)
- │    └── subagent → review     (post-implementation verification, different model)
- ├── @design          (analysis + planning, read-only, handoff to @feature)
- ├── @implement       (feature implementation, standalone or subagent)
- ├── @test            (test coverage, standalone or subagent)
- ├── @review          (code review, standalone or subagent)
- ├── @guide           (docs/src/guides maintainer, analysis-first, dynamic coverage)
- └── @code_review     (comprehensive code review orchestrator)
-      ├── subagent → code_review_duplicates  (find duplicate patterns)
-      ├── subagent → code_review_dead_code   (unused exports, dead code)
-      ├── subagent → code_review_errors      (error handling consistency)
-      └── subagent → code_review_security    (security vulnerabilities)
-```
+- User-invoked:
+  - `@feature`: end-to-end coordinator, orchestrates all phases
+    - Subagents: `design` (requirements and plan, read-only), `critic` (plan review, iterates with design, different model family), `api-perf` (API query efficiency review, iterates with design), `implement` (Rust/clap implementation), `test` (coverage gaps, writes missing tests), `review` (post-implementation verification, different model family), `rust-beast-mode` (deep Rust verification, may add tests)
+  - `@design`: analysis and planning, read-only, handoff to `@feature`
+  - `@implement`: feature implementation, standalone or subagent
+  - `@test`: test coverage, standalone or subagent
+  - `@review`: code review, standalone or subagent
+  - `@guide`: `docs/src/guides` maintainer, analysis-first, dynamic coverage
+  - `@code_review`: comprehensive code review orchestrator
+    - Subagents: `code_review_duplicates` (duplicate patterns), `code_review_dead_code` (unused exports, dead code), `code_review_errors` (error handling consistency), `code_review_security` (security vulnerabilities)
 
 ## Agent Catalog
 
-### Feature Pipeline Agents
+Model names use the `(litellm-connector)` suffix. The agent definitions in `.github/agents/*.agent.md` are the source of truth for models, fallbacks, tools, and access flags.
 
-| Agent | Role | Model | Tools | Edits | Terminal | User-invokable | Subagent-ready |
-|-------|------|-------|-------|-------|----------|----------------|----------------|
-| **feature** | End-to-end coordination, delegates to workers | Claude Opus 4.6 | agent, search, editFiles, runInTerminal, problems, fetch, read | ✔ | ✔ | ✔ | ❌ (`disable-model-invocation: true`) |
-| **design** | Analysis, planning, handoff to feature | Claude Opus 4.6 | search, fetch, problems, read | ❌ | ❌ | ✔ | ✔ |
-| **critic** | Plan critique, challenges design | Gemini 3.1 Pro | search, fetch, problems, read | ❌ | ❌ | ❌ (`user-invokable: false`) | ✔ |
-| **api-perf** | API query efficiency review | Claude Opus 4.6 | search, fetch, problems, read | ❌ | ❌ | ❌ (`user-invokable: false`) | ✔ |
-| **implement** | Rust/clap implementation | Claude Opus 4.6 | search, editFiles, runInTerminal, problems, fetch, read | ✔ | ✔ | ✔ | ✔ |
-| **test** | Test coverage + gap filling | Claude Opus 4.6 | search, editFiles, runInTerminal, problems, read | ✔ | ✔ | ✔ | ✔ |
-| **review** | Post-implementation code review | GPT-5.3-Codex | search, fetch, problems, read | ❌ | ❌ | ✔ | ✔ |
-| **guide** | Maintain and evolve `docs/src/guides` from live code analysis | GPT-5.3-Codex | search, editFiles, runInTerminal, problems, fetch, read | ✔ | ✔ | ✔ | ✔ |
+### Models and tools
 
-### Code Review Agents
+- `feature`, `code_review`: `gpt-5.6-sol (litellm-connector)`; delegate and write reports, with terminal access. Both are user-invoked coordinators (`disable-model-invocation: true`).
+- `design`, `implement`, `rust-beast-mode`: `claude-sonnet-5-5 (litellm-connector)`. Design is read-only and hands off to feature; implement edits and runs commands.
+- `critic`, `api-perf`, `test`, `review`, `guide`, and `code_review_*`: `gpt-5.6-terra (litellm-connector)` with `gemini-3.8-flash (litellm-connector)` fallback. Critic, api-perf, review and the four code-review analyzers are read-only; security also has web access for advisories. Test and guide can edit and run commands.
+- `critic`, `api-perf`, and the four `code_review_*` analyzers set `user-invocable: false`: hidden from the picker but available as subagents. This flag alone does not restrict callers.
 
-| Agent | Role | Model | Tools | Edits | Terminal | User-invokable | Subagent-ready |
-|-------|------|-------|-------|-------|----------|----------------|----------------|
-| **code_review** | Parallel code review orchestrator, produces report file | Claude Opus 4.6 | agent, search, editFiles, runInTerminal, problems, read | ✔ | ✔ | ✔ | ❌ (`disable-model-invocation: true`) |
-| **code_review_duplicates** | Find duplicate code patterns | GPT-5.3-Codex | search, problems, read | ❌ | ❌ | ❌ (`user-invokable: false`) | ✔ |
-| **code_review_dead_code** | Unused exports and dead code | GPT-5.3-Codex | search, problems, read | ❌ | ❌ | ❌ (`user-invokable: false`) | ✔ |
-| **code_review_errors** | Error handling consistency | GPT-5.3-Codex | search, problems, read | ❌ | ❌ | ❌ (`user-invokable: false`) | ✔ |
-| **code_review_security** | Security vulnerabilities | GPT-5.3-Codex | search, problems, read | ❌ | ❌ | ❌ (`user-invokable: false`) | ✔ |
+**Rust Beast Mode**: `rust-beast-mode` (`claude-sonnet-5-5 (litellm-connector)`, no tools declared) is available standalone and is also invoked by `feature` for deep verification and re-review after fixes. Its available tools depend on the active environment.
 
-**Model diversity**: Design, implementation, and api-perf use Claude Opus 4.6 for deep reasoning. Critic uses Gemini 3.1 Pro for independent perspective during plan review. Review and code review analyzers use GPT-5.3-Codex for post-implementation verification — different models catch different issues.
+**Model families**: Prefer different producer and checker families, including fallbacks. Claude produces designs and implementations; GPT or Gemini reviews them. `rust-beast-mode` verifies Claude implementation with the same family; `test` and `review` both use GPT/Gemini. `review` remains the cross-family implementation check.
+
+## Model Routing and Cost
+
+Cost policy (ECS policy; verify before relying on it):
+- For `litellm-connector` models, the cost multiplier is max(input, output) USD per 1M tokens: `gpt-5.6-sol` 20, `gpt-5.6-terra` 12.
+- Multipliers for `claude-sonnet-5-5` and `gemini-3.8-flash` are not stated in ECS policy; do not assume them.
+- Actual prices and model availability require verification against the LiteLLM connector. This file does not state prices.
+
+The ECS roster states that a subagent fails if its first available model's multiplier exceeds the caller's, without trying the next model; it also describes this limit for direct chat invocations. Verify this behavior in the target harness. Sonnet roles may exceed a Terra or Sol caller's ceiling; Sonnet pricing is not specified. Model lists choose the first available model; do not assume they recover from runtime errors or cost-ceiling rejections.
+
+Routing for ad-hoc work:
+- Use `Explore` for bulk reading, inventories, version sweeps, and searches.
+- Delegate mechanical repetition and running/reporting of suites too.
+- For ad-hoc delegation, use `gemini-3.8-flash (litellm-connector)` via `runSubagent` with `model` set, when it can do the work equally well and context savings exceed delegation overhead.
+- Keep on the assigned model: design, version and dependency decisions, evidence conflicts, review, debugging, and short single-file edits.
+- For borderline cases that would need full re-verification if wrong, ask the user first.
+- If the entire task suits the cheap tier, suggest selecting a smaller model up front.
+- Pipeline roles keep their assigned models.
 
 **Key access controls**:
-- Feature has `disable-model-invocation: true` — only user-invokable, never spawned as a subagent
-- Critic has `user-invokable: false` — only feature spawns it, never appears in the dropdown
-- Feature declares `agents: [design, critic, api-perf, implement, test, review]` — explicit subagent allowlist
-- api-perf has `user-invokable: false` — only feature spawns it after design↔critic converge
+The allowlists and design handoff below are Local-harness features; verify discovery and delegation in the target harness. Copilot does not accept `agents` or `handoffs` in its schema.
+- Feature has `disable-model-invocation: true` — user-invoked, not automatically selected as a subagent
+- Critic has `user-invocable: false` — hidden from the picker, used by feature
+- Feature declares `agents: [design, critic, api-perf, implement, test, review, rust-beast-mode]` — explicit subagent allowlist
+- api-perf has `user-invocable: false` — hidden from the picker, used by feature after design↔critic converge
 - Design has a `handoff` to feature — after user reviews the plan, one click to start execution
 - code_review has `disable-model-invocation: true` — only user-invokable, never a subagent
-- All 4 code_review_* analyzers have `user-invokable: false` — only code_review orchestrator spawns them
+- All 4 code_review_* analyzers have `user-invocable: false` — hidden from the picker, used by code_review
 
 ## Workflow Patterns
 
 ### Pattern 1: Full Automation (recommended for new features)
 
-1. Switch to `@feature` — describe what you want
-2. Feature creates `.feature-runs/<timestamp>-<slug>/` forensic trail directory
-3. Feature runs the full pipeline autonomously, saving every subagent output:
-   - **Design↔Critic loop** (max 7 iterations until APPROVE or consensus)
-   - **API Performance Review** — api-perf validates API call efficiency (max 3 iterations with design)
-   - **Human Gate** — plan presented to user for approval before implementation
-   - **Implement** the approved plan
-   - **Test** — fill coverage gaps
-   - **Review** — final quality check
-   - **Fix loop** — if review finds bugs/violations (max 2 rounds)
-4. Delivers final report (to trail + chat)
+1. Switch to `@feature` and describe the request
+2. Feature creates the `.feature-runs/` trail and runs autonomously: design↔critic loop → api-perf review → human gate → implement → test → review + rust-beast-mode → fix loop (max 2 rounds); limits are in the loop section below
+3. Delivers final report (to trail + chat)
 
 ### Pattern 2: Design First (for complex tasks needing human review of plan)
 
 1. Switch to `@design` — describe requirements
 2. Review the plan yourself
 3. Click **Execute Plan** handoff button → switches to `@feature`
-4. Feature creates forensic trail, takes over from Phase 2 (implement → test → review)
+4. Feature creates the forensic trail and runs its required design/review pipeline and human gate before implementation
 
 ### Pattern 3: Specialist (for focused work)
 
@@ -99,17 +88,14 @@ Switch directly to `@implement`, `@test`, or `@review` for targeted tasks.
 
 The `@feature` coordinator runs a peer-review loop between design and critic:
 
-```text
-feature (coordinator)
- ├── 1. Spawn design    → produces plan
- ├── 2. Spawn critic    → reviews plan (verdict: APPROVE or REVISE)
- ├── 3. If REVISE: send critic's issues back to design
- ├── 4. Repeat steps 2-3 (max 7 iterations)
- ├── 5. Spawn api-perf  → reviews API query efficiency (verdict: APPROVE or REJECT)
- ├── 6. If REJECT: send api-perf feedback to design, then re-review (max 3 iterations)
- ├── 7. Human gate      → present plan to user, wait for approval
- └── 8. Proceed to implementation
-```
+1. Spawn `design`, which produces the plan.
+2. Spawn `critic`, which reviews the plan (verdict: APPROVE or REVISE).
+3. If REVISE: send critic's issues back to `design`.
+4. Repeat steps 2-3 (max 7 iterations).
+5. Spawn `api-perf`, which reviews API query efficiency (verdict: APPROVE or REJECT).
+6. If REJECT: send api-perf feedback to `design`, then re-review (max 3 iterations).
+7. Human gate: present the plan to the user and wait for approval.
+8. Proceed to implementation.
 
 - **Convergence**: Critic issues APPROVE when all issues are resolved or only LOW severity remain
 - **No consensus**: If 7 iterations reached without APPROVE, feature coordinator proceeds with latest plan and documents unresolved disagreements
@@ -126,37 +112,29 @@ The feature coordinator NEVER assumes a failed subagent's role:
 
 ## Conventions
 
-- Agent files: `.github/agents/<name>.agent.md`
-- All agents inherit `copilot-instructions.md` (tech stack, top rules, key conventions)
+- Agent files: `.github/agents/<name>.agent.md`; all agents inherit `copilot-instructions.md`
+- Access flags (`disable-model-invocation`, `user-invocable`, `handoffs`) are defined in each agent's frontmatter and summarized above
 - Guide agent maintains `docs/src/guides/*.md` dynamically (no hardcoded topic list)
-- Worker agents (implement, test, review) have default flags — user-invokable and subagent-ready
-- Feature has `disable-model-invocation: true` — only user-invokable, never a subagent
-- Critic has `user-invokable: false` — only feature spawns it, never user-facing
-- Design has `handoffs` to feature — guided workflow from plan to execution
-- code_review has `disable-model-invocation: true` — coordinator only, never a subagent
-- code_review_* analyzers have `user-invokable: false` — spawned only by code_review orchestrator
-- code_review output goes to `./code-review-<timestamp>.md` (gitignored)
-- Feature forensic trails go to `.feature-runs/<timestamp>-<slug>/` (gitignored)
+- Gitignored outputs: `./code-review-<timestamp>.md` and `.feature-runs/<timestamp>-<slug>/`
 
 ## Forensic Trail
 
-Every `@feature` run creates a full audit trail in `.feature-runs/<timestamp>-<slug>/`:
+Every `@feature` run creates a full audit trail in `.feature-runs/<timestamp>-<slug>/`.
 
-```
-.feature-runs/20260223-143021-add-get-variables/
-  00-request.md              # original request (verbatim)
-  01-design-v1.md            # first design output
-  02-critic-v1.md            # first critic review
-  03-design-v2.md            # revised design (if REVISE)
-  04-critic-v2.md            # second review (if needed)
-  ...
-  NN-api-perf-v1.md          # API performance review
-  NN-plan-approved.md        # final plan (+ disagreements if no consensus)
-  NN-implement.md            # implementation log
-  NN-test.md                 # test audit
-  NN-review.md               # review findings
-  NN-report.md               # final summary (ALWAYS LAST)
-```
+Example for `.feature-runs/20260223-143021-add-get-variables/`:
+
+- `00-request.md`: original request (verbatim)
+- `01-design-v1.md`: first design output
+- `02-critic-v1.md`: first critic review
+- `03-design-v2.md`: revised design (if REVISE)
+- `04-critic-v2.md`: second review (if needed)
+- `NN-api-perf-v1.md`: API performance review
+- `NN-plan-approved.md`: final plan (+ disagreements if no consensus)
+- `NN-implement.md`: implementation log
+- `NN-test.md`: test audit
+- `NN-review.md`: review findings
+- `NN-beast-mode.md`: deep Rust verification
+- `NN-report.md`: final summary (ALWAYS LAST)
 
 This is NOT project documentation — it is process forensics. Every subagent's complete raw output is preserved so design decisions, trade-offs, and iteration history can be reconstructed after the fact.
 
@@ -164,4 +142,4 @@ This is NOT project documentation — it is process forensics. Every subagent's 
 
 1. Create `.github/agents/<name>.agent.md`
 2. Add YAML frontmatter: description, model, tools, agents (if coordinator), handoffs (if workflow)
-3. Update this file (catalog table + architecture diagram)
+3. Update this file (catalog entry and architecture list)

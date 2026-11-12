@@ -85,7 +85,8 @@ EXAMPLES:
   - hcpctl get ws --org myorg          # List workspaces in organization
   - hcpctl get ws myws --org myorg     # Get workspace details
   - hcpctl -H app.terraform.io get ws  # Use specific host
-  - hcpctl -c prod get ws              # Use 'prod' context"#;
+  - hcpctl -c prod get ws              # Use 'prod' context
+  - hcpctl logs myws --runs 3 --all-phases --output-dir ./out # Save newest run logs"#;
 
 /// HCP/TFE CLI - Explore HashiCorp Cloud Platform and Terraform Enterprise
 #[derive(Parser, Debug)]
@@ -157,12 +158,12 @@ pub enum Command {
         resource: DownloadResource,
     },
 
-    /// View logs for a run (plan or apply)
+    /// View run logs or bulk-download workspace run logs
     ///
     /// Target can be:
     ///   run-xxx  Run ID - directly fetches logs for that run
     ///   ws-xxx   Workspace ID - fetches current-run logs
-    ///   name     Workspace name - fetches current-run logs (requires --org)
+    ///   name     Workspace name - uses --org, context, or auto-discovery
     #[command(visible_alias = "log", verbatim_doc_comment)]
     Logs(LogsArgs),
 

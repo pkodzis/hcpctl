@@ -4,6 +4,7 @@
 //! and confirmation prompts.
 
 mod confirm;
+pub mod report;
 mod spinner;
 
 pub use confirm::{confirm_action, confirm_large_pagination, LargePaginationInfo};

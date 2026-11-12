@@ -1,11 +1,11 @@
 ---
 description: 'Check for security vulnerabilities and unsafe patterns in hcpctl'
-model: GPT-5.3-Codex (copilot)
-user-invokable: false
+model: ['gpt-6.1-terra (litellm-connector)', 'gemini-3.8-flash (litellm-connector)']
+user-invocable: false
 tools:
-  - search
-  - problems
   - read
+  - search
+  - web
 ---
 
 # hcpctl Security Analyzer
@@ -54,11 +54,11 @@ You are a security specialist reviewing the hcpctl codebase for vulnerabilities,
 
 ## Analysis Method
 
-1. Read `src/hcp/credentials.rs` — how are tokens resolved, stored, passed?
-2. Read `src/hcp/client.rs` — how is the HTTP client configured? TLS? Timeouts?
+1. Trace tokens from `src/hcp/credentials.rs` through `src/hcp/client.rs`: how are they resolved, stored, passed, and logged?
+2. Check HTTP client configuration in `client.rs` (TLS, timeouts)
 3. Search for `println!`, `eprintln!`, `debug!`, `log::` that might include tokens
 4. Search for `format!` patterns that build URLs — is user input encoded?
-5. Check `Cargo.toml` for dependency versions with known CVEs
+5. Check `Cargo.toml` and `Cargo.lock` for resolved dependency versions against current authoritative security advisories. Cite evidence; if advisories or resolved versions are unavailable, report the check as unverified, not clean.
 6. Search for `unsafe` blocks (should be none)
 7. Check file operations in download/state modules for path validation
 

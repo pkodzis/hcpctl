@@ -78,25 +78,18 @@ mod tests {
 ## Pagination Helper (MANDATORY for list endpoints)
 
 ```rust
-// In models.rs — implement PaginatedResponse trait
-impl PaginatedResponse<Team> for TeamsResponse {
-    fn into_data(self) -> Vec<Team> { self.data }
-    fn meta(&self) -> Option<&PaginationMeta> { self.meta.as_ref() }
-}
-
-// In api.rs — use the helper (replaces 50+ lines of pagination loop)
+// In api.rs — generic ApiListResponse<T> (src/hcp/traits.rs); no per-resource response struct needed
 pub async fn get_teams(&self, org: &str) -> Result<Vec<Team>> {
     let path = format!("/{}/{}/{}", api::ORGANIZATIONS, org, api::TEAMS);
     let error_context = format!("teams for organization '{}'", org);
-    self.fetch_all_pages::<Team, TeamsResponse>(
-        &path, &error_context,
-    ).await
+    self.fetch_all_pages::<Team, ApiListResponse<Team>>(&path, &error_context).await
 }
 ```
 
 ## Current Test Coverage
 
-- **444 unit tests** across all modules
-- **57 integration tests** in `tests/cli_tests.rs`
-- **Not yet covered**: `hcp/*/commands.rs`
-  (complex orchestration — consider e2e tests)
+Counts are a snapshot; verify with `cargo test --lib -- --list` and `cargo test --test cli_tests -- --list`.
+
+- **753 unit tests** (`cargo test --lib`)
+- **97 integration tests** in `tests/cli_tests.rs`
+- **No unit tests** in `hcp/{organizations,org_memberships,oauth_clients,projects,teams,tags}/commands.rs` — orchestration gap (consider e2e tests)

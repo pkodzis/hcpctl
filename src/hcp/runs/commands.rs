@@ -8,6 +8,7 @@ use chrono::{DateTime, Utc};
 use dialoguer::Confirm;
 use tokio::time::sleep;
 
+use super::log_utils::print_human_readable_log;
 use crate::cli::{OutputFormat, RunSortField, RunSubresource};
 use crate::hcp::runs::{Run, RunEventsResponse, RunQuery};
 use crate::hcp::traits::TfeResource;
@@ -481,9 +482,6 @@ async fn output_log(
     }
     Ok(())
 }
-
-// Use shared log parsing from log_utils module
-use super::log_utils::print_human_readable_log;
 
 /// Fetch and print log for a run (plan or apply)
 ///

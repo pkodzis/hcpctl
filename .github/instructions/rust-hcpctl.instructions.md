@@ -10,7 +10,7 @@ applyTo: 'src/**/*.rs'
 
 - Use idiomatic clap derive features:
   - `default_value_if` with `ArgPredicate::IsPresent` for conditional defaults
-  - `after_long_help` for documentation sections at bottom of help
+  - `after_help` for documentation at the bottom of short and long help (`AFTER_LONG_HELP` in `src/cli/mod.rs`); use `after_long_help` for long help only
   - `value_enum` for enums
   - `visible_alias` for kubectl-style short resource names
   - `verbatim_doc_comment` to preserve formatting in help text
@@ -19,16 +19,14 @@ applyTo: 'src/**/*.rs'
 
 ## Code Organization (per resource module)
 
-| File | Purpose | Example |
-|------|---------|---------|
-| `models.rs` | Data structures: DTOs, query params, response types, serde attrs, `TfeResource` + `PaginatedResponse` impls | `src/hcp/workspaces/models.rs` |
-| `api.rs` | HTTP/API logic as `impl TfeClient` methods | `src/hcp/workspaces/api.rs` |
-| `commands.rs` | CLI command handlers, user-facing orchestration | `src/hcp/workspaces/commands.rs` |
-| `mod.rs` | Public exports only — no logic | `src/hcp/workspaces/mod.rs` |
-| `resolver.rs` | Optional: shared resolution logic (by ID or name) | `src/hcp/workspaces/resolver.rs`, `src/hcp/projects/resolver.rs` |
-| `set_api.rs` | Optional: write/update API methods (separated from read API) | `src/hcp/workspaces/set_api.rs` |
-| `set_commands.rs` | Optional: command handlers for set/update operations | `src/hcp/workspaces/set_commands.rs` |
-| `log_utils.rs` | Optional: log streaming utilities | `src/hcp/runs/log_utils.rs` |
+- `models.rs` - Data structures: DTOs, query params, response types, serde attrs, `TfeResource` + `PaginatedResponse` impls. Example: `src/hcp/workspaces/models.rs`
+- `api.rs` - HTTP/API logic as `impl TfeClient` methods. Example: `src/hcp/workspaces/api.rs`
+- `commands.rs` - CLI command handlers, user-facing orchestration. Example: `src/hcp/workspaces/commands.rs`
+- `mod.rs` - Public exports only, no logic. Example: `src/hcp/workspaces/mod.rs`
+- `resolver.rs` - Optional: shared resolution logic (by ID or name). Examples: `src/hcp/workspaces/resolver.rs`, `src/hcp/projects/resolver.rs`
+- `set_api.rs` - Optional: write/update API methods (separated from read API). Example: `src/hcp/workspaces/set_api.rs`
+- `set_commands.rs` - Optional: command handlers for set/update operations. Example: `src/hcp/workspaces/set_commands.rs`
+- `log_utils.rs` - Optional: log streaming utilities. Example: `src/hcp/runs/log_utils.rs`
 
 ## Module Locality
 
@@ -48,24 +46,22 @@ Functions for a resource MUST live in that resource's module, not in the calling
 
 ## Pattern Checklist (verify before implementing)
 
-| Feature | Reference file | What to copy |
-|---------|---------------|--------------|
-| Output formatting | `src/output/workspaces.rs` | `comfy_table`, `SerializableX` struct, `escape_csv` |
-| Paginated API list | `src/hcp/client.rs` | Use `fetch_all_pages::<T, R>()` helper |
-| Models | `src/hcp/workspaces/models.rs` | Serde renames, `TfeResource` impl, `PaginatedResponse` impl |
-| Commands | `src/hcp/workspaces/commands.rs` | Spinner usage, filter logic, output delegation |
-| Multi-org fetch | `src/hcp/helpers.rs` | `fetch_from_organizations`, `collect_org_results` |
-| Query options | `src/hcp/workspaces/models.rs` | `WorkspaceQuery` struct pattern |
-| Resource resolution | `src/hcp/workspaces/resolver.rs` | Resolve by ID or name pattern |
-| Set/update API | `src/hcp/workspaces/set_api.rs` | Separate write API methods from read |
-| Log streaming | `src/hcp/runs/log_utils.rs` | Log parsing and streaming utilities |
+- Output formatting (`src/output/workspaces.rs`): copy `comfy_table`, `SerializableX` struct, `escape_csv`
+- Paginated API list (`src/hcp/client.rs`): use `fetch_all_pages::<T, R>()` helper
+- Models (`src/hcp/workspaces/models.rs`, `src/hcp/traits.rs`): serde renames, `TfeResource` impl, generic `ApiListResponse<T>`
+- Commands (`src/hcp/workspaces/commands.rs`): spinner usage, filter logic, output delegation
+- Multi-org fetch (`src/hcp/helpers.rs`): `fetch_from_organizations`, `collect_org_results`
+- Query options (`src/hcp/workspaces/models.rs`): `WorkspaceQuery` struct pattern
+- Resource resolution (`src/hcp/workspaces/resolver.rs`): resolve by ID or name pattern
+- Set/update API (`src/hcp/workspaces/set_api.rs`): separate write API methods from read
+- Log streaming (`src/hcp/runs/log_utils.rs`): log parsing and streaming utilities
 
 ## Extensibility
 
 - Design for easy addition of new resources/commands
 - Consistent patterns across all resource types
 - Use `TfeResource` trait for common behavior (id, name, matches)
-- Use `PaginatedResponse<T>` trait for all paginated API responses
+- Prefer the generic `ApiListResponse<T>` (`src/hcp/traits.rs`) for list endpoints; use a custom response when the endpoint's shape requires it. Any response passed to `fetch_all_pages` must implement `PaginatedResponse`.
 
 ## Command Design Philosophy
 

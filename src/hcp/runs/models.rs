@@ -397,7 +397,7 @@ impl Plan {
         self.attributes.resource_imports.unwrap_or(0)
     }
 
-    /// Get log read URL (temporary, expires in 1 minute)
+    /// Get the temporary pre-authenticated log URL
     pub fn log_read_url(&self) -> Option<&str> {
         self.attributes.log_read_url.as_deref()
     }
@@ -646,9 +646,147 @@ pub fn format_duration(d: Option<chrono::Duration>) -> String {
     }
 }
 
+/// Select the newest `count` runs by creation time, oldest first
+///
+/// Sorts by `(created-at, run id)` ascending (the run ID is a deterministic
+/// tie-breaker) and keeps the last `min(count, len)` entries. Status and
+/// operation are not considered, and the workspace's current run is irrelevant.
+/// Fails if any run has a missing or unparseable `created-at`.
+pub fn select_newest_runs(runs: Vec<Run>, count: usize) -> Result<Vec<Run>, String> {
+    let mut keyed = Vec::with_capacity(runs.len());
+    for run in runs {
+        let created = run
+            .attributes
+            .created_at
+            .as_deref()
+            .ok_or_else(|| format!("run '{}' has no created-at timestamp", run.id))?;
+        let parsed = chrono::DateTime::parse_from_rfc3339(created).map_err(|e| {
+            format!(
+                "run '{}' has an invalid created-at '{}': {}",
+                run.id, created, e
+            )
+        })?;
+        keyed.push((parsed, run));
+    }
+    keyed.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| a.1.id.cmp(&b.1.id)));
+    let skip = keyed.len().saturating_sub(count);
+    Ok(keyed.into_iter().skip(skip).map(|(_, run)| run).collect())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn run_at(id: &str, created: Option<&str>) -> Run {
+        Run {
+            id: id.to_string(),
+            attributes: RunAttributes {
+                status: "applied".to_string(),
+                message: None,
+                source: None,
+                created_at: created.map(String::from),
+                has_changes: None,
+                is_destroy: None,
+                plan_only: None,
+                auto_apply: None,
+                trigger_reason: None,
+                actions: None,
+                status_timestamps: None,
+            },
+            relationships: None,
+        }
+    }
+
+    fn ids(runs: &[Run]) -> Vec<&str> {
+        runs.iter().map(|r| r.id.as_str()).collect()
+    }
+
+    #[test]
+    fn test_select_newest_runs_unsorted_input_oldest_first() {
+        let runs = vec![
+            run_at("run-c", Some("2025-01-03T00:00:00Z")),
+            run_at("run-a", Some("2025-01-01T00:00:00Z")),
+            run_at("run-e", Some("2025-01-05T00:00:00Z")),
+            run_at("run-b", Some("2025-01-02T00:00:00Z")),
+            run_at("run-d", Some("2025-01-04T00:00:00Z")),
+        ];
+        let selected = select_newest_runs(runs, 3).unwrap();
+        assert_eq!(ids(&selected), vec!["run-c", "run-d", "run-e"]);
+    }
+
+    #[test]
+    fn test_select_newest_runs_fewer_than_count() {
+        let runs = vec![
+            run_at("run-b", Some("2025-01-02T00:00:00Z")),
+            run_at("run-a", Some("2025-01-01T00:00:00Z")),
+        ];
+        let selected = select_newest_runs(runs, 10).unwrap();
+        assert_eq!(ids(&selected), vec!["run-a", "run-b"]);
+    }
+
+    #[test]
+    fn test_select_newest_runs_count_one_is_newest_by_creation() {
+        // The newest run is listed last and is not the "current" one
+        let runs = vec![
+            run_at("run-old", Some("2025-01-01T00:00:00Z")),
+            run_at("run-new", Some("2025-06-01T00:00:00Z")),
+        ];
+        let selected = select_newest_runs(runs, 1).unwrap();
+        assert_eq!(ids(&selected), vec!["run-new"]);
+    }
+
+    #[test]
+    fn test_select_newest_runs_tie_break_by_id() {
+        let runs = vec![
+            run_at("run-b", Some("2025-01-01T00:00:00Z")),
+            run_at("run-c", Some("2025-01-01T00:00:00Z")),
+            run_at("run-a", Some("2025-01-01T00:00:00Z")),
+        ];
+        let selected = select_newest_runs(runs, 2).unwrap();
+        assert_eq!(ids(&selected), vec!["run-b", "run-c"]);
+    }
+
+    #[test]
+    fn test_select_newest_runs_fractional_seconds_and_offsets() {
+        let runs = vec![
+            run_at("run-a", Some("2025-01-01T00:00:00.900Z")),
+            run_at("run-b", Some("2025-01-01T00:00:00.100Z")),
+            // 2025-01-01T00:30:00Z expressed with an offset
+            run_at("run-c", Some("2024-12-31T19:30:00-05:00")),
+        ];
+        let selected = select_newest_runs(runs, 3).unwrap();
+        assert_eq!(ids(&selected), vec!["run-b", "run-a", "run-c"]);
+    }
+
+    #[test]
+    fn test_select_newest_runs_invalid_or_missing_timestamp_fails() {
+        let err = select_newest_runs(vec![run_at("run-x", Some("garbage"))], 1).unwrap_err();
+        assert!(err.contains("run-x"));
+        let err = select_newest_runs(vec![run_at("run-y", None)], 1).unwrap_err();
+        assert!(err.contains("run-y"));
+    }
+
+    #[test]
+    fn test_select_newest_runs_more_than_99() {
+        let runs: Vec<Run> = (0..120)
+            .rev()
+            .map(|i| {
+                run_at(
+                    &format!("run-{:03}", i),
+                    Some(&format!("2025-01-01T00:{:02}:{:02}Z", i / 60, i % 60)),
+                )
+            })
+            .collect();
+        let selected = select_newest_runs(runs, 105).unwrap();
+        assert_eq!(selected.len(), 105);
+        assert_eq!(selected[0].id, "run-015");
+        assert_eq!(selected[104].id, "run-119");
+    }
+
+    #[test]
+    fn test_select_newest_runs_empty() {
+        assert!(select_newest_runs(vec![], 3).unwrap().is_empty());
+    }
 
     #[test]
     fn test_run_status_display() {

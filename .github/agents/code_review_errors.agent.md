@@ -1,11 +1,10 @@
 ---
 description: 'Review error handling consistency and completeness in hcpctl'
-model: GPT-5.3-Codex (copilot)
-user-invokable: false
+model: ['gpt-6.1-terra (litellm-connector)', 'gemini-3.8-flash (litellm-connector)']
+user-invocable: false
 tools:
-  - search
-  - problems
   - read
+  - search
 ---
 
 # hcpctl Error Handling Analyzer
@@ -49,7 +48,7 @@ You are a specialist in Rust error handling patterns. You analyze the hcpctl cod
 2. Search for `.unwrap()` and `.expect()` in non-test code
 3. Search for `map_err` patterns and check consistency
 4. Compare error handling in `api.rs` files across all resource modules
-5. Check that user-facing error messages are helpful (include what failed, why, and what to do)
+5. Check that user-facing errors explain what failed, why, and what to do.
 
 ## Report Format
 

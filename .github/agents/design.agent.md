@@ -1,11 +1,7 @@
 ---
 description: 'Analyze requirements and design implementation plans for hcpctl — read-only, no edits'
-model: Claude Opus 4.6 (copilot)
-tools:
-  - search
-  - fetch
-  - problems
-  - read
+model: ['claude-sonnet-5-5 (litellm-connector)']
+tools: [read, search, web]
 handoffs:
   - label: Execute Plan
     agent: feature
@@ -97,4 +93,3 @@ For each file, specify:
 - Do NOT write code — only describe what to implement
 - Do NOT propose new architectural patterns — use existing ones
 - Do NOT skip the API analysis — always verify endpoints before designing
-- Do NOT design without searching the codebase first

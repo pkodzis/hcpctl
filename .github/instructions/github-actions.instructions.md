@@ -18,7 +18,7 @@ applyTo: '.github/workflows/**/*.yml'
 
 - `release.yml` — main release workflow triggered by push to `main`
 - Supports `workflow_dispatch` for manual builds with version input
-- release-please job → build matrix → upload artifacts
+- Jobs: `release-please` → `build` (matrix of 6 targets) → `upload-release` (SHA256SUMS, optional GPG signing gated by `vars.GPG_SIGNING_ENABLED`)
 
 ## Conventions
 
