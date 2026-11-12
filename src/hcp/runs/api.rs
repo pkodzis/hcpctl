@@ -21,6 +21,10 @@ use super::models::{Run, RunQuery, RunsResponse};
 pub(crate) const BULK_RUN_OPERATIONS: &str =
     "plan_and_apply,plan_only,save_plan,refresh_only,destroy,empty_apply,action_only";
 
+/// Operations understood by older TFE versions (no `action_only`)
+const LEGACY_RUN_OPERATIONS: &str =
+    "plan_and_apply,plan_only,save_plan,refresh_only,destroy,empty_apply";
+
 /// True when the leading `runs` hold at least `count` distinct runs and are
 /// verifiably ordered newest first, so later pages cannot contain newer runs.
 fn enough_newest_runs(runs: &[Run], count: usize) -> bool {
@@ -69,35 +73,55 @@ impl TfeClient {
         phases: &str,
         policy: &RetryPolicy,
     ) -> Result<(Vec<Run>, Vec<serde_json::Value>, Instant)> {
-        let base = format!(
-            "/workspaces/{}/runs?filter[operation]={}",
-            workspace_id, BULK_RUN_OPERATIONS
-        );
         // The API lists runs newest first, so only the leading pages are read.
         // Reading continues while the order is not verifiably newest-first.
         let enough = |runs: &[Run]| enough_newest_runs(runs, count);
         // Request only as many runs per page as needed (API maximum is 100)
         let page_size = count.clamp(1, 100);
         let acquired = Instant::now();
-        let path = format!("{}&include={}", base, phases);
-        let result = self
-            .fetch_all_pages_bulk::<Run, ApiListResponse<Run>>(&path, page_size, policy, &enough)
-            .await;
-        let (mut runs, included) = match result {
-            Err(TfeError::Api {
-                status: 400 | 422, ..
-            }) => {
-                // Probe without include, retaining the operation filter. If
-                // that also fails, propagate its detail: never drop operations.
-                policy.diagnostic(
-                    "Run history includes rejected; using phase metadata fallback.".into(),
-                );
-                self.fetch_all_pages_bulk::<Run, ApiListResponse<Run>>(
-                    &base, page_size, policy, &enough,
-                )
-                .await?
+        let mut operations = BULK_RUN_OPERATIONS;
+        let mut include = true;
+        let (mut runs, included) = loop {
+            let mut path = format!(
+                "/workspaces/{}/runs?filter[operation]={}",
+                workspace_id, operations
+            );
+            if include {
+                path.push_str(&format!("&include={}", phases));
             }
-            result => result?,
+            match self
+                .fetch_all_pages_bulk::<Run, ApiListResponse<Run>>(
+                    &path, page_size, policy, &enough,
+                )
+                .await
+            {
+                Err(TfeError::Api {
+                    status: status @ (400 | 422),
+                    message,
+                }) => {
+                    // Older TFE versions reject newer operation values; the
+                    // error names the filter. Otherwise the include is at fault.
+                    // Never drop any other operation silently.
+                    if operations == BULK_RUN_OPERATIONS && message.contains("action_only") {
+                        operations = LEGACY_RUN_OPERATIONS;
+                        policy.diagnostic(
+                            "Server does not support the action_only run operation; omitting it."
+                                .into(),
+                        );
+                    } else if include
+                        && !message.contains("filter param")
+                        && !message.contains("action_only")
+                    {
+                        include = false;
+                        policy.diagnostic(
+                            "Run history includes rejected; using phase metadata fallback.".into(),
+                        );
+                    } else {
+                        return Err(TfeError::Api { status, message });
+                    }
+                }
+                result => break result?,
+            }
         };
         // Pages may overlap when runs are created during the read.
         let mut seen = HashSet::new();
@@ -622,6 +646,34 @@ mod tests {
             .await;
         assert_eq!(result.unwrap(), "now available");
         assert_eq!(server.received_requests().await.unwrap().len(), 2);
+    }
+
+    #[tokio::test]
+    async fn bulk_history_omits_action_only_on_older_servers() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(query_param("filter[operation]", BULK_RUN_OPERATIONS))
+            .respond_with(ResponseTemplate::new(400).set_body_string(
+                "Bad value [action_only] given for query filter param[operation].",
+            ))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(query_param("filter[operation]", LEGACY_RUN_OPERATIONS))
+            .and(query_param("include", "plan,apply"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "data":[{"id":"run-a","attributes":{"status":"applied","created-at":"2026-01-01T00:00:00Z"}}],
+                "meta":{"pagination":{"current-page":1,"total-pages":1,"total-count":1}}
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let runs = TfeClient::test_client(&server.uri())
+            .get_newest_runs_for_workspace("ws-abc", 1, &RetryPolicy::instant())
+            .await
+            .unwrap();
+        assert_eq!(runs.len(), 1);
     }
 
     #[tokio::test]
