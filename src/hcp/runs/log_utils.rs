@@ -40,12 +40,22 @@ pub fn extract_log_message(line: &str) -> String {
 /// For other lines (headers, plain text), prints them as-is.
 /// Used by `tail_log` and log output functions.
 pub fn print_human_readable_log(content: &str) {
+    print!("{}", format_human_readable_log(content));
+}
+
+/// Format log content the same way `print_human_readable_log` prints it
+///
+/// Every kept line ends with a newline; empty messages are skipped.
+pub fn format_human_readable_log(content: &str) -> String {
+    let mut out = String::new();
     for line in content.lines() {
         let message = extract_log_message(line);
         if !message.is_empty() {
-            println!("{}", message);
+            out.push_str(&message);
+            out.push('\n');
         }
     }
+    out
 }
 
 /// Print log content with optional run ID prefix
@@ -80,6 +90,20 @@ pub fn print_log_with_prefix(content: &str, prefix: Option<&str>, raw: bool) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn formatted_log_preserves_existing_line_semantics() {
+        let input="{\"@message\":\"message\"}\r\n{\"ignored\":true}\n{invalid}\nplain\n\n{\"@message\":\"\"}\n";
+        assert_eq!(
+            format_human_readable_log(input),
+            "message\n{invalid}\nplain\n"
+        );
+        assert_eq!(format_human_readable_log(""), "");
+        assert_eq!(
+            format_human_readable_log("no trailing newline"),
+            "no trailing newline\n"
+        );
+    }
 
     #[test]
     fn test_extract_log_message_json_with_message() {

@@ -24,7 +24,7 @@ async fn main() -> ExitCode {
     }
 
     if let Err(e) = run().await {
-        eprintln!("\n{}\n", e);
+        hcpctl::ui::report::report_stderr(&format!("\n{}\n\n", e)).await;
         return ExitCode::FAILURE;
     }
     ExitCode::SUCCESS
@@ -116,7 +116,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     // Show update notification if available (non-blocking check completed)
     if let Some(handle) = update_handle {
         if let Some(msg) = handle.get() {
-            eprintln!("{}", msg);
+            hcpctl::ui::report::report_stderr(&format!("{}\n", msg)).await;
         }
     }
 

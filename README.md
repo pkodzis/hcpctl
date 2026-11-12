@@ -33,7 +33,7 @@ hcpctl get org                   # List organizations
 | `delete` | `org-member` | Remove user from organization (by ID or email) |
 | | `tag ws` | Remove tags from a workspace |
 | | `tag prj` | Remove tags from a project |
-| `logs` | — | View plan/apply logs for run or workspace's current run, follow in real-time |
+| `logs` | — | View plan/apply logs for run or workspace's current run, follow in real-time, bulk-download newest workspace runs with both phases |
 | `watch` | `ws` | Continuously monitor workspace for new runs, auto-stream logs |
 | `download` | `cv` | Download configuration version archive for a workspace |
 | `invite` | — | Invite user to organization, optionally assign to teams |

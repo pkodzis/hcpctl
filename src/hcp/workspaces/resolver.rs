@@ -3,7 +3,7 @@
 //! Provides shared functionality for resolving workspaces by ID or name,
 //! with optional auto-discovery across organizations.
 
-use futures::stream::{FuturesUnordered, StreamExt};
+use futures::stream::{self, StreamExt};
 use log::debug;
 
 use super::Workspace;
@@ -31,6 +31,15 @@ pub enum WorkspaceTarget {
     Name(String),
 }
 
+/// Reusable discovery controls; legacy callers retain their existing defaults.
+#[derive(Clone, Copy, Default)]
+pub(crate) struct WorkspaceResolutionOptions {
+    pub all_organization_pages: bool,
+    pub concurrency: Option<usize>,
+    pub propagate_errors: bool,
+    pub id_name_fallback: bool,
+}
+
 /// Parse target string to determine workspace type
 pub fn parse_workspace_target(target: &str) -> WorkspaceTarget {
     if target.starts_with("ws-") {
@@ -56,13 +65,50 @@ pub async fn resolve_workspace(
     org: Option<&str>,
     batch: bool,
 ) -> Result<ResolvedWorkspace, Box<dyn std::error::Error>> {
+    resolve_workspace_with_options(
+        client,
+        target,
+        org,
+        batch,
+        WorkspaceResolutionOptions::default(),
+    )
+    .await
+}
+
+pub(crate) async fn resolve_workspace_with_options(
+    client: &TfeClient,
+    target: &str,
+    org: Option<&str>,
+    batch: bool,
+    options: WorkspaceResolutionOptions,
+) -> Result<ResolvedWorkspace, Box<dyn std::error::Error>> {
+    if target.starts_with("ws-") && options.id_name_fallback {
+        // Prefer a real workspace ID, but a 404 is not proof this is not a name.
+        // Authentication/server errors are never converted into a name fallback.
+        if let Some((workspace, raw)) = client.get_workspace_by_id(target).await? {
+            let org = workspace
+                .organization_name()
+                .unwrap_or("unknown")
+                .to_string();
+            return Ok(ResolvedWorkspace {
+                workspace,
+                raw,
+                org,
+            });
+        }
+        return if let Some(org) = org {
+            resolve_by_name(client, org, target, batch).await
+        } else {
+            resolve_across_orgs(client, target, batch, options).await
+        };
+    }
     match parse_workspace_target(target) {
         WorkspaceTarget::Id(ws_id) => resolve_by_id(client, &ws_id, batch).await,
         WorkspaceTarget::Name(name) => {
             if let Some(org_name) = org {
                 resolve_by_name(client, org_name, &name, batch).await
             } else {
-                resolve_across_orgs(client, &name, batch).await
+                resolve_across_orgs(client, &name, batch, options).await
             }
         }
     }
@@ -123,8 +169,13 @@ async fn resolve_across_orgs(
     client: &TfeClient,
     name: &str,
     batch: bool,
+    options: WorkspaceResolutionOptions,
 ) -> Result<ResolvedWorkspace, Box<dyn std::error::Error>> {
-    let organizations = resolve_organizations(client, None).await?;
+    let organizations = if options.all_organization_pages {
+        client.get_all_organizations().await?
+    } else {
+        resolve_organizations(client, None).await?
+    };
 
     debug!(
         "Searching for workspace '{}' across {} organization(s)",
@@ -143,31 +194,39 @@ async fn resolve_across_orgs(
 
     // Search in all organizations in parallel with early termination
     let name_owned = name.to_string();
-    let mut futures: FuturesUnordered<_> = organizations
-        .iter()
-        .map(|org_name| {
-            let org = org_name.clone();
-            let ws_name = name_owned.clone();
-            async move {
-                let result = client.get_workspace_by_name(&org, &ws_name).await;
-                (org, result)
-            }
-        })
-        .collect();
+    let jobs = organizations.iter().map(|org_name| {
+        let org = org_name.clone();
+        let ws_name = name_owned.clone();
+        async move {
+            let result = client.get_workspace_by_name(&org, &ws_name).await;
+            (org, result)
+        }
+    });
+    let concurrency = options.concurrency.unwrap_or(organizations.len()).max(1);
+    let mut futures = stream::iter(jobs).buffer_unordered(concurrency);
+    let mut failure = None;
 
     // Process results as they complete, stop on first match
     while let Some((org_name, result)) = futures.next().await {
-        if let Ok(Some((ws, raw))) = result {
-            finish_spinner(spinner);
-            return Ok(ResolvedWorkspace {
-                workspace: ws,
-                raw,
-                org: org_name,
-            });
+        match result {
+            Ok(Some((ws, raw))) => {
+                finish_spinner(spinner);
+                return Ok(ResolvedWorkspace {
+                    workspace: ws,
+                    raw,
+                    org: org_name,
+                });
+            }
+            Err(error) if options.propagate_errors => failure = Some(error),
+            _ => {}
         }
     }
 
     finish_spinner(spinner);
+
+    if let Some(error) = failure {
+        return Err(error.into());
+    }
 
     let searched = if organizations.len() == 1 {
         format!("organization '{}'", organizations[0])
@@ -191,6 +250,103 @@ pub fn extract_current_run_id(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::hcp::RetryPolicy;
+
+    #[tokio::test]
+    async fn discovery_bulk_propagates_api_errors_while_single_retains_not_found() {
+        for bulk in [false, true] {
+            for status in [401, 500, 404] {
+                let server = MockServer::start().await;
+                Mock::given(method("GET"))
+                    .and(path("/organizations"))
+                    .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                        "data":[{"id":"org","attributes":{"name":"org"}}],
+                        "meta":{"pagination":{"current-page":1,"total-pages":1,"total-count":1}}
+                    })))
+                    .expect(1)
+                    .mount(&server)
+                    .await;
+                Mock::given(method("GET"))
+                    .and(path("/organizations/org/workspaces/missing"))
+                    .respond_with(ResponseTemplate::new(status))
+                    .expect(1)
+                    .mount(&server)
+                    .await;
+                let client = TfeClient::test_client(&server.uri());
+                let client = if bulk {
+                    client.with_request_policy(RetryPolicy::instant())
+                } else {
+                    client
+                };
+                let message = resolve_workspace_with_options(
+                    &client,
+                    "missing",
+                    None,
+                    true,
+                    WorkspaceResolutionOptions {
+                        all_organization_pages: bulk,
+                        propagate_errors: bulk,
+                        concurrency: bulk.then_some(4),
+                        ..Default::default()
+                    },
+                )
+                .await
+                .unwrap_err()
+                .to_string();
+                if bulk && status != 404 {
+                    assert!(message.contains(&status.to_string()));
+                } else {
+                    assert!(message.contains("not found in organization 'org'"));
+                }
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn bulk_discovery_finds_workspace_on_second_organization_page() {
+        let server = MockServer::start().await;
+        for page in 1..=2 {
+            Mock::given(method("GET")).and(path("/organizations"))
+                .and(wiremock::matchers::query_param("page[number]", page.to_string()))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "data":[{"id":format!("org-{page}"),"attributes":{"name":format!("org-{page}")}}],
+                    "meta":{"pagination":{"current-page":page,"total-pages":2,"total-count":2}}
+                }))).expect(1).mount(&server).await;
+        }
+        Mock::given(method("GET"))
+            .and(path("/organizations/org-1/workspaces/workspace"))
+            .respond_with(ResponseTemplate::new(404))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/organizations/org-2/workspaces/workspace"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(workspace_response(
+                "ws-abc",
+                "workspace",
+                "org-2",
+            )))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let client =
+            TfeClient::test_client(&server.uri()).with_request_policy(RetryPolicy::instant());
+        let resolved = resolve_workspace_with_options(
+            &client,
+            "workspace",
+            None,
+            true,
+            WorkspaceResolutionOptions {
+                all_organization_pages: true,
+                concurrency: Some(4),
+                propagate_errors: true,
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(resolved.workspace.id, "ws-abc");
+        assert_eq!(resolved.org, "org-2");
+    }
 
     #[test]
     fn test_parse_workspace_target_id() {

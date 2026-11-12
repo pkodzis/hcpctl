@@ -92,6 +92,7 @@ EXAMPLES:
   - hcpctl get ws myws --org myorg     # Get workspace details
   - hcpctl -H app.terraform.io get ws  # Use specific host
   - hcpctl -c prod get ws              # Use 'prod' context
+  - hcpctl logs myws --runs 3 --all-phases --output-dir ./out # Save newest run logs
 
 ###### **Subcommands:**
 
@@ -99,7 +100,7 @@ EXAMPLES:
 * `delete` — Delete resources
 * `purge` — Purge resources (destructive operations with mandatory confirmation)
 * `download` — Download resources (configuration files, etc.)
-* `logs` — View logs for a run (plan or apply)
+* `logs` — View run logs or bulk-download workspace run logs
 * `watch` — Watch resources for changes
 * `invite` — Invite a user to an organization
 * `set` — Set resource properties (assign workspace to project, etc.)
@@ -897,12 +898,12 @@ EXAMPLES:
 
 ## `hcpctl logs`
 
-View logs for a run (plan or apply)
+View run logs or bulk-download workspace run logs
 
 Target can be:
   run-xxx  Run ID - directly fetches logs for that run
   ws-xxx   Workspace ID - fetches current-run logs
-  name     Workspace name - fetches current-run logs (requires --org)
+  name     Workspace name - uses --org, context, or auto-discovery
 
 **Usage:** `hcpctl logs [OPTIONS] <TARGET>`
 
@@ -912,13 +913,14 @@ Target can be:
 
 * `<TARGET>` — Run ID (run-xxx), workspace ID (ws-xxx), or workspace name
 
-     - run-xxx  directly fetches logs for that run
+     - run-xxx  directly fetches logs for that run (not allowed with --runs)
      - ws-xxx   fetches logs for workspace's current run
-     - name     workspace name, fetches current run (requires --org)
+     - name     workspace name, fetches current run (organization from
+       --org, the active context, or auto-discovery)
 
 ###### **Options:**
 
-* `-O`, `--org <ORG>` — Organization name (required when target is a workspace name)
+* `-O`, `--org <ORG>` — Organization name (otherwise use active context or auto-discovery)
 * `-a`, `--apply` — Show apply log instead of plan log (default: plan)
 
   Default value: `false`
@@ -928,6 +930,15 @@ Target can be:
 * `--raw` — Output raw log without parsing (default: extract @message from JSON lines)
 
   Default value: `false`
+* `--runs <COUNT>` — Bulk mode: save logs of the newest COUNT workspace runs (by creation time)
+
+   Files go to --output-dir (default: current directory). Runs are numbered oldest first among the selected runs. Saves plan logs (or apply logs with --apply); use --all-phases for both.
+* `--all-phases` — With --runs: download both plan and apply logs of each run
+
+  Default value: `false`
+* `--output-dir <DIR>` — With --runs: existing directory to write <workspace>-<number>-<run-id>-<plan|apply>.txt files into
+
+  Default value: `.`
 
 
 
